@@ -5,3 +5,4 @@ dist
 .vite
 .tools
 .cursor
+.tmp-*
