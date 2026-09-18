@@ -29,4 +29,4 @@ Esses números são transcrição de documentos públicos da ANAC, não um instr
 
 ## Licença
 
-O **software** deste repositório está sob [CC0 1.0](LICENSE) ([leitura em português](https://creativecommons.org/publicdomain/zero/1.0/deed.pt_BR)). A tabela PMD é transcrição de atos oficiais da ANAC e **não** é licenciada por este repositório; o aviso acima continua válido.
+O **software** deste repositório está sob [CC0 1.0](LICENSE) ([leitura em português](https://creativecommons.org/publicdomain/zero/1.0/deed.pt_BR)). A tabela PMD é transcrição de atos oficiais da ANAC e **não** é licenciada por este repositório; o aviso acima continua válido. As fontes da interface (IBM Plex Sans e IBM Plex Serif) permanecem sob [SIL Open Font License 1.1](https://github.com/IBM/plex/blob/master/LICENSE.txt); não são CC0.

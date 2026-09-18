@@ -45,14 +45,14 @@ import { downloadBlob, stampFilename } from "./download";
 
 const COLORS = {
   navy: "FF1C2430",
-  copper: "FFC45C26",
-  sand: "FFF4EFE4",
-  paper: "FFFBF8F2",
-  alt: "FFF3EEE4",
+  slate: "FF2F4A63",
+  sand: "FFE4E6EA",
+  paper: "FFF5F6F4",
+  alt: "FFEEF0F2",
   green: "FFE5F3EA",
   red: "FFFDE8E4",
   white: "FFFFFFFF",
-  result: "FFF7E8C8",
+  result: "FFE8EEF3",
 } as const;
 
 interface ExcelModel {
@@ -163,13 +163,13 @@ function writePmd(
   titleRow(
     sheet.getRow(sizing.headerRow),
     `Parâmetros mínimos de dimensionamento — ${roundLabel(airport.roundId)}`,
-    COLORS.copper,
+    COLORS.slate,
     width,
   );
   colHeaders(
     sheet.getRow(sizing.colHeaderRow),
     ["Linha do PMD", "Parâmetro", "Doméstico", "Internacional", "Usado por"],
-    "FF8A4B1F",
+    COLORS.slate,
   );
 
   for (const item of sizing.rows) {
