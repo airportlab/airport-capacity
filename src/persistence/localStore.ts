@@ -13,12 +13,15 @@ import {
   paramsFromRegistry,
   seedRegistry,
 } from "../domain/contracts/catalog";
+import { isTsecParam } from "../domain/contracts/fields";
+import { equipmentTerms } from "../domain/contracts/flowParams";
 import { makeContract, requirementsFromLegacyTemplate } from "../domain/contracts/factory";
 import {
   applyPmdRequirements,
   DEFAULT_PEAK_NATURE,
   migrateLegacyPmd,
   normalizePmdBinding,
+  standardTsecForParam,
   type PeakNature,
   type RoundId,
 } from "../domain/pmd";
@@ -34,12 +37,16 @@ import type {
   PmdBinding,
   RegistryEntry,
   RegistryFlow,
-  SizingParamId,
   SizingSources,
 } from "../domain/types";
-import { COMPONENT_PARAM_IDS, SIZING_PARAM_IDS } from "../domain/types";
+import {
+  COMPONENT_PARAM_IDS,
+  JUSTIFICATIVA_IDS,
+  SIZING_PARAM_IDS,
+  type JustificativaId,
+} from "../domain/types";
 
-export const STATE_VERSION = 7 as const;
+export const STATE_VERSION = 11 as const;
 
 export interface PersistedAirportState {
   version: typeof STATE_VERSION;
@@ -123,7 +130,9 @@ function parsePmd(raw: unknown): PmdBinding | undefined {
 }
 
 function parseFlowRole(raw: unknown): OrganFunctionRole | undefined {
-  return raw === "embarque" || raw === "desembarque" ? raw : undefined;
+  return raw === "embarque" || raw === "desembarque" || raw === "unico"
+    ? raw
+    : undefined;
 }
 
 function parseFlows(raw: unknown): RegistryFlow[] | undefined {
@@ -181,6 +190,12 @@ function isCurbEntry(item: Record<string, unknown>): boolean {
   return title === "meio-fio" || title === "meio fio";
 }
 
+function parseOptionalText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
 function parseRegistry(raw: unknown): RegistryEntry[] | null {
   if (!Array.isArray(raw)) return null;
   const entries: RegistryEntry[] = [];
@@ -189,6 +204,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
       return null;
     }
     if (isCurbEntry(item)) continue;
+    const observacoes = parseOptionalText(item.observacoes);
     const fromRequirements = parseRequirements(item.requirements);
     if (fromRequirements) {
       entries.push({
@@ -199,6 +215,8 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
         pmd: parsePmd(item.pmd),
         flows: parseFlows(item.flows),
         sizingSources: parseSizingSources(item.sizingSources),
+        observacoes,
+        ...(item.hasConnection === true ? { hasConnection: true } : {}),
       });
       continue;
     }
@@ -207,6 +225,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
         id: item.id,
         title: item.title,
         requirements: requirementsFromLegacyTemplate(item.template),
+        observacoes,
       });
       continue;
     }
@@ -320,9 +339,9 @@ function applyLegacySharedDhp(
   ) as Record<ComponentId, ComponentParams>;
 }
 
-function emptySizingStrings(): Record<SizingParamId, string> {
-  return Object.fromEntries(SIZING_PARAM_IDS.map((id) => [id, ""])) as Record<
-    SizingParamId,
+function emptyJustificativaStrings(): Record<JustificativaId, string> {
+  return Object.fromEntries(JUSTIFICATIVA_IDS.map((id) => [id, ""])) as Record<
+    JustificativaId,
     string
   >;
 }
@@ -337,11 +356,11 @@ function parseJustificativas(
     if (!isRecord(raw[entry.id])) continue;
     const picked = pickStrings(
       raw[entry.id] as Record<string, unknown>,
-      SIZING_PARAM_IDS,
-      emptySizingStrings(),
+      JUSTIFICATIVA_IDS,
+      emptyJustificativaStrings(),
     );
     const trimmed: ComponentJustificativas = {};
-    for (const id of SIZING_PARAM_IDS) {
+    for (const id of JUSTIFICATIVA_IDS) {
       if (picked[id].trim() !== "") trimmed[id] = picked[id];
     }
     next[entry.id] = trimmed;
@@ -349,11 +368,60 @@ function parseJustificativas(
   return next;
 }
 
+function migrateSharedTsec(
+  registry: RegistryEntry[],
+  components: Record<ComponentId, ComponentParams>,
+  justificativas: Record<ComponentId, ComponentJustificativas>,
+  rawComponents: unknown,
+  rawJustificativas: unknown,
+): {
+  components: Record<ComponentId, ComponentParams>;
+  justificativas: Record<ComponentId, ComponentJustificativas>;
+} {
+  if (!isRecord(rawComponents)) return { components, justificativas };
+  const nextComponents = { ...components };
+  const nextJust = { ...justificativas };
+  for (const entry of registry) {
+    const raw = rawComponents[entry.id];
+    if (!isRecord(raw) || !isFiniteNumber(raw.tsec) || raw.tsec === 0) continue;
+    const terms = equipmentTerms(entry);
+    if (terms.length <= 1) continue;
+    const params = { ...(nextComponents[entry.id] ?? ({} as ComponentParams)) };
+    const rawJust =
+      isRecord(rawJustificativas) && isRecord(rawJustificativas[entry.id])
+        ? (rawJustificativas[entry.id] as Record<string, unknown>)
+        : null;
+    const sharedJust = rawJust && typeof rawJust.tsec === "string" ? rawJust.tsec : "";
+    const just = { ...(nextJust[entry.id] ?? {}) };
+    let changed = false;
+    for (const term of terms) {
+      if (!isTsecParam(term.tsec) || term.tsec === "tsec" || isFiniteNumber(raw[term.tsec])) {
+        continue;
+      }
+      params[term.tsec] = raw.tsec;
+      changed = true;
+      const standard = standardTsecForParam(entry, term.tsec);
+      if (sharedJust.trim() !== "" && standard != null && raw.tsec !== standard) {
+        just[term.tsec] = sharedJust;
+      }
+    }
+    if (changed) {
+      nextComponents[entry.id] = params;
+      nextJust[entry.id] = just;
+    }
+  }
+  return { components: nextComponents, justificativas: nextJust };
+}
+
 function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | null {
   const parsed = parseRegistry(raw.registry);
   if (parsed === null || typeof raw.savedAt !== "string") return null;
   const nature = parsePeakNature(raw.peakNature);
   const registry =
+    raw.version === 11 ||
+    raw.version === 10 ||
+    raw.version === 9 ||
+    raw.version === 8 ||
     raw.version === 7
       ? parsed.map((entry) => applyPmdRequirements(entry))
       : parsed.map((entry) => migrateLegacyPmd(entry, nature));
@@ -369,6 +437,20 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
     overlaid.components,
     raw.components,
   );
+  const justificativas = parseJustificativas(
+    raw.justificativas,
+    migrated.registry,
+  );
+  const withTsec =
+    typeof raw.version === "number" && raw.version < 11
+      ? migrateSharedTsec(
+          migrated.registry,
+          migrated.components,
+          justificativas,
+          raw.components,
+          raw.justificativas,
+        )
+      : { components: migrated.components, justificativas };
 
   return {
     version: STATE_VERSION,
@@ -377,9 +459,9 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
     airportName: typeof raw.airportName === "string" ? raw.airportName : "",
     roundId: airport.roundId,
     registry: migrated.registry,
-    components: applyLegacySharedDhp(migrated.components, raw.shared),
+    components: applyLegacySharedDhp(withTsec.components, raw.shared),
     componentOrigens: overlaid.componentOrigens,
-    justificativas: parseJustificativas(raw.justificativas, migrated.registry),
+    justificativas: withTsec.justificativas,
   };
 }
 
@@ -461,6 +543,10 @@ function parseLegacyCheckin(raw: unknown): PersistedAirportState | null {
 export function parsePersistedState(raw: unknown): PersistedAirportState | null {
   if (!isRecord(raw)) return null;
   if (
+    raw.version === 11 ||
+    raw.version === 10 ||
+    raw.version === 9 ||
+    raw.version === 8 ||
     raw.version === 7 ||
     raw.version === 6 ||
     raw.version === 5 ||

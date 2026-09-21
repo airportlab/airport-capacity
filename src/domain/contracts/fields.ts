@@ -1,5 +1,19 @@
 import type { ComponentParamId, ParamField, SizingParamId } from "../types";
-import { SIZING_PARAM_IDS } from "../types";
+import { SIZING_PARAM_IDS, TSEC_PARAM_IDS } from "../types";
+
+function tsecField(
+  id: ComponentParamId,
+  label: string,
+): ParamField<ComponentParamId> {
+  return {
+    id,
+    kind: "attribute",
+    label,
+    unit: "s",
+    defaultValue: 0,
+    origem: "Tempo em segundos de uso do equipamento.",
+  };
+}
 
 const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
   demandaPico: {
@@ -138,6 +152,31 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 400,
     origem: "Atributo do fluxo de desembarque internacional.",
   },
+  demandaPicoDomestico: {
+    id: "demandaPicoDomestico",
+    kind: "attribute",
+    label: "DHp doméstico",
+    unit: "pax/h",
+    defaultValue: 400,
+    origem: "Atributo do fluxo doméstico.",
+  },
+  demandaPicoInternacional: {
+    id: "demandaPicoInternacional",
+    kind: "attribute",
+    label: "DHp internacional",
+    unit: "pax/h",
+    defaultValue: 400,
+    origem: "Atributo do fluxo internacional.",
+  },
+  demandaPicoConexao: {
+    id: "demandaPicoConexao",
+    kind: "attribute",
+    label: "DHp embarque via conexão",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Atributo opcional do embarque via conexão. No saguão misto, demanda agregada das conexões.",
+  },
   espacoMinimoPorPassageiroEmbarqueDomestico: {
     id: "espacoMinimoPorPassageiroEmbarqueDomestico",
     kind: "sizing",
@@ -202,6 +241,38 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 25,
     origem: "PMD do saguão de desembarque, coluna internacional.",
   },
+  espacoMinimoPorPassageiroDomestico: {
+    id: "espacoMinimoPorPassageiroDomestico",
+    kind: "sizing",
+    label: "Emp · doméstico",
+    unit: "m²/pax",
+    defaultValue: 1.3,
+    origem: "PMD da linha, coluna doméstico.",
+  },
+  espacoMinimoPorPassageiroInternacional: {
+    id: "espacoMinimoPorPassageiroInternacional",
+    kind: "sizing",
+    label: "Emp · internacional",
+    unit: "m²/pax",
+    defaultValue: 1.8,
+    origem: "PMD da linha, coluna internacional.",
+  },
+  tempoDeOcupacaoDomestico: {
+    id: "tempoDeOcupacaoDomestico",
+    kind: "sizing",
+    label: "Toi · doméstico",
+    unit: "min",
+    defaultValue: 20,
+    origem: "PMD da linha, coluna doméstico.",
+  },
+  tempoDeOcupacaoInternacional: {
+    id: "tempoDeOcupacaoInternacional",
+    kind: "sizing",
+    label: "Toi · internacional",
+    unit: "min",
+    defaultValue: 30,
+    origem: "PMD da linha, coluna internacional.",
+  },
   vaEmbarque: {
     id: "vaEmbarque",
     kind: "sizing",
@@ -250,6 +321,22 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 1,
     origem: "PMD do saguão de desembarque, coluna internacional.",
   },
+  vaDomestico: {
+    id: "vaDomestico",
+    kind: "sizing",
+    label: "v.a. · doméstico",
+    unit: "v.a./pax",
+    defaultValue: 0.3,
+    origem: "Entra no numerador de Ad_dom como (1 + v.a.).",
+  },
+  vaInternacional: {
+    id: "vaInternacional",
+    kind: "sizing",
+    label: "v.a. · internacional",
+    unit: "v.a./pax",
+    defaultValue: 0.3,
+    origem: "Entra no numerador de Ad_int como (1 + v.a.).",
+  },
   va: {
     id: "va",
     kind: "sizing",
@@ -276,23 +363,39 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 0,
     origem: "Quantidade existente / instalada neste componente operacional.",
   },
-  tsec: {
-    id: "tsec",
-    kind: "attribute",
-    label: "Tempo de uso do equipamento (tsec)",
-    unit: "s",
-    defaultValue: 60,
-    origem: "Tempo em segundos de uso do equipamento.",
-  },
-  tempoOcupacaoEquipamento: {
-    id: "tempoOcupacaoEquipamento",
-    kind: "attribute",
-    label: "Tempo de ocupação do equipamento (Toi)",
-    unit: "min",
-    defaultValue: 0,
-    origem:
-      "Entra no denominador como 60 × (60 + Toi). N é o inteiro imediatamente acima do quociente.",
-  },
+  tsec: tsecField("tsec", "Tempo de uso do equipamento (tsec)"),
+  tsecDomestico: tsecField(
+    "tsecDomestico",
+    "Tempo de uso do equipamento (tsec) · doméstico",
+  ),
+  tsecInternacional: tsecField(
+    "tsecInternacional",
+    "Tempo de uso do equipamento (tsec) · internacional",
+  ),
+  tsecEmbarque: tsecField(
+    "tsecEmbarque",
+    "Tempo de uso do equipamento (tsec) · embarque",
+  ),
+  tsecDesembarque: tsecField(
+    "tsecDesembarque",
+    "Tempo de uso do equipamento (tsec) · desembarque",
+  ),
+  tsecEmbarqueDomestico: tsecField(
+    "tsecEmbarqueDomestico",
+    "Tempo de uso do equipamento (tsec) · embarque doméstico",
+  ),
+  tsecEmbarqueInternacional: tsecField(
+    "tsecEmbarqueInternacional",
+    "Tempo de uso do equipamento (tsec) · embarque internacional",
+  ),
+  tsecDesembarqueDomestico: tsecField(
+    "tsecDesembarqueDomestico",
+    "Tempo de uso do equipamento (tsec) · desembarque doméstico",
+  ),
+  tsecDesembarqueInternacional: tsecField(
+    "tsecDesembarqueInternacional",
+    "Tempo de uso do equipamento (tsec) · desembarque internacional",
+  ),
 };
 
 export const AREA_BODY_IDS: ComponentParamId[] = [
@@ -319,7 +422,6 @@ export const AREA_BODY_WITH_COMPANIONS_IDS: ComponentParamId[] = [
 export const EQUIPMENT_PARAM_IDS: ComponentParamId[] = [
   "quantidadeEquipamentos",
   "tsec",
-  "tempoOcupacaoEquipamento",
 ];
 
 export const AREA_AND_EQUIPMENT_PARAM_IDS: ComponentParamId[] = [
@@ -338,6 +440,12 @@ export function isSizingParam(id: ComponentParamId): id is SizingParamId {
 
 export function isTaxaParam(id: ComponentParamId): boolean {
   return id === "taxaDeUsoArea" || id === "taxaDeUsoEquipamento";
+}
+
+export function isTsecParam(
+  id: ComponentParamId,
+): id is (typeof TSEC_PARAM_IDS)[number] {
+  return (TSEC_PARAM_IDS as readonly string[]).includes(id);
 }
 
 export function pickFields(

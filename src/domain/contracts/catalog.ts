@@ -218,12 +218,6 @@ function overlayExampleOperatingValues(
         params.tsec = spec.tsec;
         notes.tsec = "Tempo de exemplo.";
       }
-      if (
-        field.id === "tempoOcupacaoEquipamento" &&
-        spec.tempoOcupacaoEquipamento != null
-      ) {
-        params.tempoOcupacaoEquipamento = spec.tempoOcupacaoEquipamento;
-      }
     }
   }
 }

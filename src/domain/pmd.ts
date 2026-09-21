@@ -16,8 +16,8 @@ import type {
   SizingParamId,
   SizingSources,
 } from "./types";
-import { isMixedNature } from "./types";
-import { flowParamIds } from "./contracts/flowParams";
+import { isMixedNature, natureOfEntry } from "./types";
+import { flowParamIds, tsecTargets, type TsecTarget } from "./contracts/flowParams";
 
 export type { PeakNature, RoundId };
 export type { AirportSource };
@@ -43,7 +43,7 @@ export interface PmdRow {
 }
 
 export interface PmdMetricView {
-  key: "emp" | "va" | "toi" | "seats";
+  key: "emp" | "va" | "toi" | "seats" | "tsec";
   label: string;
   unit: string;
   domestico: number | null;
@@ -162,6 +162,128 @@ const PMD_BY_ID: Record<string, PmdRow> = Object.fromEntries(
   STANDARD_PMD.map((row) => [row.id, row]),
 );
 
+export interface TsecByNature {
+  domestico: number | null;
+  internacional: number | null;
+}
+
+/**
+ * Tempo de serviço do equipamento (s). Manual de Anteprojeto, fora do PMD do contrato.
+ * Na falta de outro tempo informado, este é o padrão do requisito de equipamentos.
+ */
+export const STANDARD_TSEC: Record<string, TsecByNature> = {
+  "checkin-bagagens": { domestico: 150, internacional: 180 },
+  inspecao: { domestico: 25, internacional: 37 },
+  emigracao: { domestico: null, internacional: 75 },
+  imigracao: { domestico: null, internacional: 75 },
+};
+
+export const TSEC_MANUAL_URL =
+  "https://www.gov.br/anac/pt-br/assuntos/concessoes/ManualdeAnteprojeto.pdf";
+
+export const TSEC_MANUAL_CITATION =
+  "Manual de Anteprojeto (ANAC). Tempo de serviço do equipamento (tsec), em segundos. Padrão do requisito de equipamentos na falta de outro tempo informado.";
+
+export function standardTsec(
+  rowId: string,
+  nature: PeakNature,
+): number | null {
+  return STANDARD_TSEC[rowId]?.[nature] ?? null;
+}
+
+/** Padrão do tsec único. Com vários fluxos, cada um tem o seu. */
+export function standardTsecForEntry(entry: RegistryEntry): number | null {
+  const nature = natureOfEntry(entry);
+  if (!nature || nature === "misto") return null;
+  const rowId = entry.pmd?.rowId ?? entry.flows?.[0]?.pmd.rowId;
+  if (!rowId) return null;
+  return standardTsec(rowId, nature);
+}
+
+function rowIdForTsecTarget(
+  entry: RegistryEntry,
+  target: TsecTarget,
+): string | undefined {
+  const flow = entry.flows?.find(
+    (item) => item.role === target.role && item.pmd.nature === target.nature,
+  );
+  if (flow) return flow.pmd.rowId;
+  if (entry.pmd?.nature === target.nature) return entry.pmd.rowId;
+  return entry.pmd?.rowId ?? entry.flows?.[0]?.pmd.rowId;
+}
+
+/** Padrão do Manual de Anteprojeto para o tsec daquele fluxo. */
+export function standardTsecForParam(
+  entry: RegistryEntry,
+  id: ComponentParamId,
+): number | null {
+  const target = tsecTargets(entry).find((item) => item.id === id);
+  if (!target) return id === "tsec" ? standardTsecForEntry(entry) : null;
+  const rowId = rowIdForTsecTarget(entry, target);
+  if (!rowId) return null;
+  return standardTsec(rowId, target.nature);
+}
+
+/**
+ * Na troca de desenho, cada fluxo reabsorve o tsec só se o valor ainda era o
+ * padrão anterior (ou 0, se não havia padrão). Fluxo novo nasce no padrão dele.
+ */
+export function reabsorbTsecParams(
+  previousEntry: RegistryEntry,
+  entry: RegistryEntry,
+  previousParams: ComponentParams,
+  params: ComponentParams,
+  origens: Record<ComponentParamId, string>,
+  activeIds: ReadonlySet<ComponentParamId>,
+): void {
+  const previousBySlot = new Map<
+    string,
+    { id: ComponentParamId; value: number; standard: number | null }
+  >();
+  const previousById = new Map<
+    ComponentParamId,
+    { value: number; standard: number | null }
+  >();
+  for (const target of tsecTargets(previousEntry)) {
+    const standard = standardTsecForParam(previousEntry, target.id);
+    const item = {
+      id: target.id,
+      value: previousParams[target.id] ?? 0,
+      standard,
+    };
+    previousBySlot.set(`${target.role}:${target.nature}`, item);
+    previousById.set(target.id, item);
+  }
+  for (const target of tsecTargets(entry)) {
+    if (!activeIds.has(target.id)) continue;
+    const nextStandard = standardTsecForParam(entry, target.id);
+    const prev = previousBySlot.get(`${target.role}:${target.nature}`);
+    if (prev) {
+      const stillDefault =
+        prev.standard != null ? prev.value === prev.standard : prev.value === 0;
+      if (stillDefault) {
+        params[target.id] = nextStandard ?? 0;
+        if (nextStandard != null) origens[target.id] = TSEC_MANUAL_CITATION;
+      } else if (prev.id !== target.id) {
+        params[target.id] = prev.value;
+      }
+      continue;
+    }
+    const same = previousById.get(target.id);
+    if (same) {
+      const stillDefault =
+        same.standard != null ? same.value === same.standard : same.value === 0;
+      if (stillDefault) {
+        params[target.id] = nextStandard ?? 0;
+        if (nextStandard != null) origens[target.id] = TSEC_MANUAL_CITATION;
+      }
+      continue;
+    }
+    params[target.id] = nextStandard ?? 0;
+    if (nextStandard != null) origens[target.id] = TSEC_MANUAL_CITATION;
+  }
+}
+
 export function pmdRows(source: AirportSource = defaultAirport()): PmdRow[] {
   return PMD_TABLES[source.pmdTableId];
 }
@@ -251,7 +373,7 @@ export function sizingMetricFor(
   id: SizingParamId,
 ): PmdMetricView["key"] {
   if (id === "percentualMinimoAssentos") return "seats";
-  if (id === "va" || id.startsWith("vaE") || id.startsWith("vaD")) return "va";
+  if (id === "va" || id.startsWith("va")) return "va";
   if (id.startsWith("tempoDeOcupacao")) return "toi";
   return "emp";
 }
@@ -269,6 +391,8 @@ function areaValue(
       return values.vaPerPax;
     case "seats":
       return values.seatPercent;
+    case "tsec":
+      return null;
   }
 }
 
@@ -464,6 +588,15 @@ export function pmdSideLines(
       value: values.seatPercent,
     });
   }
+  const tsec = standardTsec(row.id, nature);
+  if (tsec != null) {
+    lines.push({
+      key: "tsec",
+      label: "tsec",
+      unit: "s",
+      value: tsec,
+    });
+  }
   return lines;
 }
 
@@ -503,6 +636,17 @@ export function pmdMetrics(row: PmdRow): PmdMetricView[] {
       unit: "%",
       domestico: row.domestico.seatPercent,
       internacional: row.internacional.seatPercent,
+    });
+  }
+  const tsecDomestico = standardTsec(row.id, "domestico");
+  const tsecInternacional = standardTsec(row.id, "internacional");
+  if (tsecDomestico != null || tsecInternacional != null) {
+    metrics.push({
+      key: "tsec",
+      label: "Tempo de serviço do equipamento (tsec)",
+      unit: "s",
+      domestico: tsecDomestico,
+      internacional: tsecInternacional,
     });
   }
   return metrics;
@@ -621,6 +765,7 @@ export function empUnitFor(
     sources.espacoMinimoPorPassageiro ??
     sources.espacoMinimoPorPassageiroEmbarque ??
     sources.espacoMinimoPorPassageiroEmbarqueDomestico ??
+    sources.espacoMinimoPorPassageiroDomestico ??
     entry.pmd;
   const row = ref ? pmdById(ref.rowId) : undefined;
   return row?.empUnit ?? (companions ? "m²/ocup" : "m²/pax");

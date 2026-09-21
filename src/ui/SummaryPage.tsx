@@ -4,6 +4,7 @@ import {
   type AirportId,
 } from "../domain/airports";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
+import { journeyLeg, journeyRank } from "../domain/templates/organs";
 import type { RequirementCheckResult, ComponentContract, ComponentId, Evaluation } from "../domain/types";
 import { formatAirportName, formatReportDate } from "./format";
 
@@ -14,6 +15,7 @@ interface SummaryPageProps {
   onAirportChange: (id: AirportId) => void;
   sourceNote: string;
   contracts: ComponentContract[];
+  kinds: Record<ComponentId, string | undefined>;
   evaluations: Record<ComponentId, Evaluation>;
   onOpenComponent: (id: ComponentId) => void;
   onRegister: () => void;
@@ -36,6 +38,34 @@ export function complianceClass(
   return check.atende ? "ok" : "fail";
 }
 
+const LEG_LABEL = {
+  embarque: "Embarque",
+  desembarque: "Desembarque",
+  outros: "Outros",
+} as const;
+
+type JourneyGroup = {
+  leg: keyof typeof LEG_LABEL;
+  contracts: ComponentContract[];
+};
+
+function journeyGroups(
+  contracts: ComponentContract[],
+  kinds: Record<ComponentId, string | undefined>,
+): JourneyGroup[] {
+  const ordered = [...contracts].sort(
+    (a, b) => journeyRank(kinds[a.id]) - journeyRank(kinds[b.id]),
+  );
+  const groups: JourneyGroup[] = [];
+  for (const contract of ordered) {
+    const leg = journeyLeg(kinds[contract.id]) ?? "outros";
+    const last = groups[groups.length - 1];
+    if (last?.leg === leg) last.contracts.push(contract);
+    else groups.push({ leg, contracts: [contract] });
+  }
+  return groups;
+}
+
 function rowTone(evaluation: Evaluation | undefined): string {
   if (!evaluation) return "";
   const checks = [evaluation.areaCheck, evaluation.equipmentCheck].filter(
@@ -52,6 +82,7 @@ export function SummaryPage({
   onAirportChange,
   sourceNote,
   contracts,
+  kinds,
   evaluations,
   onOpenComponent,
   onRegister,
@@ -66,6 +97,7 @@ export function SummaryPage({
   const failedEquipment = contracts.filter(
     (contract) => evaluations[contract.id]?.equipmentCheck?.atende === false,
   ).length;
+  const groups = journeyGroups(contracts, kinds);
 
   return (
     <div className="summary-page">
@@ -140,48 +172,53 @@ export function SummaryPage({
         ) : (
           <>
         <div className="summary-cards">
-          {contracts.map((contract) => {
-            const evaluation = evaluations[contract.id];
-            return (
-              <article
-                key={contract.id}
-                className={`summary-card ${rowTone(evaluation)}`}
-              >
-                <h3>{contract.title}</h3>
-                {evaluation?.areaCheck ? (
-                  <p className={`status-label ${complianceClass(evaluation.areaCheck)}`}>
-                    Área: {complianceLabel(evaluation.areaCheck)}
-                  </p>
-                ) : null}
-                {evaluation?.equipmentCheck ? (
-                  <p
-                    className={`status-label ${complianceClass(evaluation.equipmentCheck)}`}
+          {groups.map((group) => (
+            <section key={group.leg} className="summary-leg">
+              <h3 className="summary-leg-label">{LEG_LABEL[group.leg]}</h3>
+              {group.contracts.map((contract) => {
+                const evaluation = evaluations[contract.id];
+                return (
+                  <article
+                    key={contract.id}
+                    className={`summary-card ${rowTone(evaluation)}`}
                   >
-                    Equipamentos: {complianceLabel(evaluation.equipmentCheck)}
-                  </p>
-                ) : null}
-                {!evaluation?.areaCheck && !evaluation?.equipmentCheck ? (
-                  <p className="status-label">Sem requisitos</p>
-                ) : null}
-                <div className="summary-card-actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => onOpenComponent(contract.id)}
-                  >
-                    Abrir
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => onRemove(contract.id)}
-                  >
-                    Remover
-                  </button>
-                </div>
-              </article>
-            );
-          })}
+                    <h3>{contract.title}</h3>
+                    {evaluation?.areaCheck ? (
+                      <p className={`status-label ${complianceClass(evaluation.areaCheck)}`}>
+                        Área: {complianceLabel(evaluation.areaCheck)}
+                      </p>
+                    ) : null}
+                    {evaluation?.equipmentCheck ? (
+                      <p
+                        className={`status-label ${complianceClass(evaluation.equipmentCheck)}`}
+                      >
+                        Equipamentos: {complianceLabel(evaluation.equipmentCheck)}
+                      </p>
+                    ) : null}
+                    {!evaluation?.areaCheck && !evaluation?.equipmentCheck ? (
+                      <p className="status-label">Sem requisitos</p>
+                    ) : null}
+                    <div className="summary-card-actions">
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => onOpenComponent(contract.id)}
+                      >
+                        Abrir
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => onRemove(contract.id)}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          ))}
         </div>
         <div className="summary-table-wrap">
           <table className="summary-table">
@@ -193,39 +230,46 @@ export function SummaryPage({
                 <th></th>
               </tr>
             </thead>
-            <tbody>
-              {contracts.map((contract) => {
-                const evaluation = evaluations[contract.id];
-                return (
-                  <tr key={contract.id} className={rowTone(evaluation)}>
-                    <td>
-                      <button
-                        type="button"
-                        className="linkish"
-                        onClick={() => onOpenComponent(contract.id)}
-                      >
-                        {contract.title}
-                      </button>
-                    </td>
-                    <td className={complianceClass(evaluation?.areaCheck)}>
-                      {complianceLabel(evaluation?.areaCheck)}
-                    </td>
-                    <td className={complianceClass(evaluation?.equipmentCheck)}>
-                      {complianceLabel(evaluation?.equipmentCheck)}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => onRemove(contract.id)}
-                      >
-                        Remover
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+            {groups.map((group) => (
+              <tbody key={group.leg}>
+                <tr className="summary-leg-row">
+                  <th colSpan={4} scope="rowgroup">
+                    {LEG_LABEL[group.leg]}
+                  </th>
+                </tr>
+                {group.contracts.map((contract) => {
+                  const evaluation = evaluations[contract.id];
+                  return (
+                    <tr key={contract.id} className={rowTone(evaluation)}>
+                      <td>
+                        <button
+                          type="button"
+                          className="linkish"
+                          onClick={() => onOpenComponent(contract.id)}
+                        >
+                          {contract.title}
+                        </button>
+                      </td>
+                      <td className={complianceClass(evaluation?.areaCheck)}>
+                        {complianceLabel(evaluation?.areaCheck)}
+                      </td>
+                      <td className={complianceClass(evaluation?.equipmentCheck)}>
+                        {complianceLabel(evaluation?.equipmentCheck)}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => onRemove(contract.id)}
+                        >
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
           </table>
         </div>
           </>

@@ -8,7 +8,7 @@ import {
   defaultComponentOrigens,
   defaultComponentParams,
 } from "../domain/contracts/catalog";
-import { isSizingParam, isTaxaParam } from "../domain/contracts/fields";
+import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
 import { resolveContracts, slugify } from "../domain/contracts/factory";
 import { evaluateAll } from "../domain/engine";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
@@ -17,13 +17,21 @@ import {
   pmdOrigem,
   relabelPmdOrigens,
   resolvedSources,
+  reabsorbTsecParams,
   resolveContractValue,
   roundLabel,
   sourceCitation,
+  standardTsecForParam,
+  TSEC_MANUAL_CITATION,
 } from "../domain/pmd";
 import {
   instantiateOrgan,
+  natureOfEntry,
+  organNatureLabel,
+  rebindOrganNature,
+  remapDemandaOnNatureChange,
   templateByKind,
+  templateForEntry,
   type OrganKind,
   type OrganNature,
 } from "../domain/templates/organs";
@@ -31,11 +39,12 @@ import type {
   ComponentId,
   ComponentJustificativas,
   ComponentParamId,
+  JustificativaId,
+  ComponentParams,
   EditorTab,
   ExcelKind,
   PdfKind,
   RegistryEntry,
-  SizingParamId,
 } from "../domain/types";
 import { downloadBlob, stampFilename, waitForPaint } from "../export/download";
 import {
@@ -282,6 +291,8 @@ export function AirportEditor() {
       sizingSources: source.sizingSources
         ? { ...source.sizingSources }
         : undefined,
+      observacoes: source.observacoes,
+      hasConnection: source.hasConnection,
     };
     applyComponentRecords(
       id,
@@ -304,6 +315,10 @@ export function AirportEditor() {
     previousParams: typeof components[string] | undefined,
     previousOrigens: typeof componentOrigens[string] | undefined,
     previousEntry?: RegistryEntry,
+    options?: {
+      identityOverrides?: Partial<ComponentParams>;
+      dropSizingJustificativas?: boolean;
+    },
   ) {
     const contract = resolveContracts([entry])[0];
     const params = defaultComponentParams(contract);
@@ -336,7 +351,7 @@ export function AirportEditor() {
       "areaMedida",
       "quantidadeEquipamentos",
       "tsec",
-      "tempoOcupacaoEquipamento",
+      "demandaPicoConexao",
     ]);
     const sources = resolvedSources(entry);
     for (const field of contract.params) {
@@ -358,11 +373,29 @@ export function AirportEditor() {
       params[field.id] = overlaid.params[field.id];
       origens[field.id] = overlaid.origens[field.id];
       if (previousEntry && freshZeros.has(field.id)) {
-        params[field.id] = 0;
+        const keepManualTsec =
+          isTsecParam(field.id) && standardTsecForParam(entry, field.id) != null;
+        if (!keepManualTsec) params[field.id] = 0;
       }
       if (previousEntry && isSizingParam(field.id) && !sources[field.id]) {
         params[field.id] = 0;
       }
+    }
+    if (options?.identityOverrides) {
+      for (const field of contract.params) {
+        const override = options.identityOverrides[field.id];
+        if (override !== undefined) params[field.id] = override;
+      }
+    }
+    if (previousEntry && previousParams) {
+      reabsorbTsecParams(
+        previousEntry,
+        entry,
+        previousParams,
+        params,
+        origens,
+        new Set(contract.params.map((field) => field.id)),
+      );
     }
     if (!previousParams) {
       params.demandaPico = 0;
@@ -372,7 +405,15 @@ export function AirportEditor() {
       params.demandaPicoEmbarqueInternacional = 0;
       params.demandaPicoDesembarqueDomestico = 0;
       params.demandaPicoDesembarqueInternacional = 0;
+      params.demandaPicoDomestico = 0;
+      params.demandaPicoInternacional = 0;
+      params.demandaPicoConexao = 0;
       params.areaMedida = 0;
+    }
+    for (const field of contract.params) {
+      if (!isTsecParam(field.id)) continue;
+      const tsecStandard = standardTsecForParam(entry, field.id);
+      if (tsecStandard != null) origens[field.id] = TSEC_MANUAL_CITATION;
     }
     setComponents((current) => ({ ...current, [id]: params }));
     setComponentOrigens((current) => ({ ...current, [id]: origens }));
@@ -384,6 +425,9 @@ export function AirportEditor() {
       ),
     }));
     setJustificativas((current) => {
+      if (options?.dropSizingJustificativas) {
+        return { ...current, [id]: {} };
+      }
       const kept: ComponentJustificativas = {};
       for (const field of contract.params) {
         if (!isSizingParam(field.id)) continue;
@@ -391,8 +435,42 @@ export function AirportEditor() {
         const text = current[id]?.[field.id];
         if (text) kept[field.id] = text;
       }
+      for (const field of contract.params) {
+        if (!isTsecParam(field.id)) continue;
+        const tsecText = current[id]?.[field.id];
+        const tsecStandard = standardTsecForParam(entry, field.id);
+        if (tsecText && tsecStandard != null && params[field.id] !== tsecStandard) {
+          kept[field.id] = tsecText;
+        }
+      }
       return { ...current, [id]: kept };
     });
+  }
+
+  function handleNatureChange(id: ComponentId, nature: OrganNature) {
+    const current = registry.find((entry) => entry.id === id);
+    if (!current) return;
+    if (natureOfEntry(current) === nature) return;
+    const next = rebindOrganNature(current, nature);
+    if (next === current) return;
+    const previousParams = components[id];
+    applyComponentRecords(
+      id,
+      next,
+      previousParams,
+      componentOrigens[id],
+      current,
+      {
+        identityOverrides: previousParams
+          ? remapDemandaOnNatureChange(current, next, previousParams)
+          : undefined,
+        dropSizingJustificativas: true,
+      },
+    );
+    setRegistry((entries) =>
+      entries.map((entry) => (entry.id === id ? next : entry)),
+    );
+    setMessage(`Natureza alterada para ${organNatureLabel(nature)}.`);
   }
 
   function updateRequirements(
@@ -449,6 +527,13 @@ export function AirportEditor() {
         },
       };
     });
+  }
+
+  function handleSetConnection(id: ComponentId, hasConnection: boolean) {
+    updateRequirements(id, (entry) => ({
+      ...entry,
+      hasConnection: hasConnection || undefined,
+    }));
   }
 
   function handleSetEquipmentTaxa(id: ComponentId, taxaDiferente: boolean) {
@@ -537,9 +622,19 @@ export function AirportEditor() {
     );
   }
 
+  function handleObservacoesChange(id: ComponentId, raw: string) {
+    setRegistry((current) =>
+      current.map((entry) => {
+        if (entry.id !== id) return entry;
+        const observacoes = raw.trim() === "" ? undefined : raw;
+        return { ...entry, observacoes };
+      }),
+    );
+  }
+
   function handleJustificationChange(
     componentId: ComponentId,
-    id: SizingParamId,
+    id: JustificativaId,
     raw: string,
   ) {
     setJustificativas((current) => ({
@@ -548,10 +643,29 @@ export function AirportEditor() {
     }));
   }
 
-  function handleRestoreContract(componentId: ComponentId, id: SizingParamId) {
+  function handleRestoreContract(componentId: ComponentId, id: JustificativaId) {
     const contract = contracts.find((item) => item.id === componentId);
     const field = contract?.params.find((item) => item.id === id);
     if (!contract || !field) return;
+    if (isTsecParam(id)) {
+      const entry = registry.find((item) => item.id === componentId);
+      const standard = entry ? standardTsecForParam(entry, id) : null;
+      if (standard == null) return;
+      updateComponent(componentId, id, formatEditable(standard));
+      setComponentOrigens((current) => ({
+        ...current,
+        [componentId]: {
+          ...current[componentId],
+          [id]: TSEC_MANUAL_CITATION,
+        },
+      }));
+      setJustificativas((current) => {
+        const next = { ...(current[componentId] ?? {}) };
+        delete next[id];
+        return { ...current, [componentId]: next };
+      });
+      return;
+    }
     const entry = registry.find((item) => item.id === componentId);
     const meta = resolveContractValue(entry, field);
     const sourceRef = entry ? resolvedSources(entry)[id] : undefined;
@@ -725,6 +839,12 @@ export function AirportEditor() {
           onAirportChange={handleAirportChange}
           sourceNote={sourceCitation(airport)}
           contracts={contracts}
+          kinds={Object.fromEntries(
+            registry.map((entry) => [
+              entry.id,
+              entry.kind ?? templateForEntry(entry)?.kind,
+            ]),
+          )}
           evaluations={evaluations}
           onOpenComponent={setTab}
           onRegister={() => setRegisterOpen(true)}
@@ -768,6 +888,9 @@ export function AirportEditor() {
           evaluation={evaluations[activeContract.id]}
           canRemove={registry.length > 0}
           onTitleChange={(title) => handleRename(activeContract.id, title)}
+          onObservacoesChange={(raw) =>
+            handleObservacoesChange(activeContract.id, raw)
+          }
           onRemove={() => handleRemove(activeContract.id)}
           onAddArea={(companions) => handleAddArea(activeContract.id, companions)}
           onSetCompanions={(companions) =>
@@ -782,6 +905,12 @@ export function AirportEditor() {
             handleSetEquipmentTaxa(activeContract.id, taxaDiferente)
           }
           onRemoveEquipment={() => handleRemoveEquipment(activeContract.id)}
+          onSetConnection={(hasConnection) =>
+            handleSetConnection(activeContract.id, hasConnection)
+          }
+          onNatureChange={(nature) =>
+            handleNatureChange(activeContract.id, nature)
+          }
           onValueChange={(id, raw) =>
             updateComponent(activeContract.id, id, raw)
           }

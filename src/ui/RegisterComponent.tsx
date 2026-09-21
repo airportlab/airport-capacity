@@ -125,8 +125,9 @@ export function RegisterComponent({
       >
         <h2 id="cadastrar-titulo">Cadastrar componente</h2>
         <p className="panel-lead">
-          O tipo do PMD é o componente operacional. Saguão de embarque e
-          saguão combinado admitem natureza mista. Emp, Toi, v.a. e assentos
+          O tipo do PMD é o componente operacional. Saguão de embarque,
+          saguão combinado e check-in admitem natureza mista. Emp, Toi, v.a. e
+          assentos
           ficam ligados a essa fonte. Área e equipamentos são opcionais e
           entram depois, no editor.
         </p>
@@ -168,20 +169,22 @@ export function RegisterComponent({
             </label>
             <fieldset className="field nature-fieldset">
               <legend className="field-label">Natureza</legend>
-              {natures.map((item) => (
-                <label key={item} className="choice">
-                  <input
-                    type="radio"
-                    name="natureza"
-                    checked={resolvedNature === item}
-                    onChange={() => {
-                      setNature(item);
-                      setTitleTouched(false);
-                    }}
-                  />
-                  {organNatureLabel(item)}
-                </label>
-              ))}
+              <div className="nature-options">
+                {natures.map((item) => (
+                  <label key={item} className="choice">
+                    <input
+                      type="radio"
+                      name="natureza"
+                      checked={resolvedNature === item}
+                      onChange={() => {
+                        setNature(item);
+                        setTitleTouched(false);
+                      }}
+                    />
+                    {organNatureLabel(item)}
+                  </label>
+                ))}
+              </div>
             </fieldset>
             {absorbed.length > 0 ? (
               <div className="pmd-absorb">

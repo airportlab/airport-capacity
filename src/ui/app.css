@@ -149,6 +149,10 @@
   font-size: 0.92rem;
 }
 
+.round-meta a {
+  color: var(--slate);
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;
@@ -536,7 +540,27 @@ button.pmd-card.empty {
 
 .summary-cards {
   display: none;
+  gap: 20px;
+}
+
+.summary-leg {
+  display: grid;
   gap: 12px;
+}
+
+.summary-leg-label,
+.summary-leg-row th {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--quiet);
+}
+
+.summary-leg-row th {
+  padding-top: 18px;
+  border-bottom: 0;
 }
 
 .summary-card {
@@ -606,6 +630,15 @@ button.pmd-card.empty {
   font-size: 1.05rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.panel h2.panel-follow {
+  margin-top: 28px;
+}
+
+.panel-notice {
+  margin-top: 0;
+  margin-bottom: 16px;
 }
 
 .fields {
@@ -726,7 +759,6 @@ fieldset.field {
   padding: 14px 16px;
   background: var(--sand);
   border-radius: 12px;
-  overflow-x: auto;
 }
 
 .formula-kicker {
@@ -752,12 +784,64 @@ fieldset.field {
   justify-content: flex-start;
   gap: 0.35em;
   margin: 4px 0 2px;
+  padding-block: 0.12em;
   font-family: var(--font-serif);
   font-style: italic;
   font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+  line-height: 1.35;
   color: var(--ink);
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tex-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.tex-plus {
+  font-style: normal;
+  flex: 0 0 0.9em;
+  text-align: center;
+}
+
+.tex-ceil-stack {
+  align-items: stretch;
+}
+
+.tex-ceil-stack .tex-lhs,
+.tex-ceil-stack .tex-eq {
+  align-self: center;
+}
+
+.tex-ceil-terms {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45em;
+  padding: 0.2em 0.15em;
+}
+
+.tex-ceil-stack .tex-ceil-brace {
+  position: relative;
+  width: 0.55em;
+  font-size: 1em;
+  align-self: stretch;
+}
+
+.tex-ceil-stack .tex-ceil-brace::before {
+  content: "";
+  position: absolute;
+  inset: 0.08em 0.14em 0.05em;
+  border-top: 1.6px solid currentColor;
+  border-left: 1.6px solid currentColor;
+}
+
+.tex-ceil-stack .tex-ceil-brace-close::before {
+  border-left: 0;
+  border-right: 1.6px solid currentColor;
 }
 
 .tex-frac {
@@ -777,6 +861,24 @@ fieldset.field {
 
 .tex-den {
   padding: 0.12em 0.45em 0;
+}
+
+.tex-sym {
+  white-space: nowrap;
+}
+
+.tex-sym sub,
+.tex sub,
+.formula-legend sub,
+.result-label sub,
+.report sub {
+  font-size: 0.62em;
+  font-style: italic;
+  vertical-align: -0.2em;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+  letter-spacing: 0;
 }
 
 .tex-ceil-brace {
@@ -860,17 +962,29 @@ fieldset.field {
 }
 
 .nature-fieldset {
+  display: block;
   border: 0;
   margin: 0 0 16px;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 18px;
+  min-width: 0;
 }
 
 .nature-fieldset legend {
   padding: 0;
   margin: 0 0 8px;
+}
+
+.nature-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
+.nature-options .choice {
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .pmd-absorb {

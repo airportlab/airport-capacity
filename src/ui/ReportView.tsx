@@ -7,12 +7,12 @@ import type {
   PdfKind,
   RegistryEntry,
 } from "../domain/types";
-import { isDualContract } from "../domain/contracts/factory";
+import { contractHasConnection, isDualContract } from "../domain/contracts/factory";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import { usesAreaTaxa } from "../domain/types";
 import { roundLabel, sourceCitation } from "../domain/pmd";
 import { formatAirportName, formatNumber, formatReportDate, formatSaturacao } from "./format";
-import { AreaEquation } from "./FormulaCard";
+import { AreaEquation, TexText } from "./FormulaCard";
 import { PmdTable } from "./PmdTable";
 import { complianceClass, complianceLabel } from "./SummaryPage";
 
@@ -108,6 +108,9 @@ export function ReportView({
               contract={contract}
               evaluation={evaluations[contract.id]}
               origens={componentOrigens[contract.id] ?? {}}
+              observacoes={
+                registry.find((item) => item.id === contract.id)?.observacoes
+              }
             />
           ))}
         </>
@@ -120,11 +123,14 @@ function ComponentSections({
   contract,
   evaluation,
   origens,
+  observacoes,
 }: {
   contract: ComponentContract;
   evaluation: Evaluation;
   origens: Partial<Record<ComponentParamId, string>>;
+  observacoes?: string;
 }) {
+  const note = observacoes?.trim() ?? "";
   return (
     <>
       <section>
@@ -149,6 +155,11 @@ function ComponentSections({
             ))}
           </tbody>
         </table>
+        {note ? (
+          <p>
+            <strong>Observações.</strong> {note}
+          </p>
+        ) : null}
       </section>
 
       <section>
@@ -171,18 +182,19 @@ function ComponentSections({
                 </td>
                 <td>{formula.unit}</td>
                 <td>
-                  {formula.id === "areaMinima" && isDualContract(contract)
-                    ? formula.expression
-                    : formula.id === "areaMinima"
-                      ? (
-                          <AreaEquation
-                            companions={
-                              contract.requirements.area?.companions === true
-                            }
-                            includeTaxa={usesAreaTaxa(contract.requirements)}
-                          />
-                        )
-                      : formula.expression}
+                  {formula.id === "areaMinima" &&
+                  !(isDualContract(contract) || contractHasConnection(contract))
+                    ? (
+                        <AreaEquation
+                          companions={
+                            contract.requirements.area?.companions === true
+                          }
+                          includeTaxa={usesAreaTaxa(contract.requirements)}
+                        />
+                      )
+                    : (
+                        <TexText text={formula.expression} />
+                      )}
                 </td>
               </tr>
             ))}

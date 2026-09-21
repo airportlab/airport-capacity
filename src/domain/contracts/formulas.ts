@@ -1,16 +1,20 @@
 import type {
   ComponentParamId,
   ContractFormula,
+  EquipmentTerm,
   ExcelCellMap,
   ResolvedInputs,
 } from "../types";
 import type { FlowParamIds } from "./flowParams";
-import { demandSum } from "./flowParams";
+import { demandSum, tsecIdForToi } from "./flowParams";
 import {
   areaFormulaDisplay,
+  connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
   mixedAreaSumDisplay,
+  simpleConnectionSumDisplay,
+  singleFunctionMixedSumDisplay,
 } from "./notations";
 
 function requiredCell(
@@ -107,8 +111,33 @@ function flowAreaLabel(flow: FlowParamIds, mixedNature: boolean): string {
       "Área mínima de desembarque doméstico (Ad_d,dom)",
     areaMinimaDesembarqueInternacional:
       "Área mínima de desembarque internacional (Ad_d,int)",
+    areaMinimaDomestico: "Área mínima doméstica (Ad_dom)",
+    areaMinimaInternacional: "Área mínima internacional (Ad_int)",
   };
   return labels[flow.area] ?? "Área mínima";
+}
+
+function flowNotationSuffix(area: FlowParamIds["area"]): string {
+  switch (area) {
+    case "areaMinimaEmbarque":
+      return "_e";
+    case "areaMinimaDesembarque":
+      return "_d";
+    case "areaMinimaEmbarqueDomestico":
+      return "_e,dom";
+    case "areaMinimaEmbarqueInternacional":
+      return "_e,int";
+    case "areaMinimaDesembarqueDomestico":
+      return "_d,dom";
+    case "areaMinimaDesembarqueInternacional":
+      return "_d,int";
+    case "areaMinimaDomestico":
+      return "_dom";
+    case "areaMinimaInternacional":
+      return "_int";
+    default:
+      return "";
+  }
 }
 
 function flowAreaExpression(
@@ -116,12 +145,7 @@ function flowAreaExpression(
   companions: boolean,
   includeTaxa: boolean,
 ): string {
-  const suffix = flow.area
-    .replace("areaMinima", "")
-    .replace("Embarque", "_e")
-    .replace("Desembarque", "_d")
-    .replace("Domestico", ",dom")
-    .replace("Internacional", ",int");
+  const suffix = flowNotationSuffix(flow.area);
   const dhp = withDemandTu(`DHp${suffix}`, includeTaxa);
   const emp = `Emp${suffix}`;
   const toi = `Toi${suffix}`;
@@ -132,6 +156,37 @@ function flowAreaExpression(
 
 function withDemandTu(demand: string, includeTaxa: boolean): string {
   return includeTaxa ? `${demand} × Tu` : demand;
+}
+
+function equipmentDemandExcel(
+  cells: ExcelCellMap["inputs"],
+  demandIds: readonly ComponentParamId[],
+  taxaId: ComponentParamId | null,
+): string {
+  if (demandIds.length === 1) {
+    return usedDemandExcel(cells, demandIds[0], taxaId);
+  }
+  const sum = `(${demandIds.map((id) => requiredCell(cells, id)).join("+")})`;
+  if (!taxaId || !cells[taxaId]) return sum;
+  return `${sum}*(${requiredCell(cells, taxaId)}/100)`;
+}
+
+export function equipmentProcessingLoad(
+  inputs: ResolvedInputs,
+  terms: readonly EquipmentTerm[],
+  taxaId: ComponentParamId | null,
+): number {
+  const factor = utilizationFactor(inputs, taxaId);
+  let sum = 0;
+  for (const term of terms) {
+    const denom = 60 * (60 + inputs[term.toi]);
+    if (!Number.isFinite(denom) || denom === 0) return Number.NaN;
+    const piece =
+      (demandSum(inputs, term.demandIds) * factor * inputs[term.tsec]) / denom;
+    if (!Number.isFinite(piece)) return Number.NaN;
+    sum += piece;
+  }
+  return sum;
 }
 
 export function capacityFormulas(copy: {
@@ -146,6 +201,8 @@ export function capacityFormulas(copy: {
   companions?: boolean;
   flows?: FlowParamIds[];
   demandIds?: ComponentParamId[];
+  connection?: FlowParamIds | null;
+  equipmentTerms?: EquipmentTerm[];
 }): ContractFormula[] {
   const includeUsoReal = copy.includeUsoReal ?? false;
   const includeArea = copy.includeArea ?? false;
@@ -156,9 +213,29 @@ export function capacityFormulas(copy: {
   const companions = copy.companions ?? false;
   const flows = copy.flows ?? [];
   const demandIds = copy.demandIds ?? ["demandaPico"];
+  const connection = copy.connection ?? null;
+  const equipmentTerms: EquipmentTerm[] =
+    copy.equipmentTerms && copy.equipmentTerms.length > 0
+      ? copy.equipmentTerms
+      : flows.length > 0
+        ? flows.map((flow) => {
+            const ids: ComponentParamId[] = [flow.demanda];
+            if (connection && connection.toi === flow.toi) {
+              ids.push(connection.demanda);
+            }
+            return {
+              demandIds: ids,
+              toi: flow.toi,
+              tsec: tsecIdForToi(flow.toi, flows.length > 1),
+            };
+          })
+        : [{ demandIds, toi: "tempoDeOcupacao", tsec: "tsec" }];
   const mixedNature = flows.some(
     (flow) =>
       flow.area.includes("Domestico") || flow.area.includes("Internacional"),
+  );
+  const singleFunctionMixed = flows.some(
+    (flow) => flow.area === "areaMinimaDomestico",
   );
   const areaTaxaId: ComponentParamId | null = includeAreaTaxa
     ? "taxaDeUsoArea"
@@ -196,9 +273,40 @@ export function capacityFormulas(copy: {
           areaExcel(cells, flow.demanda, flow.emp, flow.toi, va, areaTaxaId),
       });
     }
-    const sumDisplay = mixedNature
-      ? mixedAreaSumDisplay(flows.length)
-      : dualAreaSumDisplay();
+    if (connection) {
+      const empSuffix = mixedNature ? "_e,dom" : "_e";
+      const expression = connectionAreaDisplay(includeAreaTaxa, empSuffix);
+      formulas.push({
+        id: connection.area,
+        label: "Área mínima de conexões (Ad_c)",
+        unit: "m²",
+        origem: `${expression}. Conexões sem acompanhante.`,
+        expression,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            connection.demanda,
+            connection.emp,
+            connection.toi,
+            undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          areaExcel(
+            cells,
+            connection.demanda,
+            connection.emp,
+            connection.toi,
+            undefined,
+            areaTaxaId,
+          ),
+      });
+    }
+    const sumDisplay = singleFunctionMixed
+      ? singleFunctionMixedSumDisplay()
+      : mixedNature
+        ? mixedAreaSumDisplay(flows.length, Boolean(connection))
+        : dualAreaSumDisplay(Boolean(connection));
     formulas.push({
       id: "areaMinima",
       label: "Área mínima necessária (Ad)",
@@ -218,47 +326,168 @@ export function capacityFormulas(copy: {
               areaTaxaId,
             ),
           0,
-        ),
-      toExcel: (cells) =>
-        flows
-          .map((flow) =>
+        ) +
+        (connection
+          ? areaValue(
+              inputs,
+              connection.demanda,
+              connection.emp,
+              connection.toi,
+              undefined,
+              areaTaxaId,
+            )
+          : 0),
+      toExcel: (cells) => {
+        const parts = flows.map((flow) =>
+          areaExcel(
+            cells,
+            flow.demanda,
+            flow.emp,
+            flow.toi,
+            companions ? flow.va : undefined,
+            areaTaxaId,
+          ),
+        );
+        if (connection) {
+          parts.push(
             areaExcel(
               cells,
-              flow.demanda,
-              flow.emp,
-              flow.toi,
-              companions ? flow.va : undefined,
+              connection.demanda,
+              connection.emp,
+              connection.toi,
+              undefined,
               areaTaxaId,
             ),
-          )
-          .join("+"),
+          );
+        }
+        return parts.join("+");
+      },
     });
   } else if (includeArea) {
-    formulas.push({
-      id: "areaMinima",
-      label: "Área mínima necessária (Ad)",
-      unit: "m²",
-      origem: `${areaFormulaDisplay(companions, includeAreaTaxa)}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
-      expression: areaFormulaDisplay(companions, includeAreaTaxa),
-      evaluate: (inputs) =>
-        areaValue(
-          inputs,
-          "demandaPico",
-          "espacoMinimoPorPassageiro",
-          "tempoDeOcupacao",
-          companions ? "va" : undefined,
-          areaTaxaId,
-        ),
-      toExcel: (cells) =>
-        areaExcel(
-          cells,
-          "demandaPico",
-          "espacoMinimoPorPassageiro",
-          "tempoDeOcupacao",
-          companions ? "va" : undefined,
-          areaTaxaId,
-        ),
-    });
+    if (connection) {
+      const originExpression = `Ad_e = ${areaFormulaDisplay(companions, includeAreaTaxa).replace("Ad = ", "")}`;
+      formulas.push({
+        id: "areaMinimaEmbarque",
+        label: "Área mínima de embarque (Ad_e)",
+        unit: "m²",
+        origem: originExpression,
+        expression: originExpression,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          areaExcel(
+            cells,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+            areaTaxaId,
+          ),
+      });
+      const connectionExpression = connectionAreaDisplay(includeAreaTaxa);
+      formulas.push({
+        id: connection.area,
+        label: "Área mínima de conexões (Ad_c)",
+        unit: "m²",
+        origem: `${connectionExpression}. Conexões sem acompanhante.`,
+        expression: connectionExpression,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            connection.demanda,
+            connection.emp,
+            connection.toi,
+            undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          areaExcel(
+            cells,
+            connection.demanda,
+            connection.emp,
+            connection.toi,
+            undefined,
+            areaTaxaId,
+          ),
+      });
+      const sumDisplay = simpleConnectionSumDisplay();
+      formulas.push({
+        id: "areaMinima",
+        label: "Área mínima necessária (Ad)",
+        unit: "m²",
+        origem: `${sumDisplay}. Uma área medida do recinto contra a soma das contas.`,
+        expression: sumDisplay,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+            areaTaxaId,
+          ) +
+          areaValue(
+            inputs,
+            connection.demanda,
+            connection.emp,
+            connection.toi,
+            undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          [
+            areaExcel(
+              cells,
+              "demandaPico",
+              "espacoMinimoPorPassageiro",
+              "tempoDeOcupacao",
+              companions ? "va" : undefined,
+              areaTaxaId,
+            ),
+            areaExcel(
+              cells,
+              connection.demanda,
+              connection.emp,
+              connection.toi,
+              undefined,
+              areaTaxaId,
+            ),
+          ].join("+"),
+      });
+    } else {
+      formulas.push({
+        id: "areaMinima",
+        label: "Área mínima necessária (Ad)",
+        unit: "m²",
+        origem: `${areaFormulaDisplay(companions, includeAreaTaxa)}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
+        expression: areaFormulaDisplay(companions, includeAreaTaxa),
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          areaExcel(
+            cells,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+            areaTaxaId,
+          ),
+      });
+    }
   }
 
   const seatsDemand = withDemandTu("DHp", includeAreaTaxa);
@@ -302,37 +531,29 @@ export function capacityFormulas(copy: {
   }
 
   if (includeEquipment) {
-    const multi = demandIds.length > 1;
+    const multi = equipmentTerms.length > 1;
     formulas.push({
       id: "numeroMinimoEquipamentos",
       label: "Número mínimo de equipamentos",
       unit: "un",
       origem: multi
-        ? "Número mínimo inteiro de equipamentos, arredondado para cima. A demanda no recinto é a soma dos DHp, sem fundi-los. Toi do equipamento em minutos; tsec em segundos."
-        : `Número mínimo inteiro de equipamentos, arredondado para cima: ${equipmentFormulaDisplay(1, false, includeEquipmentTaxa)}. Toi do equipamento em minutos; tsec em segundos.`,
-      expression: equipmentFormulaDisplay(
-        demandIds.length,
-        mixedNature,
-        includeEquipmentTaxa,
-      ),
-      evaluate: (inputs) => {
-        const denom = 60 * (60 + inputs.tempoOcupacaoEquipamento);
-        if (denom === 0) return Number.NaN;
-        return ceilCount(
-          (demandSum(inputs, demandIds) *
-            utilizationFactor(inputs, equipmentTaxaId) *
-            inputs.tsec) /
-            denom,
-        );
-      },
+        ? "Número mínimo inteiro de equipamentos, arredondado para cima. Cada fluxo usa o seu Toi e o seu tsec; N é o teto da soma. tsec em segundos."
+        : `Número mínimo inteiro de equipamentos, arredondado para cima: ${equipmentFormulaDisplay(equipmentTerms, includeEquipmentTaxa)}. O Toi é o tempo de ocupação do requisito de área, em minutos; tsec em segundos.`,
+      expression: equipmentFormulaDisplay(equipmentTerms, includeEquipmentTaxa),
+      evaluate: (inputs) =>
+        ceilCount(
+          equipmentProcessingLoad(inputs, equipmentTerms, equipmentTaxaId),
+        ),
       toExcel: (cells) => {
-        const demanda =
-          demandIds.length === 1
-            ? usedDemandExcel(cells, demandIds[0], equipmentTaxaId)
-            : equipmentTaxaId && cells[equipmentTaxaId]
-              ? `(${demandIds.map((id) => requiredCell(cells, id)).join("+")})*(${requiredCell(cells, equipmentTaxaId)}/100)`
-              : `(${demandIds.map((id) => requiredCell(cells, id)).join("+")})`;
-        return `ROUNDUP((${demanda}*${requiredCell(cells, "tsec")})/(60*(60+${requiredCell(cells, "tempoOcupacaoEquipamento")})),0)`;
+        const parts = equipmentTerms.map((term) => {
+          const demanda = equipmentDemandExcel(
+            cells,
+            term.demandIds,
+            equipmentTaxaId,
+          );
+          return `(${demanda}*${requiredCell(cells, term.tsec)})/(60*(60+${requiredCell(cells, term.toi)}))`;
+        });
+        return `ROUNDUP(${parts.join("+")},0)`;
       },
     });
   }

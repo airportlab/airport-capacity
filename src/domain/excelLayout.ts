@@ -1,6 +1,10 @@
 import { defaultAirport, type AirportSource } from "./airports";
 import { pmdMetrics, pmdRows } from "./pmd";
 import { mixedSpecsForParams } from "./contracts/flowParams";
+import {
+  contractHasConnection,
+  isMixedNatureContract,
+} from "./contracts/factory";
 import type {
   ComponentContract,
   ComponentId,
@@ -30,6 +34,7 @@ export interface ComponentExcelLayout extends ExcelCellMap {
   colHeaderRow: number;
   inputRows: Partial<Record<InputId, number>>;
   resultRows: Partial<Record<ResultId, number>>;
+  notesRow: number;
   checkRow: number | null;
   localIds: ComponentParamId[];
   band: "even" | "odd";
@@ -67,6 +72,7 @@ export interface NatureEquipmentRowLayout {
   row: number;
   inputs: ExcelCellMap["inputs"];
   results: ExcelCellMap["results"];
+  label?: string;
 }
 
 export interface NatureAreaBlockLayout {
@@ -82,6 +88,7 @@ export interface NatureEquipmentBlockLayout {
   noteRow: number;
   colHeaderRow: number;
   rows: Record<ComponentId, NatureEquipmentRowLayout>;
+  flowRows: Record<ComponentId, NatureEquipmentRowLayout[]>;
 }
 
 export interface NatureSheetLayout extends ExcelHeaderLayout {
@@ -181,7 +188,7 @@ export function getSingleSheetLayout(
     const resultRows = Object.values(last.resultRows);
     const end =
       last.checkRow ??
-      (resultRows.length > 0 ? Math.max(...resultRows) : last.colHeaderRow);
+      (resultRows.length > 0 ? Math.max(...resultRows) : last.notesRow);
     row = end + 2;
   });
 
@@ -195,6 +202,81 @@ export function getSingleSheetLayout(
     summary: preamble.summary,
     sizing: preamble.sizing,
     components,
+  };
+}
+
+function equipmentFlowLabel(toi: ComponentParamId): string {
+  switch (toi) {
+    case "tempoDeOcupacaoEmbarque":
+      return "embarque";
+    case "tempoDeOcupacaoDesembarque":
+      return "desembarque";
+    case "tempoDeOcupacaoEmbarqueDomestico":
+      return "embarque doméstico";
+    case "tempoDeOcupacaoEmbarqueInternacional":
+      return "embarque internacional";
+    case "tempoDeOcupacaoDesembarqueDomestico":
+      return "desembarque doméstico";
+    case "tempoDeOcupacaoDesembarqueInternacional":
+      return "desembarque internacional";
+    case "tempoDeOcupacaoDomestico":
+      return "doméstico";
+    case "tempoDeOcupacaoInternacional":
+      return "internacional";
+    default:
+      return "fluxo";
+  }
+}
+
+function connectionSizing(contract: ComponentContract): {
+  emp: ComponentParamId;
+  toi: ComponentParamId;
+} {
+  if (
+    contract.params.some(
+      (field) => field.id === "espacoMinimoPorPassageiroEmbarqueDomestico",
+    )
+  ) {
+    return {
+      emp: "espacoMinimoPorPassageiroEmbarqueDomestico",
+      toi: "tempoDeOcupacaoEmbarqueDomestico",
+    };
+  }
+  if (
+    contract.params.some(
+      (field) => field.id === "espacoMinimoPorPassageiroEmbarque",
+    )
+  ) {
+    return {
+      emp: "espacoMinimoPorPassageiroEmbarque",
+      toi: "tempoDeOcupacaoEmbarque",
+    };
+  }
+  return {
+    emp: "espacoMinimoPorPassageiro",
+    toi: "tempoDeOcupacao",
+  };
+}
+
+function layoutConnectionAreaRow(
+  contract: ComponentContract,
+  r: number,
+): NatureAreaRowLayout {
+  const sizing = connectionSizing(contract);
+  return {
+    row: r,
+    inputs: {
+      demandaPicoConexao: `B${r}`,
+      [sizing.emp]: `D${r}`,
+      [sizing.toi]: `F${r}`,
+      ...(usesAreaTaxa(contract.requirements)
+        ? { taxaDeUsoArea: `R${r}` }
+        : {}),
+    },
+    results: {
+      areaMinimaConexao: `N${r}`,
+    },
+    statusCell: `P${r}`,
   };
 }
 
@@ -217,9 +299,7 @@ export function getNatureSheetLayout(
     const rows = {} as Record<ComponentId, NatureAreaRowLayout>;
     const flowRows = {} as Record<ComponentId, NatureAreaRowLayout[]>;
     for (const contract of areaContracts) {
-      const mixed = contract.params.some(
-        (field) => field.id === "demandaPicoEmbarqueDomestico",
-      );
+      const mixed = isMixedNatureContract(contract);
       if (mixed) {
         const collected: NatureAreaRowLayout[] = [];
         const totalInputs: ExcelCellMap["inputs"] = {};
@@ -249,6 +329,13 @@ export function getNatureSheetLayout(
           });
           row += 1;
         }
+        if (contractHasConnection(contract)) {
+          const connectionRow = layoutConnectionAreaRow(contract, row);
+          totalInputs.demandaPicoConexao = `B${row}`;
+          totalResults.areaMinimaConexao = `N${row}`;
+          collected.push(connectionRow);
+          row += 1;
+        }
         const totalRow = row;
         totalInputs.areaMedida = `K${totalRow}`;
         if (usesAreaTaxa(contract.requirements)) {
@@ -265,13 +352,20 @@ export function getNatureSheetLayout(
         row += 1;
         continue;
       }
+      const collected: NatureAreaRowLayout[] = [];
+      if (contractHasConnection(contract)) {
+        collected.push(layoutConnectionAreaRow(contract, row));
+        row += 1;
+      }
       const r = row;
+      const connectionInputs = collected[0]?.inputs ?? {};
       rows[contract.id] = {
         row: r,
         inputs: {
           demandaPico: `B${r}`,
           demandaPicoEmbarque: `B${r}`,
           demandaPicoDesembarque: `C${r}`,
+          demandaPicoConexao: connectionInputs.demandaPicoConexao,
           espacoMinimoPorPassageiro: `D${r}`,
           espacoMinimoPorPassageiroEmbarque: `D${r}`,
           tempoDeOcupacao: `F${r}`,
@@ -290,11 +384,13 @@ export function getNatureSheetLayout(
         results: {
           areaMinimaEmbarque: `L${r}`,
           areaMinimaDesembarque: `M${r}`,
+          areaMinimaConexao: collected[0]?.results.areaMinimaConexao,
           areaMinima: `N${r}`,
           assentosMinimos: `O${r}`,
         },
         statusCell: `P${r}`,
       };
+      if (collected.length > 0) flowRows[contract.id] = collected;
       row += 1;
     }
     area = { titleRow, noteRow, colHeaderRow, rows, flowRows };
@@ -313,38 +409,106 @@ export function getNatureSheetLayout(
     const colHeaderRow = row;
     row += 1;
     const rows = {} as Record<ComponentId, NatureEquipmentRowLayout>;
+    const equipmentFlowRows = {} as Record<
+      ComponentId,
+      NatureEquipmentRowLayout[]
+    >;
     for (const contract of equipmentContracts) {
-      const r = row;
-      const mixedFlows = area?.flowRows[contract.id];
-      const inputs: ExcelCellMap["inputs"] = {
-        tsec: `D${r}`,
-        tempoOcupacaoEquipamento: `E${r}`,
-        ...(usesEquipmentTaxa(contract.requirements)
-          ? { taxaDeUsoEquipamento: `I${r}` }
-          : {}),
-      };
-      if (mixedFlows && mixedFlows.length > 0) {
-        mixedSpecsForParams(contract.params).forEach((spec, index) => {
-          const cell = mixedFlows[index]?.inputs[spec.demanda];
-          if (cell) inputs[spec.demanda] = cell;
-        });
-      } else if (
-        contract.params.some((field) => field.id === "demandaPicoEmbarqueDomestico")
-      ) {
-        inputs.demandaPicoEmbarqueDomestico = `B${r}`;
-        inputs.demandaPicoEmbarqueInternacional = `C${r}`;
-        if (
-          contract.params.some(
-            (field) => field.id === "demandaPicoDesembarqueDomestico",
-          )
-        ) {
-          inputs.demandaPicoDesembarqueDomestico = `G${r}`;
-          inputs.demandaPicoDesembarqueInternacional = `H${r}`;
+      const terms =
+        contract.equipmentTerms && contract.equipmentTerms.length > 0
+          ? contract.equipmentTerms
+          : [
+              {
+                demandIds: ["demandaPico" as ComponentParamId],
+                toi: "tempoDeOcupacao" as ComponentParamId,
+                tsec: "tsec" as ComponentParamId,
+              },
+            ];
+      const areaInputs = area?.rows[contract.id]?.inputs;
+      const multi = terms.length > 1;
+      const localFlows: NatureEquipmentRowLayout[] = [];
+      const inputs: ExcelCellMap["inputs"] = {};
+      if (multi) {
+        for (const term of terms) {
+          const fr = row;
+          const primary = term.demandIds[0] ?? "demandaPico";
+          const demandCell = areaInputs?.[primary] ?? `B${fr}`;
+          const toiCell = areaInputs?.[term.toi] ?? `E${fr}`;
+          const tsecCell = `D${fr}`;
+          const flowInputs: ExcelCellMap["inputs"] = {
+            [primary]: demandCell,
+            [term.toi]: toiCell,
+            [term.tsec]: tsecCell,
+          };
+          inputs[primary] = demandCell;
+          inputs[term.toi] = toiCell;
+          inputs[term.tsec] = tsecCell;
+          const extra = term.demandIds[1];
+          if (extra) {
+            const extraCell = areaInputs?.[extra] ?? `C${fr}`;
+            flowInputs[extra] = extraCell;
+            inputs[extra] = extraCell;
+          }
+          localFlows.push({
+            row: fr,
+            inputs: flowInputs,
+            results: {},
+            label: equipmentFlowLabel(term.toi),
+          });
+          row += 1;
         }
-      } else {
-        inputs.demandaPico = `B${r}`;
-        inputs.demandaPicoEmbarque = `B${r}`;
-        inputs.demandaPicoDesembarque = `C${r}`;
+      }
+      const r = row;
+      if (!multi) {
+        inputs[terms[0]?.tsec ?? "tsec"] = `D${r}`;
+      }
+      if (usesEquipmentTaxa(contract.requirements)) {
+        inputs.taxaDeUsoEquipamento = `I${r}`;
+      }
+      const mixedFlows = area?.flowRows[contract.id];
+      const mixed = isMixedNatureContract(contract);
+      const singleFunctionMixed = contract.params.some(
+        (field) => field.id === "demandaPicoDomestico",
+      );
+      if (!multi) {
+        if (mixed && mixedFlows && mixedFlows.length > 0) {
+          mixedSpecsForParams(contract.params).forEach((spec, index) => {
+            const cell = mixedFlows[index]?.inputs[spec.demanda];
+            if (cell) inputs[spec.demanda] = cell;
+          });
+        } else if (mixed && singleFunctionMixed) {
+          inputs.demandaPicoDomestico = `B${r}`;
+          inputs.demandaPicoInternacional = `C${r}`;
+        } else if (mixed) {
+          inputs.demandaPicoEmbarqueDomestico = `B${r}`;
+          inputs.demandaPicoEmbarqueInternacional = `C${r}`;
+          if (
+            contract.params.some(
+              (field) => field.id === "demandaPicoDesembarqueDomestico",
+            )
+          ) {
+            inputs.demandaPicoDesembarqueDomestico = `G${r}`;
+            inputs.demandaPicoDesembarqueInternacional = `H${r}`;
+          }
+        } else {
+          inputs.demandaPico = `B${r}`;
+          inputs.demandaPicoEmbarque = `B${r}`;
+          inputs.demandaPicoDesembarque = `C${r}`;
+        }
+        const connectionCell = mixedFlows?.find(
+          (flow) => flow.inputs.demandaPicoConexao,
+        )?.inputs.demandaPicoConexao;
+        if (connectionCell) {
+          inputs.demandaPicoConexao = connectionCell;
+        } else if (contractHasConnection(contract)) {
+          inputs.demandaPicoConexao = `G${r}`;
+        }
+        for (const term of terms) {
+          inputs[term.toi] = areaInputs?.[term.toi] ?? `E${r}`;
+        }
+      }
+      if (localFlows.length > 0) {
+        equipmentFlowRows[contract.id] = localFlows;
       }
       rows[contract.id] = {
         row: r,
@@ -355,7 +519,13 @@ export function getNatureSheetLayout(
       };
       row += 1;
     }
-    equipment = { titleRow, noteRow, colHeaderRow, rows };
+    equipment = {
+      titleRow,
+      noteRow,
+      colHeaderRow,
+      rows,
+      flowRows: equipmentFlowRows,
+    };
   }
 
   return {
@@ -393,7 +563,8 @@ function layoutComponent(
     row += 1;
   }
 
-  row += 1;
+  const notesRow = row;
+  row += 2;
 
   const resultRows: Partial<Record<ResultId, number>> = {};
   const results: ExcelCellMap["results"] = {};
@@ -413,6 +584,7 @@ function layoutComponent(
     results,
     inputRows,
     resultRows,
+    notesRow,
     checkRow,
     localIds,
     band: index % 2 === 0 ? "even" : "odd",

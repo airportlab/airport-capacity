@@ -1,4 +1,5 @@
 import { hasResult } from "./contracts/catalog";
+import { equipmentProcessingLoad } from "./contracts/formulas";
 import { demandSum } from "./contracts/flowParams";
 import type {
   ComponentContract,
@@ -84,14 +85,27 @@ function saturacaoPercent(demanda: number, capacidade: number): number {
   return (demanda / capacidade) * 100;
 }
 
-function equipmentCapacity(inputs: ResolvedInputs): number {
-  if (inputs.tsec === 0) return Number.NaN;
-  return (
-    (inputs.quantidadeEquipamentos *
-      60 *
-      (60 + inputs.tempoOcupacaoEquipamento)) /
-    inputs.tsec
-  );
+function equipmentCapacity(
+  contract: ComponentContract,
+  inputs: ResolvedInputs,
+  demanda: number,
+): number {
+  const terms =
+    contract.equipmentTerms && contract.equipmentTerms.length > 0
+      ? contract.equipmentTerms
+      : [
+          {
+            demandIds: demandIds(contract),
+            toi: "tempoDeOcupacao" as const,
+            tsec: "tsec" as const,
+          },
+        ];
+  if (terms.some((term) => inputs[term.tsec] === 0)) return Number.NaN;
+  const taxaId = usesEquipmentTaxa(contract.requirements)
+    ? "taxaDeUsoEquipamento"
+    : null;
+  const load = equipmentProcessingLoad(inputs, terms, taxaId);
+  return scaledCapacity(demanda, inputs.quantidadeEquipamentos, load);
 }
 
 export function evaluateComponent(
@@ -152,7 +166,7 @@ export function evaluateEquipmentCheck(
     inputs,
     usesEquipmentTaxa(contract.requirements) ? "taxaDeUsoEquipamento" : null,
   );
-  const capacidade = equipmentCapacity(inputs);
+  const capacidade = equipmentCapacity(contract, inputs, demanda);
   const atende =
     inputs.quantidadeEquipamentos >= minimo && Number.isFinite(minimo);
 

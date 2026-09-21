@@ -1,17 +1,21 @@
 import { slugify } from "../contracts/factory";
+import { identityParamIds } from "../contracts/flowParams";
 import {
   applyPmdRequirements,
   natureHasValues,
   normalizePmdBinding,
   pmdById,
 } from "../pmd";
-import type {
-  ComponentId,
-  ComponentRequirements,
-  PeakNature,
-  PmdBinding,
-  RegistryEntry,
-  RegistryFlow,
+import {
+  natureOfEntry,
+  type ComponentId,
+  type ComponentParamId,
+  type ComponentParams,
+  type ComponentRequirements,
+  type PeakNature,
+  type PmdBinding,
+  type RegistryEntry,
+  type RegistryFlow,
 } from "../types";
 
 /** Natureza da instância — independente das colunas do PMD. */
@@ -62,7 +66,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "embarque", rowId: "saguao-embarque" }],
     detail:
-      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp.",
+      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: DHp extra de embarque via conexão (no misto, agregada).",
   },
   {
     kind: "saguao-desembarque",
@@ -81,15 +85,17 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
       { role: "embarque", rowId: "saguao-embarque" },
       { role: "desembarque", rowId: "saguao-desembarque" },
     ],
-    detail: "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza.",
+    detail:
+      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque (no misto, agregada).",
   },
   {
     kind: "checkin-bagagens",
     title: "Check-in e despacho de bagagens",
-    natures: ["domestico", "internacional"],
+    natures: ["domestico", "internacional", "misto"],
     preset: "areaAndEquipment",
     flows: [{ role: "unico", rowId: "checkin-bagagens" }],
-    detail: "Área de fila (PMD) e equipamentos de atendimento.",
+    detail:
+      "Área de fila (PMD) e equipamentos de atendimento. Natureza mista: dois DHp; Ad = Ad_dom + Ad_int.",
   },
   {
     kind: "inspecao",
@@ -180,6 +186,42 @@ export const INSTANTIABLE_ORGANS: OrganTemplate[] = PREDEFINED_ORGANS.filter(
     template.kind === "saguao-embarque-desembarque",
 );
 
+/** Ordem da jornada no Resumo: embarque e, em seguida, desembarque. */
+export const JOURNEY_ORDER: readonly {
+  kind: OrganKind;
+  leg: "embarque" | "desembarque";
+}[] = [
+  { kind: "saguao-embarque", leg: "embarque" },
+  { kind: "saguao-embarque-desembarque", leg: "embarque" },
+  { kind: "checkin-bagagens", leg: "embarque" },
+  { kind: "inspecao", leg: "embarque" },
+  { kind: "emigracao", leg: "embarque" },
+  { kind: "sala-embarque-pontes", leg: "embarque" },
+  { kind: "sala-embarque-remotas", leg: "embarque" },
+  { kind: "sala-desembarque", leg: "desembarque" },
+  { kind: "imigracao", leg: "desembarque" },
+  { kind: "aduana", leg: "desembarque" },
+  { kind: "saguao-desembarque", leg: "desembarque" },
+];
+
+const JOURNEY_RANK = new Map(
+  JOURNEY_ORDER.map((step, index) => [step.kind, index]),
+);
+
+const JOURNEY_LEG = new Map(JOURNEY_ORDER.map((step) => [step.kind, step.leg]));
+
+export function journeyRank(kind: string | undefined): number {
+  if (!kind) return Number.MAX_SAFE_INTEGER;
+  return JOURNEY_RANK.get(kind as OrganKind) ?? Number.MAX_SAFE_INTEGER;
+}
+
+export function journeyLeg(
+  kind: string | undefined,
+): "embarque" | "desembarque" | undefined {
+  if (!kind) return undefined;
+  return JOURNEY_LEG.get(kind as OrganKind);
+}
+
 export function templateByKind(kind: string): OrganTemplate | undefined {
   return INSTANTIABLE_ORGANS.find((template) => template.kind === kind);
 }
@@ -214,6 +256,162 @@ export function organNatureLabel(nature: OrganNature): string {
   return nature === "internacional" ? "internacional" : "doméstico";
 }
 
+export { natureOfEntry };
+
+function bindOrganPmd(
+  template: OrganTemplate,
+  nature: OrganNature,
+): Pick<RegistryEntry, "pmd" | "flows"> {
+  if (nature !== "misto" && template.flows.length === 1) {
+    const rowId = template.flows[0]?.rowId;
+    if (!rowId) {
+      throw new Error(`Tipo “${template.kind}” sem linha de PMD.`);
+    }
+    const binding = normalizePmdBinding({ rowId, nature });
+    if (!binding) {
+      throw new Error(
+        `Tipo “${template.title}” sem valores de PMD nessa natureza.`,
+      );
+    }
+    return { pmd: binding };
+  }
+
+  const flows: RegistryFlow[] = [];
+  for (const flow of expandFlows(template, nature)) {
+    if (
+      flow.role !== "embarque" &&
+      flow.role !== "desembarque" &&
+      flow.role !== "unico"
+    ) {
+      continue;
+    }
+    const pmd = normalizePmdBinding(flow.pmd);
+    if (!pmd) {
+      throw new Error(
+        `Tipo “${template.title}” sem valores de PMD nessa natureza (${flow.role}).`,
+      );
+    }
+    flows.push({ role: flow.role, pmd });
+  }
+  if (flows.length < 2) {
+    throw new Error(
+      nature === "misto"
+        ? `Tipo “${template.title}” não admite natureza mista.`
+        : `Tipo “${template.kind}” precisa de dois fluxos de PMD.`,
+    );
+  }
+  const embarque = flows.find((flow) => flow.role === "embarque");
+  const domestico = flows.find((flow) => flow.pmd.nature === "domestico");
+  return { pmd: embarque?.pmd ?? domestico?.pmd ?? flows[0].pmd, flows };
+}
+
+export function rebindOrganNature(
+  entry: RegistryEntry,
+  nature: OrganNature,
+): RegistryEntry {
+  const template = templateForEntry(entry);
+  if (!template) return entry;
+  if (!naturesForTemplate(template).includes(nature)) return entry;
+  if (natureOfEntry(entry) === nature) return entry;
+  const bound = bindOrganPmd(template, nature);
+  return applyPmdRequirements({
+    id: entry.id,
+    title: entry.title,
+    kind: template.kind,
+    requirements: entry.requirements,
+    observacoes: entry.observacoes,
+    hasConnection: entry.hasConnection,
+    pmd: bound.pmd,
+    ...(bound.flows ? { flows: bound.flows } : {}),
+  });
+}
+
+type DemandaRole = "unico" | "embarque" | "desembarque";
+
+const DEMANDA_SLOTS: Partial<
+  Record<ComponentParamId, { role: DemandaRole; nature?: PeakNature }>
+> = {
+  demandaPico: { role: "unico" },
+  demandaPicoEmbarque: { role: "embarque" },
+  demandaPicoDesembarque: { role: "desembarque" },
+  demandaPicoEmbarqueDomestico: { role: "embarque", nature: "domestico" },
+  demandaPicoEmbarqueInternacional: {
+    role: "embarque",
+    nature: "internacional",
+  },
+  demandaPicoDesembarqueDomestico: { role: "desembarque", nature: "domestico" },
+  demandaPicoDesembarqueInternacional: {
+    role: "desembarque",
+    nature: "internacional",
+  },
+  demandaPicoDomestico: { role: "unico", nature: "domestico" },
+  demandaPicoInternacional: { role: "unico", nature: "internacional" },
+};
+
+function peakOfEntry(entry: RegistryEntry): PeakNature | undefined {
+  const nature = natureOfEntry(entry);
+  if (nature == null || nature === "misto") return undefined;
+  return nature;
+}
+
+function demandaSlotKey(role: DemandaRole, nature: PeakNature): string {
+  return `${role}::${nature}`;
+}
+
+function lookupDemanda(
+  map: Map<string, number>,
+  role: DemandaRole,
+  nature: PeakNature,
+): number {
+  const exact = map.get(demandaSlotKey(role, nature));
+  if (exact != null) return exact;
+  if (role === "unico") {
+    return (
+      map.get(demandaSlotKey("embarque", nature)) ??
+      map.get(demandaSlotKey("desembarque", nature)) ??
+      0
+    );
+  }
+  return map.get(demandaSlotKey("unico", nature)) ?? 0;
+}
+
+/** Copia DHp entre desenhos de campo ao trocar a natureza. */
+export function remapDemandaOnNatureChange(
+  from: RegistryEntry,
+  to: RegistryEntry,
+  params: ComponentParams,
+): Partial<Record<ComponentParamId, number>> {
+  const fromIds = new Set(identityParamIds(from));
+  const fromPeak = peakOfEntry(from);
+  const map = new Map<string, number>();
+  for (const id of identityParamIds(from)) {
+    if (id === "demandaPicoConexao") continue;
+    const slot = DEMANDA_SLOTS[id];
+    if (!slot) continue;
+    const nature = slot.nature ?? fromPeak;
+    if (!nature) continue;
+    map.set(demandaSlotKey(slot.role, nature), params[id] ?? 0);
+  }
+
+  const toPeak = peakOfEntry(to);
+  const next: Partial<Record<ComponentParamId, number>> = {};
+  for (const id of identityParamIds(to)) {
+    if (id === "demandaPicoConexao") {
+      if (fromIds.has(id)) next[id] = params[id] ?? 0;
+      continue;
+    }
+    if (fromIds.has(id)) {
+      next[id] = params[id] ?? 0;
+      continue;
+    }
+    const slot = DEMANDA_SLOTS[id];
+    if (!slot) continue;
+    const nature = slot.nature ?? toPeak;
+    next[id] = nature ? lookupDemanda(map, slot.role, nature) : 0;
+  }
+  return next;
+}
+
 export function requirementsFromPreset(
   preset: OrganTemplate["preset"],
 ): ComponentRequirements {
@@ -245,50 +443,14 @@ export function instantiateOrgan(
   title: string,
   existingIds: ComponentId[],
 ): RegistryEntry {
-  if (nature === "misto" || template.flows.length > 1) {
-    const flows: RegistryFlow[] = [];
-    for (const flow of expandFlows(template, nature)) {
-      if (flow.role !== "embarque" && flow.role !== "desembarque") continue;
-      const pmd = normalizePmdBinding(flow.pmd);
-      if (!pmd) {
-        throw new Error(
-          `Tipo “${template.title}” sem valores de PMD nessa natureza (${flow.role}).`,
-        );
-      }
-      flows.push({ role: flow.role, pmd });
-    }
-    if (flows.length < 2) {
-      throw new Error(
-        nature === "misto"
-          ? `Tipo “${template.title}” não admite natureza mista.`
-          : `Tipo “${template.kind}” precisa de dois fluxos de PMD.`,
-      );
-    }
-    const embarque = flows.find((flow) => flow.role === "embarque");
-    return applyPmdRequirements({
-      id: slugify(template.kind, existingIds),
-      title: title.trim() ? title : defaultTitleFor(template, nature),
-      kind: template.kind,
-      requirements: {},
-      pmd: embarque?.pmd ?? flows[0].pmd,
-      flows,
-    });
-  }
-
-  const rowId = template.flows[0]?.rowId;
-  if (!rowId) {
-    throw new Error(`Tipo “${template.kind}” sem linha de PMD.`);
-  }
-  const binding = normalizePmdBinding({ rowId, nature });
-  if (!binding) {
-    throw new Error(`Tipo “${template.title}” sem valores de PMD nessa natureza.`);
-  }
+  const bound = bindOrganPmd(template, nature);
   return applyPmdRequirements({
     id: slugify(template.kind, existingIds),
-    title: title.trim() ? title : defaultTitleFor(template, binding.nature),
+    title: title.trim() ? title : defaultTitleFor(template, nature),
     kind: template.kind,
     requirements: {},
-    pmd: binding,
+    pmd: bound.pmd,
+    ...(bound.flows ? { flows: bound.flows } : {}),
   });
 }
 
@@ -303,7 +465,6 @@ export interface ExampleOperatingValues {
   areaMedida: number;
   quantidadeEquipamentos?: number;
   tsec?: number;
-  tempoOcupacaoEquipamento?: number;
 }
 
 /** Números ilustrativos do “Carregar exemplo fictício”, não valores de contrato. */
@@ -320,16 +481,12 @@ export function exampleOperatingValues(
         demandaPico: 400,
         areaMedida: 120,
         quantidadeEquipamentos: 12,
-        tsec: 90,
-        tempoOcupacaoEquipamento: 0,
       };
     case "inspecao":
       return {
         demandaPico: 380,
         areaMedida: 90,
         quantidadeEquipamentos: 4,
-        tsec: 22,
-        tempoOcupacaoEquipamento: 0,
       };
     case "emigracao":
       return { demandaPico: 180, areaMedida: 80 };
@@ -341,7 +498,6 @@ export function exampleOperatingValues(
         areaMedida: 140,
         quantidadeEquipamentos: 4,
         tsec: 45,
-        tempoOcupacaoEquipamento: 0,
       };
     case "sala-embarque-pontes":
       return { demandaPico: 350, areaMedida: 380 };

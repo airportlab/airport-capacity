@@ -6,8 +6,8 @@ import {
   mixedFlowLabel,
   mixedSpecsForParams,
 } from "../domain/contracts/flowParams";
-import { isSizingParam, isTaxaParam } from "../domain/contracts/fields";
-import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay } from "../domain/contracts/notations";
+import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
+import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay, singleFunctionMixedFormulaDisplay } from "../domain/contracts/notations";
 import {
   areaCheckContract,
   getNatureSheetLayout,
@@ -15,6 +15,8 @@ import {
   NATURE_AREA_COLUMNS,
   NATURE_EQUIPMENT_COLUMNS,
   type ExcelHeaderLayout,
+  type NatureAreaRowLayout,
+  type NatureEquipmentRowLayout,
   type NatureSheetLayout,
   type SingleSheetLayout,
   type SizingExcelLayout,
@@ -28,6 +30,8 @@ import {
   resolvedSources,
   roundLabel,
   sourceCitation,
+  standardTsecForParam,
+  TSEC_MANUAL_CITATION,
   usedByPmd,
 } from "../domain/pmd";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
@@ -182,12 +186,13 @@ function writePmd(
     const users = usedByPmd(model.registry, pmd.id);
     const row = sheet.getRow(item.row);
     row.getCell(1).value = first ? pmd.title : "";
+    const numFmt = metric.unit === "s" ? "#,##0" : "#,##0.00";
     row.getCell(2).value = `${metric.label} (${metric.unit})`;
     row.getCell(3).value = metric.domestico ?? "—";
-    if (typeof metric.domestico === "number") row.getCell(3).numFmt = "#,##0.00";
+    if (typeof metric.domestico === "number") row.getCell(3).numFmt = numFmt;
     row.getCell(4).value = metric.internacional ?? "—";
     if (typeof metric.internacional === "number") {
-      row.getCell(4).numFmt = "#,##0.00";
+      row.getCell(4).numFmt = numFmt;
     }
     row.getCell(5).value =
       users.length === 0
@@ -285,6 +290,117 @@ function writeDashOrNumber(
   cell.numFmt = "#,##0.00";
 }
 
+function writeConnectionAreaRow(
+  sheet: ExcelJS.Worksheet,
+  contract: ComponentContract,
+  evaluation: Evaluation,
+  flowBlock: NatureAreaRowLayout,
+): void {
+  const formula = contract.formulas.find((item) => item.id === "areaMinimaConexao");
+  const empId = Object.keys(flowBlock.inputs).find((id) =>
+    id.startsWith("espacoMinimoPorPassageiro"),
+  ) as ComponentParamId | undefined;
+  const toiId = Object.keys(flowBlock.inputs).find((id) =>
+    id.startsWith("tempoDeOcupacao"),
+  ) as ComponentParamId | undefined;
+  const flowRow = sheet.getRow(flowBlock.row);
+  flowRow.getCell(1).value = `${contract.title} · conexões`;
+  flowRow.getCell(2).value = evaluation.inputs.demandaPicoConexao;
+  flowRow.getCell(2).numFmt = "#,##0.00";
+  flowRow.getCell(3).value = "—";
+  if (empId) {
+    flowRow.getCell(4).value = evaluation.inputs[empId];
+    flowRow.getCell(4).numFmt = "#,##0.00";
+    flowRow.getCell(5).value =
+      contract.params.find((field) => field.id === empId)?.unit ?? "m²/ocup";
+  } else {
+    flowRow.getCell(4).value = "—";
+    flowRow.getCell(5).value = "—";
+  }
+  if (toiId) {
+    flowRow.getCell(6).value = evaluation.inputs[toiId];
+    flowRow.getCell(6).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(6).value = "—";
+  }
+  writeDashOrNumber(flowRow.getCell(7), undefined, false);
+  flowRow.getCell(8).value = "—";
+  flowRow.getCell(9).value = "—";
+  flowRow.getCell(10).value = "—";
+  flowRow.getCell(11).value = "—";
+  flowRow.getCell(12).value = "—";
+  flowRow.getCell(13).value = "—";
+  if (formula) {
+    flowRow.getCell(14).value = {
+      formula: formula.toExcel(flowBlock.inputs),
+      result: evaluation.results.areaMinimaConexao,
+    };
+    flowRow.getCell(14).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(14).value = "—";
+  }
+  flowRow.getCell(15).value = "—";
+  flowRow.getCell(16).value = "—";
+  flowRow.getCell(17).value = "—";
+  writeDashOrNumber(
+    flowRow.getCell(18),
+    evaluation.inputs.taxaDeUsoArea,
+    usesAreaTaxa(contract.requirements),
+  );
+  if (usesAreaTaxa(contract.requirements)) {
+    flowRow.getCell(18).numFmt = "0.00";
+  }
+  fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
+}
+
+function writeEquipmentFlowRow(
+  sheet: ExcelJS.Worksheet,
+  contract: ComponentContract,
+  evaluation: Evaluation,
+  flowBlock: NatureEquipmentRowLayout,
+): void {
+  const flowRow = sheet.getRow(flowBlock.row);
+  const demandId = Object.keys(flowBlock.inputs).find(
+    (id) => id.startsWith("demandaPico") && id !== "demandaPicoConexao",
+  ) as ComponentParamId | undefined;
+  const toiId = Object.keys(flowBlock.inputs).find((id) =>
+    id.startsWith("tempoDeOcupacao"),
+  ) as ComponentParamId | undefined;
+  flowRow.getCell(1).value = `${contract.title} · ${flowBlock.label ?? "fluxo"}`;
+  if (demandId) {
+    flowRow.getCell(2).value = evaluation.inputs[demandId];
+    flowRow.getCell(2).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(2).value = "—";
+  }
+  if (flowBlock.inputs.demandaPicoConexao) {
+    flowRow.getCell(3).value = evaluation.inputs.demandaPicoConexao;
+    flowRow.getCell(3).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(3).value = "—";
+  }
+  const tsecId = Object.keys(flowBlock.inputs).find((id) =>
+    id.startsWith("tsec"),
+  ) as ComponentParamId | undefined;
+  if (tsecId && flowBlock.inputs[tsecId] === `D${flowBlock.row}`) {
+    flowRow.getCell(4).value = evaluation.inputs[tsecId];
+    flowRow.getCell(4).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(4).value = "—";
+  }
+  if (toiId) {
+    flowRow.getCell(5).value = evaluation.inputs[toiId];
+    flowRow.getCell(5).numFmt = "#,##0.00";
+  } else {
+    flowRow.getCell(5).value = "—";
+  }
+  flowRow.getCell(6).value = "—";
+  flowRow.getCell(7).value = "—";
+  flowRow.getCell(8).value = "—";
+  flowRow.getCell(9).value = "—";
+  fillRow(flowRow, COLORS.paper, 1, NATURE_EQUIPMENT_COLUMNS);
+}
+
 function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
   const layout: SingleSheetLayout = getSingleSheetLayout(
     model.contracts,
@@ -377,6 +493,20 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
           : sourceRef
             ? pmdOrigem(sourceRef, model.airport ?? defaultAirport())
             : "Valor próprio, sem PMD";
+      } else if (isTsecParam(field.id)) {
+        const entry = model.registry.find((item) => item.id === contract.id);
+        const standard = entry ? standardTsecForParam(entry, field.id) : null;
+        const just = model.justificativas[contract.id]?.[field.id] ?? "";
+        const value = evaluation.inputs[field.id];
+        if (standard != null && value !== standard) {
+          row.getCell(5).value = just.trim()
+            ? `Fora do Manual de Anteprojeto (${standard} s). ${just.trim()}`
+            : `Fora do Manual de Anteprojeto (${standard} s).`;
+        } else if (standard != null) {
+          row.getCell(5).value = TSEC_MANUAL_CITATION;
+        } else {
+          row.getCell(5).value = "Atributo do componente";
+        }
       } else {
         row.getCell(5).value = isTaxaParam(field.id)
           ? "Atributo do requisito"
@@ -384,6 +514,14 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       }
       fillRow(row, band);
     }
+
+    const notes = sheet.getRow(block.notesRow);
+    notes.getCell(1).value = "Observações";
+    notes.getCell(2).value =
+      model.registry.find((item) => item.id === contract.id)?.observacoes ?? "";
+    notes.getCell(2).alignment = { wrapText: true, vertical: "top" };
+    notes.getCell(5).value = "Atributo do componente";
+    fillRow(notes, band);
 
     for (const formula of contract.formulas) {
       const rowIndex = block.resultRows[formula.id];
@@ -493,7 +631,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
     );
     const note = sheet.getRow(layout.area.noteRow);
     note.getCell(1).value =
-      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}.`;
+      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}.`;
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(
       layout.area.noteRow,
@@ -580,6 +718,12 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           }
           fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
         });
+        const connectionBlock = mixedFlows.find(
+          (flow) => flow.inputs.demandaPicoConexao,
+        );
+        if (connectionBlock) {
+          writeConnectionAreaRow(sheet, contract, evaluation, connectionBlock);
+        }
       }
 
       const row = sheet.getRow(block.row);
@@ -777,7 +921,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       .find((formula) => formula.id === "numeroMinimoEquipamentos");
     const note = sheet.getRow(layout.equipment.noteRow);
     note.getCell(1).value = equipmentFormula
-      ? `${equipmentFormula.label}: ${equipmentFormula.expression}. Saguão combinado: a demanda no recinto é a soma dos DHp, sem fundi-los.`
+      ? `${equipmentFormula.label}: ${equipmentFormula.expression}. Cada fluxo usa o seu Toi e o seu tsec.`
       : "Número mínimo de equipamentos.";
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(
@@ -815,13 +959,29 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         (item) => item.id === "numeroMinimoEquipamentos",
       );
       const areaInputs = layout.area?.rows[contract.id]?.inputs;
+      const flowBlocks = layout.equipment.flowRows[contract.id] ?? [];
+      for (const flowBlock of flowBlocks) {
+        writeEquipmentFlowRow(sheet, contract, evaluation, flowBlock);
+      }
 
       row.getCell(1).value = contract.title;
-      if (mixed) {
+      if (flowBlocks.length > 0) {
+        row.getCell(2).value = "—";
+        row.getCell(3).value = "—";
+        row.getCell(5).value = "—";
+        row.getCell(7).value = "—";
+        row.getCell(8).value = "—";
+      } else if (mixed) {
         const mixedFlows = layout.area?.flowRows[contract.id];
         if (mixedFlows && mixedFlows.length > 0) {
           row.getCell(2).value = "—";
           row.getCell(3).value = "—";
+        } else if (
+          contract.params.some((field) => field.id === "demandaPicoDomestico")
+        ) {
+          row.getCell(2).value = evaluation.inputs.demandaPicoDomestico;
+          row.getCell(3).value = evaluation.inputs.demandaPicoInternacional;
+          row.getCell(3).numFmt = "#,##0.00";
         } else {
           row.getCell(2).value = evaluation.inputs.demandaPicoEmbarqueDomestico;
           row.getCell(3).value = evaluation.inputs.demandaPicoEmbarqueInternacional;
@@ -868,10 +1028,36 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         row.getCell(3).value = "—";
       }
       row.getCell(2).numFmt = "#,##0.00";
-      row.getCell(4).value = evaluation.inputs.tsec;
-      row.getCell(4).numFmt = "#,##0.00";
-      row.getCell(5).value = evaluation.inputs.tempoOcupacaoEquipamento;
-      row.getCell(5).numFmt = "#,##0.00";
+      if (block.inputs.demandaPicoConexao === `G${block.row}`) {
+        row.getCell(7).value = evaluation.inputs.demandaPicoConexao;
+        row.getCell(7).numFmt = "#,##0.00";
+      }
+      if (flowBlocks.length > 0) {
+        row.getCell(4).value = "—";
+      } else {
+        row.getCell(4).value = evaluation.inputs.tsec;
+        row.getCell(4).numFmt = "#,##0.00";
+      }
+      if (flowBlocks.length === 0) {
+        const toiId = (contract.equipmentTerms ?? []).find(
+          (term) => block.inputs[term.toi],
+        )?.toi;
+        const singleToi =
+          (contract.equipmentTerms ?? []).length <= 1 ? toiId : undefined;
+        const toiCell = singleToi ? block.inputs[singleToi] : undefined;
+        if (singleToi && toiCell === `E${block.row}`) {
+          row.getCell(5).value = evaluation.inputs[singleToi];
+          row.getCell(5).numFmt = "#,##0.00";
+        } else if (singleToi && toiCell) {
+          row.getCell(5).value = {
+            formula: toiCell,
+            result: evaluation.inputs[singleToi],
+          };
+          row.getCell(5).numFmt = "#,##0.00";
+        } else {
+          row.getCell(5).value = "—";
+        }
+      }
       writeDashOrNumber(
         row.getCell(9),
         evaluation.inputs.taxaDeUsoEquipamento,

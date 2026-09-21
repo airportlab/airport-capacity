@@ -1,5 +1,6 @@
 import type { ComponentContract, Evaluation, ResultId } from "../domain/types";
 import { formatNumber, formatSaturacao } from "./format";
+import { TexText } from "./FormulaCard";
 
 interface RequirementResultsProps {
   contract: ComponentContract;
@@ -26,7 +27,9 @@ function ResultValues({
     <ul className="result-list">
       {formulas.map((formula) => (
         <li key={formula.id}>
-          <span className="result-label">{formula.label}</span>
+          <span className="result-label">
+            <TexText text={formula.label} />
+          </span>
           <strong>
             {formatNumber(evaluation.results[formula.id] ?? Number.NaN)}{" "}
             <span className="unit">{formula.unit}</span>

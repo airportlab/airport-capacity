@@ -28,7 +28,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           aeroporto de estudo. Cada componente é uma instância independente, com
           o próprio DHp. A criação escolhe um tipo da lista do PMD — ou o
           saguão de embarque e desembarque — e a natureza (doméstico,
-          internacional ou, nos saguões de embarque, misto). Área e
+          internacional ou, nos saguões de embarque e no check-in, misto). Área e
           equipamentos são requisitos opcionais. O aplicativo começa sem
           componentes.
         </p>
@@ -45,20 +45,25 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Em <strong>+ Componente</strong> o cadastro usa a lista exaustiva do
           PMD. Várias instâncias do mesmo tipo são permitidas. O componente
           absorve Emp, Toi, v.a. e assentos da fonte escolhida; o valor pode
-          diferir com justificativa, sem mudar a fonte do tipo. Meio-fio e sala
-          de embarque e desembarque combinada não entram na criação.
+          diferir com justificativa, sem mudar a fonte do tipo. Nas entradas
+          do componente a natureza (doméstico, internacional ou, nos saguões
+          de embarque e no check-in, misto) pode ser alterada depois. Meio-fio e sala de
+          embarque e desembarque combinada não entram na criação.
         </p>
         <p>
           Na aba do componente você informa DHp, área medida e equipamentos. A
           demanda de área (Ad) usa DHp, Emp e Toi (e v.a. ou taxa de utilização
           Tu, se o requisito estiver marcado). Equipamentos usam o teto da
-          conta de N. Com vários DHp no mesmo recinto, as contas somam — não se
+          conta de N. O tsec nasce no padrão do Manual de Anteprojeto de cada
+          fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
+          usa o seu Toi e o seu tsec. Com vários DHp no mesmo recinto, as contas somam — não se
           fundem. Saguão de embarque misto soma doméstico e internacional;
-          saguão de embarque e desembarque soma as funções (e as quatro contas,
+          check-in misto soma Ad_dom e Ad_int. Saguão de embarque e desembarque soma as funções (e as quatro contas,
           se misto). A saturação compara a demanda com o que a área ou os
-          equipamentos podem atender. A aba <strong>Parâmetros</strong> só
-          consulta a tabela PMD da fonte selecionada; as fórmulas aparecem no
-          próprio componente, junto do requisito.
+          equipamentos podem atender. A aba <strong>Parâmetros</strong> consulta
+          a tabela PMD da fonte selecionada e o tsec do Manual de Anteprojeto,
+          padrão do requisito de equipamentos quando o tipo tem valor; as
+          fórmulas aparecem no próprio componente, junto do requisito.
         </p>
       </section>
 

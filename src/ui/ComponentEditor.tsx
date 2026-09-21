@@ -1,23 +1,39 @@
-import { isSizingParam } from "../domain/contracts/fields";
-import { isDualContract, isMixedNatureContract } from "../domain/contracts/factory";
+import { isSizingParam, isTsecParam } from "../domain/contracts/fields";
+import {
+  isDualContract,
+  isMixedNatureContract,
+  isSingleFunctionMixedContract,
+} from "../domain/contracts/factory";
 import { identityParamIds } from "../domain/contracts/flowParams";
 import {
   peakNatureLabel,
   pmdById,
   pmdValueFor,
   resolvedSources,
+  standardTsecForParam,
+  TSEC_MANUAL_CITATION,
 } from "../domain/pmd";
-import { suggestedCompanions, templateForEntry } from "../domain/templates/organs";
+import {
+  natureOfEntry,
+  naturesForTemplate,
+  organNatureLabel,
+  suggestedCompanions,
+  templateForEntry,
+  type OrganNature,
+} from "../domain/templates/organs";
 import type {
   ComponentContract,
   ComponentJustificativas,
   ComponentParamId,
   Evaluation,
+  JustificativaId,
   PmdBinding,
   RegistryEntry,
   SizingParamId,
 } from "../domain/types";
 import {
+  allowsBoardingConnection,
+  hasBoardingConnection,
   hasEquipment,
   isDualFunction,
   isMixedNature,
@@ -137,6 +153,61 @@ function SizingParamControl({
   );
 }
 
+function TsecParamControl({
+  field,
+  draft,
+  standard,
+  origem,
+  justification,
+  onValueChange,
+  onJustificationChange,
+  onRestore,
+}: {
+  field: ComponentContract["params"][number];
+  draft: string;
+  standard: number | null;
+  origem: string;
+  justification: string;
+  onValueChange: (raw: string) => void;
+  onJustificationChange: (raw: string) => void;
+  onRestore: () => void;
+}) {
+  const parsed = parseLocaleNumber(draft);
+  const altered =
+    standard != null && parsed !== null && !sameNumber(parsed, standard);
+  return (
+    <div className={altered ? "sizing-field altered" : "sizing-field"}>
+      <NumberField
+        field={field}
+        draft={draft}
+        origem={standard != null ? TSEC_MANUAL_CITATION : origem}
+        onValueChange={onValueChange}
+      />
+      {altered ? (
+        <>
+          <label className="field">
+            <span className="field-label">Justificativa</span>
+            <textarea
+              className="origem-edit"
+              rows={2}
+              value={justification}
+              onChange={(event) => onJustificationChange(event.target.value)}
+            />
+          </label>
+          {justification.trim() === "" ? (
+            <p className="justificativa-warn">
+              Informe por que o valor difere de {formatNumber(standard ?? Number.NaN)} s.
+            </p>
+          ) : null}
+          <button type="button" className="ghost" onClick={onRestore}>
+            Voltar ao valor do Manual de Anteprojeto
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 interface ComponentEditorProps {
   contract: ComponentContract;
   entry: RegistryEntry;
@@ -146,6 +217,7 @@ interface ComponentEditorProps {
   evaluation: Evaluation;
   canRemove: boolean;
   onTitleChange: (title: string) => void;
+  onObservacoesChange: (raw: string) => void;
   onRemove: () => void;
   onAddArea: (companions: boolean) => void;
   onSetCompanions: (companions: boolean) => void;
@@ -154,10 +226,12 @@ interface ComponentEditorProps {
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
+  onSetConnection: (hasConnection: boolean) => void;
+  onNatureChange: (nature: OrganNature) => void;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
-  onJustificationChange: (id: SizingParamId, raw: string) => void;
-  onRestoreContract: (id: SizingParamId) => void;
+  onJustificationChange: (id: JustificativaId, raw: string) => void;
+  onRestoreContract: (id: JustificativaId) => void;
 }
 
 export function ComponentEditor({
@@ -169,6 +243,7 @@ export function ComponentEditor({
   evaluation,
   canRemove,
   onTitleChange,
+  onObservacoesChange,
   onRemove,
   onAddArea,
   onSetCompanions,
@@ -177,6 +252,8 @@ export function ComponentEditor({
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
+  onSetConnection,
+  onNatureChange,
   onValueChange,
   onOrigemChange,
   onJustificationChange,
@@ -186,9 +263,16 @@ export function ComponentEditor({
   const equipment = hasEquipment(contract.requirements);
   const areaTaxa = usesAreaTaxa(contract.requirements);
   const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
-  const identityIds = new Set(identityParamIds(entry));
+  const identityIds = identityParamIds(entry);
+  const identityIdSet = new Set(identityIds);
   const identityFields = contract.params.filter((field) =>
-    identityIds.has(field.id),
+    identityIdSet.has(field.id),
+  );
+  const connectionFields = identityFields.filter(
+    (field) => field.id === "demandaPicoConexao",
+  );
+  const boardingIdentityFields = identityFields.filter(
+    (field) => field.id !== "demandaPicoConexao",
   );
   const areaTaxaFields = contract.params.filter(
     (field) => field.id === "taxaDeUsoArea",
@@ -201,21 +285,38 @@ export function ComponentEditor({
   );
   const equipmentFields = contract.params.filter(
     (field) =>
-      field.id === "quantidadeEquipamentos" ||
-      field.id === "tsec" ||
-      field.id === "tempoOcupacaoEquipamento",
+      field.id === "quantidadeEquipamentos" || isTsecParam(field.id),
   );
   const sizingFields = contract.params.filter((field) => isSizingParam(field.id));
   const mixed = isMixedNature(entry) || isMixedNatureContract(contract);
+  const singleFunctionMixed = isSingleFunctionMixedContract(contract);
+  const mixedGroups = singleFunctionMixed
+    ? ([
+        ["Doméstico", "Domestico"],
+        ["Internacional", "Internacional"],
+      ] as const)
+    : MIXED_GROUPS;
   const dual = isDualFunction(entry) || isDualContract(contract);
   const sources = resolvedSources(entry);
   const template = templateForEntry(entry);
+  const availableNatures = template ? naturesForTemplate(template) : [];
+  const currentNature = natureOfEntry(entry);
+  const natureEditable = availableNatures.length > 1;
   const flowMeta =
     entry.flows && entry.flows.length > 0
       ? entry.flows
       : entry.pmd
         ? [{ role: "unico" as const, pmd: entry.pmd }]
         : [];
+  const typeMeta = natureEditable
+    ? flowMeta.filter(
+        (flow, index) =>
+          flowMeta.findIndex(
+            (item) =>
+              item.role === flow.role && item.pmd.rowId === flow.pmd.rowId,
+          ) === index,
+      )
+    : flowMeta;
   const empty = !area && !equipment;
 
   function renderSizing(fields: ComponentContract["params"]) {
@@ -240,10 +341,9 @@ export function ComponentEditor({
     <div className="layout">
       <section className="panel balloon" aria-labelledby={`${contract.id}-entradas`}>
         <h2 id={`${contract.id}-entradas`}>Entradas do componente</h2>
-        <p className="panel-lead">{contract.subtitle}</p>
-        {flowMeta.length > 0 ? (
+        {typeMeta.length > 0 ? (
           <p className="round-meta">
-            {flowMeta.map((flow, index) => {
+            {typeMeta.map((flow, index) => {
               const row = pmdById(flow.pmd.rowId);
               const role =
                 flow.role === "embarque"
@@ -252,15 +352,38 @@ export function ComponentEditor({
                     ? "Desembarque"
                     : "Tipo PMD";
               return (
-                <span key={`${flow.role}-${flow.pmd.rowId}-${flow.pmd.nature}`}>
+                <span key={`${flow.role}-${flow.pmd.rowId}`}>
                   {index > 0 ? " · " : null}
                   {dual || mixed ? `${role}: ` : "Tipo PMD: "}
-                  <strong>{row?.title ?? flow.pmd.rowId}</strong> · hora-pico{" "}
-                  {peakNatureLabel(flow.pmd.nature)}
+                  <strong>{row?.title ?? flow.pmd.rowId}</strong>
+                  {natureEditable ? null : (
+                    <>
+                      {" "}
+                      · hora-pico {peakNatureLabel(flow.pmd.nature)}
+                    </>
+                  )}
                 </span>
               );
             })}
           </p>
+        ) : null}
+        {natureEditable ? (
+          <fieldset className="field nature-fieldset">
+            <legend className="field-label">Natureza</legend>
+            <div className="nature-options">
+              {availableNatures.map((item) => (
+                <label key={item} className="choice">
+                  <input
+                    type="radio"
+                    name={`natureza-${entry.id}`}
+                    checked={currentNature === item}
+                    onChange={() => onNatureChange(item)}
+                  />
+                  {organNatureLabel(item)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         ) : null}
         <label className="field">
           <span className="field-label">Nome do componente</span>
@@ -271,10 +394,19 @@ export function ComponentEditor({
             onChange={(event) => onTitleChange(event.target.value)}
           />
         </label>
-        {identityFields.length > 0 ? (
+        <label className="field">
+          <span className="field-label">Observações</span>
+          <textarea
+            className="origem-edit"
+            rows={3}
+            value={entry.observacoes ?? ""}
+            onChange={(event) => onObservacoesChange(event.target.value)}
+          />
+        </label>
+        {boardingIdentityFields.length > 0 ? (
           mixed ? (
-            MIXED_GROUPS.map(([label, needle]) => {
-              const fields = identityFields.filter((field) =>
+            mixedGroups.map(([label, needle]) => {
+              const fields = boardingIdentityFields.filter((field) =>
                 field.id.includes(needle),
               );
               if (fields.length === 0) return null;
@@ -295,7 +427,7 @@ export function ComponentEditor({
             <>
               <h3 className="field-label">Fluxo de embarque</h3>
               <FieldList
-                fields={identityFields.filter((field) =>
+                fields={boardingIdentityFields.filter((field) =>
                   field.id.includes("Embarque"),
                 )}
                 drafts={drafts}
@@ -305,7 +437,7 @@ export function ComponentEditor({
               />
               <h3 className="field-label">Fluxo de desembarque</h3>
               <FieldList
-                fields={identityFields.filter((field) =>
+                fields={boardingIdentityFields.filter((field) =>
                   field.id.includes("Desembarque"),
                 )}
                 drafts={drafts}
@@ -316,13 +448,35 @@ export function ComponentEditor({
             </>
           ) : (
             <FieldList
-              fields={identityFields}
+              fields={boardingIdentityFields}
               drafts={drafts}
               origens={origens}
               onValueChange={onValueChange}
               onOrigemChange={onOrigemChange}
             />
           )
+        ) : null}
+        {allowsBoardingConnection(entry) ? (
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={hasBoardingConnection(entry)}
+              onChange={(event) => onSetConnection(event.target.checked)}
+            />
+            Há embarque via conexão
+          </label>
+        ) : null}
+        {connectionFields.length > 0 ? (
+          <>
+            <h3 className="field-label">Embarque via conexão</h3>
+            <FieldList
+              fields={connectionFields}
+              drafts={drafts}
+              origens={origens}
+              onValueChange={onValueChange}
+              onOrigemChange={onOrigemChange}
+            />
+          </>
         ) : null}
         <div className="actions">
           <button
@@ -374,7 +528,9 @@ export function ComponentEditor({
             <MixedNatureAreaFormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
-              flowCount={identityIds.size}
+              flowCount={entry.flows?.length ?? 0}
+              singleFunction={singleFunctionMixed}
+              hasConnection={hasBoardingConnection(entry)}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -383,6 +539,7 @@ export function ComponentEditor({
             <DualAreaFormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
+              hasConnection={hasBoardingConnection(entry)}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -391,6 +548,7 @@ export function ComponentEditor({
             <FormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
+              hasConnection={hasBoardingConnection(entry)}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -431,7 +589,7 @@ export function ComponentEditor({
             />
           ) : null}
           {mixed ? (
-            MIXED_GROUPS.map(([label, needle]) => {
+            mixedGroups.map(([label, needle]) => {
               const fields = sizingFields.filter((field) =>
                 field.id.includes(needle),
               );
@@ -476,8 +634,7 @@ export function ComponentEditor({
         >
           <h2 id={`${contract.id}-equip`}>Equipamentos</h2>
           <EquipmentFormulaCard
-            demandCount={identityIds.size}
-            mixedNature={mixed}
+            terms={contract.equipmentTerms}
             includeTaxa={equipmentTaxa}
             afterEquation={
               <EquipmentResults contract={contract} evaluation={evaluation} />
@@ -500,13 +657,69 @@ export function ComponentEditor({
               onOrigemChange={onOrigemChange}
             />
           ) : null}
-          <FieldList
-            fields={equipmentFields}
-            drafts={drafts}
-            origens={origens}
-            onValueChange={onValueChange}
-            onOrigemChange={onOrigemChange}
-          />
+          {!area && sizingFields.length > 0 ? (
+            mixed ? (
+              mixedGroups.map(([label, needle]) => {
+                const fields = sizingFields.filter((field) =>
+                  field.id.includes(needle),
+                );
+                if (fields.length === 0) return null;
+                return (
+                  <div key={needle}>
+                    <h3 className="field-label">{label}</h3>
+                    {renderSizing(fields)}
+                  </div>
+                );
+              })
+            ) : dual ? (
+              <>
+                <h3 className="field-label">Fluxo de embarque</h3>
+                {renderSizing(
+                  sizingFields.filter((field) => field.id.includes("Embarque")),
+                )}
+                <h3 className="field-label">Fluxo de desembarque</h3>
+                {renderSizing(
+                  sizingFields.filter((field) =>
+                    field.id.includes("Desembarque"),
+                  ),
+                )}
+              </>
+            ) : (
+              renderSizing(sizingFields)
+            )
+          ) : null}
+          <div className="fields">
+            {equipmentFields.map((field) =>
+              isTsecParam(field.id) ? (
+                <TsecParamControl
+                  key={field.id}
+                  field={field}
+                  draft={drafts[field.id] ?? formatEditable(0)}
+                  standard={standardTsecForParam(entry, field.id)}
+                  origem={origens[field.id] ?? field.origem}
+                  justification={justificativas[field.id] ?? ""}
+                  onValueChange={(raw) => onValueChange(field.id, raw)}
+                  onJustificationChange={(raw) =>
+                    onJustificationChange(field.id, raw)
+                  }
+                  onRestore={() => onRestoreContract(field.id)}
+                />
+              ) : (
+                <NumberField
+                  key={field.id}
+                  field={field}
+                  draft={drafts[field.id]}
+                  origem={origens[field.id] ?? field.origem}
+                  onValueChange={(raw) => onValueChange(field.id, raw)}
+                  onOrigemChange={
+                    field.origemEditavel
+                      ? (raw) => onOrigemChange(field.id, raw)
+                      : undefined
+                  }
+                />
+              ),
+            )}
+          </div>
           <div className="actions">
             <button
               type="button"

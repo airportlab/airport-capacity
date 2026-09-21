@@ -3,6 +3,7 @@ import type {
   ComponentId,
   ComponentParamId,
   ComponentRequirements,
+  ParamField,
   RegistryEntry,
 } from "../types";
 import {
@@ -15,12 +16,13 @@ import {
 import {
   AREA_BODY_IDS,
   AREA_BODY_WITH_COMPANIONS_IDS,
-  EQUIPMENT_PARAM_IDS,
   pickFields,
 } from "./fields";
 import {
   areaBodyIdsFromFlows,
+  connectionAreaParams,
   entryFlowParams,
+  equipmentTerms,
   identityParamIds,
 } from "./flowParams";
 import { capacityFormulas } from "./formulas";
@@ -28,12 +30,16 @@ import {
   areaFormulaDisplay,
   dualAreaFormulaDisplay,
   mixedAreaFormulaDisplay,
+  simpleConnectionFormulaDisplay,
+  singleFunctionMixedFormulaDisplay,
 } from "./notations";
 import {
   empLabelFor,
   empUnitFor,
   empUnitForFlow,
   roundHasSeats,
+  standardTsecForParam,
+  TSEC_MANUAL_CITATION,
 } from "../pmd";
 
 export function emptyRequirements(): ComponentRequirements {
@@ -76,8 +82,20 @@ export function isDualContract(contract: ComponentContract): boolean {
 
 export function isMixedNatureContract(contract: ComponentContract): boolean {
   return contract.params.some(
-    (field) => field.id === "demandaPicoEmbarqueDomestico",
+    (field) =>
+      field.id === "demandaPicoEmbarqueDomestico" ||
+      field.id === "demandaPicoDomestico",
   );
+}
+
+export function isSingleFunctionMixedContract(
+  contract: ComponentContract,
+): boolean {
+  return contract.params.some((field) => field.id === "demandaPicoDomestico");
+}
+
+export function contractHasConnection(contract: ComponentContract): boolean {
+  return contract.params.some((field) => field.id === "demandaPicoConexao");
 }
 
 export function makeContract(entry: RegistryEntry): ComponentContract {
@@ -93,6 +111,31 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const mixedNature = isMixedNature(entry);
   const demandIds = identityParamIds(entry);
   const flows = entryFlowParams(entry);
+  const singleFunctionMixed =
+    flows.length > 0 &&
+    flows.every(
+      (flow) =>
+        flow.area === "areaMinimaDomestico" ||
+        flow.area === "areaMinimaInternacional",
+    );
+  const connection = connectionAreaParams(entry);
+  const terms = equipmentTerms(entry);
+  const equipmentToiIds = [
+    ...new Set(terms.map((term) => term.toi)),
+  ];
+  const tsecIds = [...new Set(terms.map((term) => term.tsec))];
+  const tsecPatch: Partial<
+    Record<ComponentParamId, Partial<ParamField<ComponentParamId>>>
+  > = {};
+  for (const id of tsecIds) {
+    const standard = standardTsecForParam(entry, id);
+    if (standard != null) {
+      tsecPatch[id] = {
+        defaultValue: standard,
+        origem: TSEC_MANUAL_CITATION,
+      };
+    }
+  }
   const empUnit = empUnitFor(entry, companions);
   const empUnitEmbarque = empUnitForFlow(entry, "embarque", companions);
   const empUnitDesembarque = empUnitForFlow(entry, "desembarque", companions);
@@ -124,16 +167,27 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           ...(includeEquipmentTaxa
             ? (["taxaDeUsoEquipamento"] as const)
             : []),
-          ...EQUIPMENT_PARAM_IDS,
+          "quantidadeEquipamentos" as const,
+          ...tsecIds,
+          ...(area ? [] : equipmentToiIds),
         ]
       : []),
   ];
 
-  const areaCopy = mixedNature
-    ? mixedAreaFormulaDisplay(companions, flows.length, includeAreaTaxa)
+  const areaCopy = singleFunctionMixed
+    ? singleFunctionMixedFormulaDisplay(companions, includeAreaTaxa)
+    : mixedNature
+      ? mixedAreaFormulaDisplay(
+          companions,
+          flows.length,
+          includeAreaTaxa,
+          Boolean(connection),
+        )
     : dualFlows
-      ? dualAreaFormulaDisplay(companions, includeAreaTaxa)
-      : areaFormulaDisplay(companions, includeAreaTaxa);
+      ? dualAreaFormulaDisplay(companions, includeAreaTaxa, Boolean(connection))
+      : connection
+        ? simpleConnectionFormulaDisplay(companions, includeAreaTaxa)
+        : areaFormulaDisplay(companions, includeAreaTaxa);
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
   if (area && equipment && seats) {
@@ -146,8 +200,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     subtitle = `Requisito de área: ${areaCopy}.`;
   } else if (equipment) {
     subtitle =
-      dualFlows || mixedNature
-        ? "Requisito de equipamentos de processamento. A demanda no recinto é a soma dos DHp."
+      terms.length > 1
+        ? "Requisito de equipamentos. Cada fluxo usa o seu Toi e o seu tsec; N é o teto da soma."
         : "Requisito de equipamentos de processamento.";
   }
 
@@ -182,6 +236,12 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       espacoMinimoPorPassageiroDesembarqueInternacional: {
         unit: empUnitDesembarque,
       },
+      espacoMinimoPorPassageiroDomestico: {
+        unit: empUnit,
+      },
+      espacoMinimoPorPassageiroInternacional: {
+        unit: empUnit,
+      },
       ...(dualFlows && seats
         ? {
             percentualMinimoAssentos: {
@@ -189,6 +249,16 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             },
           }
         : {}),
+      ...(connection
+        ? {
+            demandaPicoConexao: {
+              label: mixedNature
+                ? "DHp conexões (agregado)"
+                : "DHp embarque via conexão",
+            },
+          }
+        : {}),
+      ...tsecPatch,
     }),
     formulas: capacityFormulas({
       includeArea: Boolean(area),
@@ -199,7 +269,10 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       companions,
       flows: flows.length > 1 ? flows : [],
       demandIds,
+      connection,
+      equipmentTerms: terms,
     }),
+    equipmentTerms: equipment ? terms : undefined,
   };
 }
 
