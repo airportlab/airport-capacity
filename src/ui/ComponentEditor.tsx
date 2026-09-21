@@ -378,8 +378,8 @@ export function ComponentEditor({
                     name={`natureza-${entry.id}`}
                     checked={currentNature === item}
                     onChange={() => onNatureChange(item)}
-                  />
-                  {organNatureLabel(item)}
+                    />
+                  <span>{organNatureLabel(item)}</span>
                 </label>
               ))}
             </div>

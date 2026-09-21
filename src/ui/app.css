@@ -984,6 +984,9 @@ fieldset.field {
 .nature-options .choice {
   flex: 0 0 auto;
   margin: 0;
+}
+
+.nature-options .choice span {
   white-space: nowrap;
 }
 

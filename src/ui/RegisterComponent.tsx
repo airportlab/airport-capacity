@@ -181,7 +181,7 @@ export function RegisterComponent({
                         setTitleTouched(false);
                       }}
                     />
-                    {organNatureLabel(item)}
+                    <span>{organNatureLabel(item)}</span>
                   </label>
                 ))}
               </div>
