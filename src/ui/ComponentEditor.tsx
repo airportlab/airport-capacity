@@ -689,22 +689,26 @@ export function ComponentEditor({
             )
           ) : null}
           <div className="fields">
-            {equipmentFields.map((field) =>
-              isTsecParam(field.id) ? (
-                <TsecParamControl
-                  key={field.id}
-                  field={field}
-                  draft={drafts[field.id] ?? formatEditable(0)}
-                  standard={standardTsecForParam(entry, field.id)}
-                  origem={origens[field.id] ?? field.origem}
-                  justification={justificativas[field.id] ?? ""}
-                  onValueChange={(raw) => onValueChange(field.id, raw)}
-                  onJustificationChange={(raw) =>
-                    onJustificationChange(field.id, raw)
-                  }
-                  onRestore={() => onRestoreContract(field.id)}
-                />
-              ) : (
+            {equipmentFields.map((field) => {
+              if (isTsecParam(field.id)) {
+                const id = field.id;
+                return (
+                  <TsecParamControl
+                    key={id}
+                    field={field}
+                    draft={drafts[id] ?? formatEditable(0)}
+                    standard={standardTsecForParam(entry, id)}
+                    origem={origens[id] ?? field.origem}
+                    justification={justificativas[id] ?? ""}
+                    onValueChange={(raw) => onValueChange(id, raw)}
+                    onJustificationChange={(raw) =>
+                      onJustificationChange(id, raw)
+                    }
+                    onRestore={() => onRestoreContract(id)}
+                  />
+                );
+              }
+              return (
                 <NumberField
                   key={field.id}
                   field={field}
@@ -717,8 +721,8 @@ export function ComponentEditor({
                       : undefined
                   }
                 />
-              ),
-            )}
+              );
+            })}
           </div>
           <div className="actions">
             <button
