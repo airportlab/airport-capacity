@@ -177,6 +177,24 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     origem:
       "Atributo opcional do embarque via conexão. No saguão misto, demanda agregada das conexões.",
   },
+  demandaPicoConexaoDesembarqueDomestico: {
+    id: "demandaPicoConexaoDesembarqueDomestico",
+    kind: "attribute",
+    label: "DHp conexão de desembarque doméstico (DOM/INT)",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Conexão de desembarque com origem doméstica e destino internacional. Usa Emp e Toi do desembarque doméstico, sem acompanhante.",
+  },
+  demandaPicoConexaoDesembarqueInternacional: {
+    id: "demandaPicoConexaoDesembarqueInternacional",
+    kind: "attribute",
+    label: "DHp conexão de desembarque internacional (INT/DOM + INT/INT)",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Conexões de desembarque com origem internacional (INT/DOM e INT/INT), numa demanda só. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
+  },
   espacoMinimoPorPassageiroEmbarqueDomestico: {
     id: "espacoMinimoPorPassageiroEmbarqueDomestico",
     kind: "sizing",

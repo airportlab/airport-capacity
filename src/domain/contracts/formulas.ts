@@ -6,9 +6,10 @@ import type {
   ResolvedInputs,
 } from "../types";
 import type { FlowParamIds } from "./flowParams";
-import { demandSum, tsecIdForToi } from "./flowParams";
+import { demandSum, isArrivalsOnlyMixed, tsecIdForToi } from "./flowParams";
 import {
   areaFormulaDisplay,
+  arrivalsConnectionAreaDisplay,
   connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
@@ -158,6 +159,30 @@ function withDemandTu(demand: string, includeTaxa: boolean): string {
   return includeTaxa ? `${demand} × Tu` : demand;
 }
 
+function connectionExpression(
+  item: FlowParamIds,
+  mixedNature: boolean,
+  includeTaxa: boolean,
+): string {
+  if (item.area === "areaMinimaConexaoDomestico") {
+    return arrivalsConnectionAreaDisplay("dom", includeTaxa);
+  }
+  if (item.area === "areaMinimaConexaoInternacional") {
+    return arrivalsConnectionAreaDisplay("int", includeTaxa);
+  }
+  return connectionAreaDisplay(includeTaxa, mixedNature ? "_e,dom" : "_e");
+}
+
+function connectionLabel(item: FlowParamIds): string {
+  if (item.area === "areaMinimaConexaoDomestico") {
+    return "Área mínima de conexão de desembarque doméstico (Ad_c,dom)";
+  }
+  if (item.area === "areaMinimaConexaoInternacional") {
+    return "Área mínima de conexão de desembarque internacional (Ad_c,int)";
+  }
+  return "Área mínima de conexões (Ad_c)";
+}
+
 function equipmentDemandExcel(
   cells: ExcelCellMap["inputs"],
   demandIds: readonly ComponentParamId[],
@@ -202,6 +227,7 @@ export function capacityFormulas(copy: {
   flows?: FlowParamIds[];
   demandIds?: ComponentParamId[];
   connection?: FlowParamIds | null;
+  connections?: FlowParamIds[];
   equipmentTerms?: EquipmentTerm[];
 }): ContractFormula[] {
   const includeUsoReal = copy.includeUsoReal ?? false;
@@ -214,14 +240,16 @@ export function capacityFormulas(copy: {
   const flows = copy.flows ?? [];
   const demandIds = copy.demandIds ?? ["demandaPico"];
   const connection = copy.connection ?? null;
+  const connections =
+    copy.connections ?? (connection ? [connection] : []);
   const equipmentTerms: EquipmentTerm[] =
     copy.equipmentTerms && copy.equipmentTerms.length > 0
       ? copy.equipmentTerms
       : flows.length > 0
         ? flows.map((flow) => {
             const ids: ComponentParamId[] = [flow.demanda];
-            if (connection && connection.toi === flow.toi) {
-              ids.push(connection.demanda);
+            for (const item of connections) {
+              if (item.toi === flow.toi) ids.push(item.demanda);
             }
             return {
               demandIds: ids,
@@ -229,7 +257,16 @@ export function capacityFormulas(copy: {
               tsec: tsecIdForToi(flow.toi, flows.length > 1),
             };
           })
-        : [{ demandIds, toi: "tempoDeOcupacao", tsec: "tsec" }];
+        : [
+            {
+              demandIds: [
+                ...demandIds,
+                ...connections.map((item) => item.demanda),
+              ],
+              toi: "tempoDeOcupacao",
+              tsec: "tsec",
+            },
+          ];
   const mixedNature = flows.some(
     (flow) =>
       flow.area.includes("Domestico") || flow.area.includes("Internacional"),
@@ -273,40 +310,40 @@ export function capacityFormulas(copy: {
           areaExcel(cells, flow.demanda, flow.emp, flow.toi, va, areaTaxaId),
       });
     }
-    if (connection) {
-      const empSuffix = mixedNature ? "_e,dom" : "_e";
-      const expression = connectionAreaDisplay(includeAreaTaxa, empSuffix);
+    for (const item of connections) {
+      const expression = connectionExpression(item, mixedNature, includeAreaTaxa);
       formulas.push({
-        id: connection.area,
-        label: "Área mínima de conexões (Ad_c)",
+        id: item.area,
+        label: connectionLabel(item),
         unit: "m²",
         origem: `${expression}. Conexões sem acompanhante.`,
         expression,
         evaluate: (inputs) =>
           areaValue(
             inputs,
-            connection.demanda,
-            connection.emp,
-            connection.toi,
+            item.demanda,
+            item.emp,
+            item.toi,
             undefined,
             areaTaxaId,
           ),
         toExcel: (cells) =>
           areaExcel(
             cells,
-            connection.demanda,
-            connection.emp,
-            connection.toi,
+            item.demanda,
+            item.emp,
+            item.toi,
             undefined,
             areaTaxaId,
           ),
       });
     }
+    const arrivalsOnly = isArrivalsOnlyMixed(flows);
     const sumDisplay = singleFunctionMixed
       ? singleFunctionMixedSumDisplay()
       : mixedNature
-        ? mixedAreaSumDisplay(flows.length, Boolean(connection))
-        : dualAreaSumDisplay(Boolean(connection));
+        ? mixedAreaSumDisplay(flows.length, connections.length > 0, arrivalsOnly)
+        : dualAreaSumDisplay(connections.length > 0);
     formulas.push({
       id: "areaMinima",
       label: "Área mínima necessária (Ad)",
@@ -327,16 +364,19 @@ export function capacityFormulas(copy: {
             ),
           0,
         ) +
-        (connection
-          ? areaValue(
+        connections.reduce(
+          (sum, item) =>
+            sum +
+            areaValue(
               inputs,
-              connection.demanda,
-              connection.emp,
-              connection.toi,
+              item.demanda,
+              item.emp,
+              item.toi,
               undefined,
               areaTaxaId,
-            )
-          : 0),
+            ),
+          0,
+        ),
       toExcel: (cells) => {
         const parts = flows.map((flow) =>
           areaExcel(
@@ -348,13 +388,13 @@ export function capacityFormulas(copy: {
             areaTaxaId,
           ),
         );
-        if (connection) {
+        for (const item of connections) {
           parts.push(
             areaExcel(
               cells,
-              connection.demanda,
-              connection.emp,
-              connection.toi,
+              item.demanda,
+              item.emp,
+              item.toi,
               undefined,
               areaTaxaId,
             ),

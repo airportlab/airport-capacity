@@ -87,7 +87,13 @@ export function singleFunctionMixedFormulaDisplay(
 export function mixedAreaSumDisplay(
   flowCount = 4,
   hasConnection = false,
+  arrivalsOnly = false,
 ): string {
+  if (arrivalsOnly) {
+    return hasConnection
+      ? "Ad = Ad_d,dom + Ad_d,int + Ad_c,dom + Ad_c,int"
+      : "Ad = Ad_d,dom + Ad_d,int";
+  }
   const base =
     flowCount <= 2
       ? "Ad = Ad_e,dom + Ad_e,int"
@@ -100,15 +106,42 @@ export function mixedAreaFormulaDisplay(
   flowCount = 4,
   includeTaxa = false,
   hasConnection = false,
+  arrivalsOnly = false,
 ): string {
   const rhs = areaFormulaRhs(companions, includeTaxa);
   const connection = hasConnection
     ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e,dom")};`
     : "";
+  if (arrivalsOnly) {
+    const connection = hasConnection
+      ? ` ${arrivalsConnectionAreaDisplay("dom", includeTaxa)}; ${arrivalsConnectionAreaDisplay("int", includeTaxa)};`
+      : "";
+    return `Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection, true)}`;
+  }
   if (flowCount <= 2) {
     return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection)}`;
   }
   return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs}; Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(4, hasConnection)}`;
+}
+
+export function arrivalsConnectionNumerator(
+  kind: "dom" | "int",
+  includeTaxa = false,
+): string {
+  const demand = withTu(
+    kind === "dom" ? "DHp_c,dom" : "DHp_c,int",
+    includeTaxa,
+  );
+  const suffix = kind === "dom" ? "_d,dom" : "_d,int";
+  return `${demand} × Emp${suffix} × Toi${suffix}`;
+}
+
+export function arrivalsConnectionAreaDisplay(
+  kind: "dom" | "int",
+  includeTaxa = false,
+): string {
+  const lhs = kind === "dom" ? "Ad_c,dom" : "Ad_c,int";
+  return `${lhs} = (${arrivalsConnectionNumerator(kind, includeTaxa)}) / 60`;
 }
 
 export function connectionAreaNumerator(
@@ -164,6 +197,10 @@ export function demandSymbol(id: ComponentParamId): string {
       return "DHp_int";
     case "demandaPicoConexao":
       return "DHp_c";
+    case "demandaPicoConexaoDesembarqueDomestico":
+      return "DHp_c,dom";
+    case "demandaPicoConexaoDesembarqueInternacional":
+      return "DHp_c,int";
     default:
       return "DHp";
   }

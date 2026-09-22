@@ -359,13 +359,52 @@ function writeDashOrNumber(
   cell.numFmt = "#,##0.00";
 }
 
+function connectionDemandId(
+  inputs: NatureAreaRowLayout["inputs"],
+): ComponentParamId | undefined {
+  if (inputs.demandaPicoConexaoDesembarqueDomestico) {
+    return "demandaPicoConexaoDesembarqueDomestico";
+  }
+  if (inputs.demandaPicoConexaoDesembarqueInternacional) {
+    return "demandaPicoConexaoDesembarqueInternacional";
+  }
+  if (inputs.demandaPicoConexao) return "demandaPicoConexao";
+  return undefined;
+}
+
+function connectionResultId(
+  results: NatureAreaRowLayout["results"],
+): "areaMinimaConexaoDomestico" | "areaMinimaConexaoInternacional" | "areaMinimaConexao" | undefined {
+  if (results.areaMinimaConexaoDomestico) return "areaMinimaConexaoDomestico";
+  if (results.areaMinimaConexaoInternacional) {
+    return "areaMinimaConexaoInternacional";
+  }
+  if (results.areaMinimaConexao) return "areaMinimaConexao";
+  return undefined;
+}
+
+function connectionRowLabel(
+  title: string,
+  demandId: ComponentParamId | undefined,
+): string {
+  if (demandId === "demandaPicoConexaoDesembarqueDomestico") {
+    return `${title} · conexão DOM/INT`;
+  }
+  if (demandId === "demandaPicoConexaoDesembarqueInternacional") {
+    return `${title} · conexão INT/DOM + INT/INT`;
+  }
+  return `${title} · conexões`;
+}
+
 function writeConnectionAreaRow(
   sheet: ExcelJS.Worksheet,
   contract: ComponentContract,
   evaluation: Evaluation,
   flowBlock: NatureAreaRowLayout,
 ): void {
-  const formula = contract.formulas.find((item) => item.id === "areaMinimaConexao");
+  const demandId = connectionDemandId(flowBlock.inputs) ?? "demandaPicoConexao";
+  const resultId = connectionResultId(flowBlock.results) ?? "areaMinimaConexao";
+  const formula = contract.formulas.find((item) => item.id === resultId);
   const empId = Object.keys(flowBlock.inputs).find((id) =>
     id.startsWith("espacoMinimoPorPassageiro"),
   ) as ComponentParamId | undefined;
@@ -373,8 +412,8 @@ function writeConnectionAreaRow(
     id.startsWith("tempoDeOcupacao"),
   ) as ComponentParamId | undefined;
   const flowRow = sheet.getRow(flowBlock.row);
-  flowRow.getCell(1).value = `${contract.title} · conexões`;
-  flowRow.getCell(2).value = evaluation.inputs.demandaPicoConexao;
+  flowRow.getCell(1).value = connectionRowLabel(contract.title, demandId);
+  flowRow.getCell(2).value = evaluation.inputs[demandId];
   flowRow.getCell(2).numFmt = "#,##0.00";
   flowRow.getCell(3).value = "—";
   if (empId) {
@@ -402,7 +441,7 @@ function writeConnectionAreaRow(
   if (formula) {
     flowRow.getCell(14).value = {
       formula: formula.toExcel(flowBlock.inputs),
-      result: evaluation.results.areaMinimaConexao,
+      result: evaluation.results[resultId],
     };
     flowRow.getCell(14).numFmt = "#,##0.00";
   } else {
@@ -430,8 +469,10 @@ function writeEquipmentFlowRow(
 ): void {
   const flowRow = sheet.getRow(flowBlock.row);
   const demandId = Object.keys(flowBlock.inputs).find(
-    (id) => id.startsWith("demandaPico") && id !== "demandaPicoConexao",
+    (id) =>
+      id.startsWith("demandaPico") && !id.startsWith("demandaPicoConexao"),
   ) as ComponentParamId | undefined;
+  const connectionId = connectionDemandId(flowBlock.inputs);
   const toiId = Object.keys(flowBlock.inputs).find((id) =>
     id.startsWith("tempoDeOcupacao"),
   ) as ComponentParamId | undefined;
@@ -442,8 +483,8 @@ function writeEquipmentFlowRow(
   } else {
     flowRow.getCell(2).value = "—";
   }
-  if (flowBlock.inputs.demandaPicoConexao) {
-    flowRow.getCell(3).value = evaluation.inputs.demandaPicoConexao;
+  if (connectionId) {
+    flowRow.getCell(3).value = evaluation.inputs[connectionId];
     flowRow.getCell(3).numFmt = "#,##0.00";
   } else {
     flowRow.getCell(3).value = "—";
@@ -552,7 +593,7 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       row.getCell(2).numFmt = isTaxaParam(field.id) ? "0.00" : "#,##0.00";
       row.getCell(3).value = field.unit;
       row.getCell(4).value =
-        field.id === "demandaPicoConexao"
+        field.id.startsWith("demandaPicoConexao")
           ? field.origem
           : (model.componentOrigens[contract.id]?.[field.id] ?? field.origem);
       if (isSizingParam(field.id)) {
@@ -706,7 +747,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
     );
     const note = sheet.getRow(layout.area.noteRow);
     note.getCell(1).value =
-      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}.`;
+      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Desembarque misto: ${mixedAreaFormulaDisplay(true, 2, false, false, true)}. Desembarque misto com conexão: ${mixedAreaFormulaDisplay(true, 2, false, true, true)}. Sala de desembarque mista: ${mixedAreaFormulaDisplay(false, 2, false, false, true)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}.`;
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(
       layout.area.noteRow,
@@ -715,7 +756,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       NATURE_AREA_COLUMNS,
     );
     fillRow(note, COLORS.paper, 1, NATURE_AREA_COLUMNS);
-    note.height = 36;
+    note.height = 68;
     colHeaders(
       sheet.getRow(layout.area.colHeaderRow),
       [
@@ -793,10 +834,8 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           }
           fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
         });
-        const connectionBlock = mixedFlows.find(
-          (flow) => flow.inputs.demandaPicoConexao,
-        );
-        if (connectionBlock) {
+        for (const connectionBlock of mixedFlows) {
+          if (!connectionDemandId(connectionBlock.inputs)) continue;
           writeConnectionAreaRow(sheet, contract, evaluation, connectionBlock);
         }
       }

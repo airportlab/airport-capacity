@@ -353,6 +353,8 @@ export function AirportEditor() {
       "quantidadeEquipamentos",
       "tsec",
       "demandaPicoConexao",
+      "demandaPicoConexaoDesembarqueDomestico",
+      "demandaPicoConexaoDesembarqueInternacional",
     ]);
     const sources = resolvedSources(entry);
     for (const field of contract.params) {
@@ -409,6 +411,8 @@ export function AirportEditor() {
       params.demandaPicoDomestico = 0;
       params.demandaPicoInternacional = 0;
       params.demandaPicoConexao = 0;
+      params.demandaPicoConexaoDesembarqueDomestico = 0;
+      params.demandaPicoConexaoDesembarqueInternacional = 0;
       params.areaMedida = 0;
     }
     for (const field of contract.params) {

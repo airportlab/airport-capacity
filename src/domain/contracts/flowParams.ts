@@ -8,7 +8,11 @@ import type {
   ResultId,
   SizingParamId,
 } from "../types";
-import { hasBoardingConnection, isMixedNature } from "../types";
+import {
+  hasArrivalsConnection,
+  hasBoardingConnection,
+  isMixedNature,
+} from "../types";
 
 export interface FlowParamIds {
   demanda: ComponentParamId;
@@ -52,6 +56,17 @@ export function flowParamIds(
     va: `va${role}` as SizingParamId,
     area: `areaMinima${role}` as ResultId,
   };
+}
+
+export function isArrivalsOnlyMixed(flows: readonly FlowParamIds[]): boolean {
+  return (
+    flows.length > 0 &&
+    flows.every(
+      (flow) =>
+        flow.area === "areaMinimaDesembarqueDomestico" ||
+        flow.area === "areaMinimaDesembarqueInternacional",
+    )
+  );
 }
 
 export function entryFlowParams(entry: RegistryEntry): FlowParamIds[] {
@@ -103,7 +118,46 @@ export function identityParamIds(entry: RegistryEntry): ComponentParamId[] {
   const ids: ComponentParamId[] =
     flows.length > 0 ? flows.map((flow) => flow.demanda) : ["demandaPico"];
   if (hasBoardingConnection(entry)) ids.push("demandaPicoConexao");
+  if (hasArrivalsConnection(entry)) {
+    ids.push(
+      "demandaPicoConexaoDesembarqueDomestico",
+      "demandaPicoConexaoDesembarqueInternacional",
+    );
+  }
   return ids;
+}
+
+export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
+  const boarding = connectionAreaParams(entry);
+  if (boarding) return [boarding];
+  if (!hasArrivalsConnection(entry)) return [];
+  const flows = entryFlowParams(entry);
+  const list: FlowParamIds[] = [];
+  const domestico = flows.find(
+    (flow) => flow.demanda === "demandaPicoDesembarqueDomestico",
+  );
+  const internacional = flows.find(
+    (flow) => flow.demanda === "demandaPicoDesembarqueInternacional",
+  );
+  if (domestico) {
+    list.push({
+      demanda: "demandaPicoConexaoDesembarqueDomestico",
+      emp: domestico.emp,
+      toi: domestico.toi,
+      va: domestico.va,
+      area: "areaMinimaConexaoDomestico",
+    });
+  }
+  if (internacional) {
+    list.push({
+      demanda: "demandaPicoConexaoDesembarqueInternacional",
+      emp: internacional.emp,
+      toi: internacional.toi,
+      va: internacional.va,
+      area: "areaMinimaConexaoInternacional",
+    });
+  }
+  return list;
 }
 
 export function connectionAreaParams(
@@ -227,20 +281,20 @@ export function tsecTargets(entry: RegistryEntry): TsecTarget[] {
   }));
 }
 
-/** Um termo por fluxo de área. Conexão soma na demanda do embarque, com o Toi e o tsec desse fluxo. */
+/** Um termo por fluxo de área. Cada conexão soma na demanda do fluxo com o mesmo Toi. */
 export function equipmentTerms(entry: RegistryEntry): EquipmentTerm[] {
   const flows = entryFlowParams(entry);
-  const connection = connectionAreaParams(entry);
+  const connections = connectionFlows(entry);
   const multi = flows.length > 1;
   if (flows.length === 0) {
     const demandIds: ComponentParamId[] = ["demandaPico"];
-    if (connection) demandIds.push(connection.demanda);
+    for (const connection of connections) demandIds.push(connection.demanda);
     return [{ demandIds, toi: "tempoDeOcupacao", tsec: "tsec" }];
   }
   return flows.map((flow) => {
     const demandIds: ComponentParamId[] = [flow.demanda];
-    if (connection && connection.toi === flow.toi) {
-      demandIds.push(connection.demanda);
+    for (const connection of connections) {
+      if (connection.toi === flow.toi) demandIds.push(connection.demanda);
     }
     return { demandIds, toi: flow.toi, tsec: tsecIdForToi(flow.toi, multi) };
   });

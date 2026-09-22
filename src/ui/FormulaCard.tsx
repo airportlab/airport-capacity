@@ -7,6 +7,7 @@ import {
   equipmentFormulaDisplay,
   equipmentNumerator,
   equipmentToiSymbol,
+  arrivalsConnectionNumerator,
   mixedAreaSumDisplay,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
@@ -239,8 +240,13 @@ export function MixedNatureAreaFormulaCard({
   flowCount = 4,
   hasConnection = false,
   singleFunction = false,
+  arrivalsOnly = false,
   afterEquation,
-}: DualFormulaCardProps & { flowCount?: number; singleFunction?: boolean }) {
+}: DualFormulaCardProps & {
+  flowCount?: number;
+  singleFunction?: boolean;
+  arrivalsOnly?: boolean;
+}) {
   if (singleFunction) {
     const sum = singleFunctionMixedSumDisplay();
     return (
@@ -276,19 +282,24 @@ export function MixedNatureAreaFormulaCard({
     );
   }
   const num = areaNumerator(companions, includeTaxa);
-  const boardingOnly = flowCount <= 2;
-  const sum = mixedAreaSumDisplay(flowCount, hasConnection);
-  const sumBody = boardingOnly
+  const boardingOnly = flowCount <= 2 && !arrivalsOnly;
+  const twoFlows = flowCount <= 2;
+  const sum = mixedAreaSumDisplay(flowCount, hasConnection, arrivalsOnly);
+  const sumBody = arrivalsOnly
     ? hasConnection
-      ? "Ad_e,dom + Ad_e,int + Ad_c"
-      : "Ad_e,dom + Ad_e,int"
-    : hasConnection
-      ? "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int + Ad_c"
-      : "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int";
+      ? "Ad_d,dom + Ad_d,int + Ad_c,dom + Ad_c,int"
+      : "Ad_d,dom + Ad_d,int"
+    : boardingOnly
+      ? hasConnection
+        ? "Ad_e,dom + Ad_e,int + Ad_c"
+        : "Ad_e,dom + Ad_e,int"
+      : hasConnection
+        ? "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int + Ad_c"
+        : "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int";
   return (
     <div className="formula-card">
       <p className="formula-kicker">
-        {boardingOnly
+        {twoFlows
           ? hasConnection
             ? "Fórmulas dos fluxos (doméstico, internacional e conexões)"
             : "Fórmulas dos dois fluxos (doméstico e internacional)"
@@ -296,19 +307,38 @@ export function MixedNatureAreaFormulaCard({
             ? "Fórmulas dos quatro fluxos e das conexões"
             : "Fórmulas dos quatro fluxos"}
       </p>
-      <AreaEquation
-        companions={companions}
-        includeTaxa={includeTaxa}
-        lhs="Ad_e,dom"
-        numerator={num}
-      />
-      <AreaEquation
-        companions={companions}
-        includeTaxa={includeTaxa}
-        lhs="Ad_e,int"
-        numerator={num}
-      />
-      {boardingOnly ? null : (
+      {arrivalsOnly ? (
+        <>
+          <AreaEquation
+            companions={companions}
+            includeTaxa={includeTaxa}
+            lhs="Ad_d,dom"
+            numerator={num}
+          />
+          <AreaEquation
+            companions={companions}
+            includeTaxa={includeTaxa}
+            lhs="Ad_d,int"
+            numerator={num}
+          />
+        </>
+      ) : (
+        <>
+          <AreaEquation
+            companions={companions}
+            includeTaxa={includeTaxa}
+            lhs="Ad_e,dom"
+            numerator={num}
+          />
+          <AreaEquation
+            companions={companions}
+            includeTaxa={includeTaxa}
+            lhs="Ad_e,int"
+            numerator={num}
+          />
+        </>
+      )}
+      {boardingOnly || arrivalsOnly ? null : (
         <>
           <AreaEquation
             companions={companions}
@@ -324,11 +354,27 @@ export function MixedNatureAreaFormulaCard({
           />
         </>
       )}
-      {hasConnection ? (
+      {hasConnection && !arrivalsOnly ? (
         <ConnectionEquation
           includeTaxa={includeTaxa}
           empSuffix="_e,dom"
         />
+      ) : null}
+      {arrivalsOnly && hasConnection ? (
+        <>
+          <AreaEquation
+            companions={false}
+            includeTaxa={includeTaxa}
+            lhs="Ad_c,dom"
+            numerator={arrivalsConnectionNumerator("dom", includeTaxa)}
+          />
+          <AreaEquation
+            companions={false}
+            includeTaxa={includeTaxa}
+            lhs="Ad_c,int"
+            numerator={arrivalsConnectionNumerator("int", includeTaxa)}
+          />
+        </>
       ) : null}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>

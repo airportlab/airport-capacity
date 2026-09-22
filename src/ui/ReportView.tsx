@@ -151,7 +151,7 @@ function ComponentSections({
                 <td>{formatNumber(evaluation.inputs[field.id])}</td>
                 <td>{field.unit}</td>
                 <td>
-                  {field.id === "demandaPicoConexao"
+                  {field.id.startsWith("demandaPicoConexao")
                     ? field.origem
                     : (origens[field.id] ?? field.origem)}
                 </td>

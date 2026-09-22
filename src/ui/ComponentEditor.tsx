@@ -33,7 +33,9 @@ import type {
   SizingParamId,
 } from "../domain/types";
 import {
+  allowsArrivalsConnection,
   allowsBoardingConnection,
+  hasArrivalsConnection,
   hasBoardingConnection,
   hasEquipment,
   isDualFunction,
@@ -79,7 +81,7 @@ function FieldList({
           field={field}
           draft={drafts[field.id]}
           origem={
-            field.id === "demandaPicoConexao"
+            field.id.startsWith("demandaPicoConexao")
               ? field.origem
               : (origens[field.id] ?? field.origem)
           }
@@ -273,11 +275,11 @@ export function ComponentEditor({
   const identityFields = contract.params.filter((field) =>
     identityIdSet.has(field.id),
   );
-  const connectionFields = identityFields.filter(
-    (field) => field.id === "demandaPicoConexao",
+  const connectionFields = identityFields.filter((field) =>
+    field.id.startsWith("demandaPicoConexao"),
   );
   const boardingIdentityFields = identityFields.filter(
-    (field) => field.id !== "demandaPicoConexao",
+    (field) => !field.id.startsWith("demandaPicoConexao"),
   );
   const areaTaxaFields = contract.params.filter(
     (field) => field.id === "taxaDeUsoArea",
@@ -471,9 +473,23 @@ export function ComponentEditor({
             Há embarque via conexão
           </label>
         ) : null}
+        {allowsArrivalsConnection(entry) ? (
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={hasArrivalsConnection(entry)}
+              onChange={(event) => onSetConnection(event.target.checked)}
+            />
+            Há desembarque via conexão
+          </label>
+        ) : null}
         {connectionFields.length > 0 ? (
           <>
-            <h3 className="field-label">Embarque via conexão</h3>
+            <h3 className="field-label">
+              {allowsArrivalsConnection(entry)
+                ? "Desembarque via conexão"
+                : "Embarque via conexão"}
+            </h3>
             <FieldList
               fields={connectionFields}
               drafts={drafts}
@@ -535,7 +551,14 @@ export function ComponentEditor({
               includeTaxa={areaTaxa}
               flowCount={entry.flows?.length ?? 0}
               singleFunction={singleFunctionMixed}
-              hasConnection={hasBoardingConnection(entry)}
+              arrivalsOnly={
+                (entry.flows?.length ?? 0) > 0 &&
+                (entry.flows?.every((flow) => flow.role === "desembarque") ??
+                  false)
+              }
+              hasConnection={
+                hasBoardingConnection(entry) || hasArrivalsConnection(entry)
+              }
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }

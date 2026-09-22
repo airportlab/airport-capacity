@@ -22,9 +22,11 @@ import {
 import {
   areaBodyIdsFromFlows,
   connectionAreaParams,
+  connectionFlows,
   entryFlowParams,
   equipmentTerms,
   identityParamIds,
+  isArrivalsOnlyMixed,
 } from "./flowParams";
 import { capacityFormulas } from "./formulas";
 import {
@@ -86,6 +88,7 @@ export function isMixedNatureContract(contract: ComponentContract): boolean {
   return contract.params.some(
     (field) =>
       field.id === "demandaPicoEmbarqueDomestico" ||
+      field.id === "demandaPicoDesembarqueDomestico" ||
       field.id === "demandaPicoDomestico",
   );
 }
@@ -97,7 +100,12 @@ export function isSingleFunctionMixedContract(
 }
 
 export function contractHasConnection(contract: ComponentContract): boolean {
-  return contract.params.some((field) => field.id === "demandaPicoConexao");
+  return contract.params.some(
+    (field) =>
+      field.id === "demandaPicoConexao" ||
+      field.id === "demandaPicoConexaoDesembarqueDomestico" ||
+      field.id === "demandaPicoConexaoDesembarqueInternacional",
+  );
 }
 
 /** Emp, Toi e tsec da conexão vêm do embarque: no misto e no doméstico, da coluna doméstica. */
@@ -138,7 +146,9 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
         flow.area === "areaMinimaDomestico" ||
         flow.area === "areaMinimaInternacional",
     );
+  const arrivalsOnly = isArrivalsOnlyMixed(flows);
   const connection = connectionAreaParams(entry);
+  const connections = connectionFlows(entry);
   const terms = equipmentTerms(entry);
   const equipmentToiIds = [
     ...new Set(terms.map((term) => term.toi)),
@@ -201,7 +211,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           companions,
           flows.length,
           includeAreaTaxa,
-          Boolean(connection),
+          connections.length > 0,
+          arrivalsOnly,
         )
     : dualFlows
       ? dualAreaFormulaDisplay(companions, includeAreaTaxa, Boolean(connection))
@@ -311,6 +322,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       flows: flows.length > 1 ? flows : [],
       demandIds,
       connection,
+      connections,
       equipmentTerms: terms,
     }),
     equipmentTerms: equipment ? terms : undefined,

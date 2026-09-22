@@ -365,7 +365,47 @@ export function getNatureSheetLayout(
           });
           row += 1;
         }
-        if (contractHasConnection(contract)) {
+        if (
+          contract.params.some(
+            (field) => field.id === "demandaPicoConexaoDesembarqueDomestico",
+          )
+        ) {
+          const arrivalsConnections = [
+            {
+              demanda: "demandaPicoConexaoDesembarqueDomestico",
+              emp: "espacoMinimoPorPassageiroDesembarqueDomestico",
+              toi: "tempoDeOcupacaoDesembarqueDomestico",
+              area: "areaMinimaConexaoDomestico",
+            },
+            {
+              demanda: "demandaPicoConexaoDesembarqueInternacional",
+              emp: "espacoMinimoPorPassageiroDesembarqueInternacional",
+              toi: "tempoDeOcupacaoDesembarqueInternacional",
+              area: "areaMinimaConexaoInternacional",
+            },
+          ] as const;
+          for (const spec of arrivalsConnections) {
+            const r = row;
+            totalInputs[spec.demanda] = `B${r}`;
+            totalResults[spec.area] = `N${r}`;
+            collected.push({
+              row: r,
+              inputs: {
+                [spec.demanda]: `B${r}`,
+                [spec.emp]: totalInputs[spec.emp] ?? `D${r}`,
+                [spec.toi]: totalInputs[spec.toi] ?? `F${r}`,
+                ...(usesAreaTaxa(contract.requirements)
+                  ? { taxaDeUsoArea: `R${r}` }
+                  : {}),
+              },
+              results: {
+                [spec.area]: `N${r}`,
+              },
+              statusCell: `P${r}`,
+            });
+            row += 1;
+          }
+        } else if (contractHasConnection(contract)) {
           const connectionRow = layoutConnectionAreaRow(contract, row);
           totalInputs.demandaPicoConexao = `B${row}`;
           totalResults.areaMinimaConexao = `N${row}`;

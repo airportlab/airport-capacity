@@ -47,7 +47,7 @@ import {
   type JustificativaId,
 } from "../domain/types";
 
-export const STATE_VERSION = 11 as const;
+export const STATE_VERSION = 12 as const;
 
 export interface PersistedAirportState {
   version: typeof STATE_VERSION;
@@ -435,6 +435,7 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
   if (parsed === null || typeof raw.savedAt !== "string") return null;
   const nature = parsePeakNature(raw.peakNature);
   const registry =
+    raw.version === 12 ||
     raw.version === 11 ||
     raw.version === 10 ||
     raw.version === 9 ||
@@ -560,6 +561,7 @@ function parseLegacyCheckin(raw: unknown): PersistedAirportState | null {
 export function parsePersistedState(raw: unknown): PersistedAirportState | null {
   if (!isRecord(raw)) return null;
   if (
+    raw.version === 12 ||
     raw.version === 11 ||
     raw.version === 10 ||
     raw.version === 9 ||

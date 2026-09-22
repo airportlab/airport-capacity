@@ -71,10 +71,11 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
   {
     kind: "saguao-desembarque",
     title: "Saguão de desembarque",
-    natures: ["domestico", "internacional"],
+    natures: ["domestico", "internacional", "misto"],
     preset: "areaCompanions",
-    flows: [{ role: "unico", rowId: "saguao-desembarque" }],
-    detail: "Público após o desembarque. Toi internacional maior que o doméstico.",
+    flows: [{ role: "desembarque", rowId: "saguao-desembarque" }],
+    detail:
+      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional no misto: DOM/INT na conta doméstica e INT/DOM + INT/INT na internacional, sem acompanhante.",
   },
   {
     kind: "saguao-embarque-desembarque",
@@ -149,10 +150,11 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
   {
     kind: "sala-desembarque",
     title: "Sala de desembarque",
-    natures: ["domestico", "internacional"],
+    natures: ["domestico", "internacional", "misto"],
     preset: "area",
     flows: [{ role: "desembarque", rowId: "sala-desembarque" }],
-    detail: "Desembarque da aeronave. Toi 20 doméstico, 45 internacional.",
+    detail:
+      "Desembarque da aeronave. Toi 20 doméstico, 45 internacional. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante.",
   },
 ];
 
@@ -385,7 +387,7 @@ export function remapDemandaOnNatureChange(
   const fromPeak = peakOfEntry(from);
   const map = new Map<string, number>();
   for (const id of identityParamIds(from)) {
-    if (id === "demandaPicoConexao") continue;
+    if (id.startsWith("demandaPicoConexao")) continue;
     const slot = DEMANDA_SLOTS[id];
     if (!slot) continue;
     const nature = slot.nature ?? fromPeak;
@@ -396,7 +398,7 @@ export function remapDemandaOnNatureChange(
   const toPeak = peakOfEntry(to);
   const next: Partial<Record<ComponentParamId, number>> = {};
   for (const id of identityParamIds(to)) {
-    if (id === "demandaPicoConexao") {
+    if (id.startsWith("demandaPicoConexao")) {
       if (fromIds.has(id)) next[id] = params[id] ?? 0;
       continue;
     }

@@ -60,6 +60,8 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoDomestico",
   "demandaPicoInternacional",
   "demandaPicoConexao",
+  "demandaPicoConexaoDesembarqueDomestico",
+  "demandaPicoConexaoDesembarqueInternacional",
   "taxaDeUsoArea",
   "taxaDeUsoEquipamento",
   "areaMedida",
@@ -165,6 +167,14 @@ export function hasBoardingConnection(entry: RegistryEntry): boolean {
   return allowsBoardingConnection(entry) && entry.hasConnection === true;
 }
 
+export function allowsArrivalsConnection(entry: RegistryEntry): boolean {
+  return entry.kind === "saguao-desembarque" && isMixedNature(entry);
+}
+
+export function hasArrivalsConnection(entry: RegistryEntry): boolean {
+  return allowsArrivalsConnection(entry) && entry.hasConnection === true;
+}
+
 export function isDualFunction(entry: RegistryEntry): boolean {
   const roles = new Set(entry.flows?.map((flow) => flow.role) ?? []);
   return roles.has("embarque") && roles.has("desembarque");
@@ -198,6 +208,8 @@ export type ResultId =
   | "areaMinimaDomestico"
   | "areaMinimaInternacional"
   | "areaMinimaConexao"
+  | "areaMinimaConexaoDomestico"
+  | "areaMinimaConexaoInternacional"
   | "areaMinima"
   | "assentosMinimos"
   | "numeroMinimoEquipamentos";
