@@ -17,7 +17,7 @@ Build estático: `npm run build`. Pré-visualização: `npm run preview`.
 
 O catálogo em `src/domain/airports.ts` liga cada aeroporto de estudo ao contrato, à rodada e ao bloco. A tabela numérica compartilhada está em `src/domain/pmd.ts` (`STANDARD_PMD`):
 
-- **SBSG** — Contrato de Concessão nº 004/ANAC/2023, 7ª rodada (relicitação)
+- **SBSG** — Contrato de Concessão nº 004/ANAC/2023, 1ª rodada (relicitação)
 - **SBGO** — Contrato de Concessão nº 003/ANAC/2021-Central, 6ª rodada
 - **7ª rodada — Aviação Geral** — Contrato de Concessão nº 001/ANAC/2023-Aviação Geral (SBMT, SBJR)
 - **7ª rodada — Norte II** — Contrato de Concessão nº 003/ANAC/2023-Norte II (SBBE, SBMQ)

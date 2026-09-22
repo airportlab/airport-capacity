@@ -59,7 +59,7 @@ function sizing(
   return { emp, toiMinutes, vaPerPax, seatPercent };
 }
 
-/** Tabela PMD compartilhada (6ª rodada Central, 7ª rodada e relicitação). */
+/** Tabela PMD compartilhada (1ª rodada — relicitação do SBSG, 6ª rodada Central e 7ª rodada). */
 export const STANDARD_PMD: PmdRow[] = [
   {
     id: "saguao-embarque",

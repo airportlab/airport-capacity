@@ -73,7 +73,7 @@ export const AIRPORTS: AirportSource[] = [
     "sbsg",
     "SBSG",
     "São Gonçalo do Amarante",
-    "7",
+    "1",
     "Relicitação",
     "Contrato de Concessão nº 004/ANAC/2023",
   ),
