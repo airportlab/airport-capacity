@@ -17,6 +17,7 @@ import {
   type ExcelHeaderLayout,
   type NatureAreaRowLayout,
   type NatureEquipmentRowLayout,
+  type ManualExcelLayout,
   type NatureSheetLayout,
   type SingleSheetLayout,
   type SizingExcelLayout,
@@ -31,7 +32,7 @@ import {
   roundLabel,
   sourceCitation,
   standardTsecForParam,
-  TSEC_MANUAL_CITATION,
+  TSEC_MANUAL_LABEL,
   usedByPmd,
 } from "../domain/pmd";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
@@ -195,6 +196,74 @@ function writePmd(
       row.getCell(4).numFmt = numFmt;
     }
     row.getCell(5).value =
+      users.length === 0
+        ? "—"
+        : users
+            .map((entry) => {
+              const natures = naturesUsedOnRow(entry, pmd.id)
+                .map((nature) => (nature === "internacional" ? "int." : "dom."))
+                .join("/");
+              return `${entry.title}${natures ? ` (${natures})` : ""}`;
+            })
+            .join(", ");
+    fillRow(row, COLORS.sand, 1, width);
+  }
+}
+
+const TSEC_EXCEL_NAME =
+  TSEC_MANUAL_LABEL.charAt(0).toUpperCase() + TSEC_MANUAL_LABEL.slice(1);
+
+const TSEC_EXCEL_CITATION =
+  `Manual de Anteprojeto (ANAC). ${TSEC_EXCEL_NAME}, em segundos. Padrão do requisito de equipamentos na falta de outro tempo informado.`;
+
+function tsecExcelFieldLabel(label: string): string {
+  const marker = " · ";
+  const at = label.indexOf(marker);
+  return at === -1 ? TSEC_EXCEL_NAME : `${TSEC_EXCEL_NAME}${label.slice(at)}`;
+}
+
+function writeManual(
+  sheet: ExcelJS.Worksheet,
+  manual: ManualExcelLayout,
+  model: ExcelModel,
+  width: number,
+): void {
+  const airport = model.airport ?? defaultAirport();
+  const rows = pmdRows(airport);
+  titleRow(
+    sheet.getRow(manual.headerRow),
+    `Manual de Anteprojeto — ${TSEC_MANUAL_LABEL}`,
+    COLORS.slate,
+    width,
+  );
+  const note = sheet.getRow(manual.noteRow);
+  note.getCell(1).value =
+    "Valores de referência do Anexo B. Na falta de outro tempo informado, são o padrão do requisito de equipamentos.";
+  note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
+  sheet.mergeCells(manual.noteRow, 1, manual.noteRow, width);
+  fillRow(note, COLORS.paper, 1, width);
+  note.height = 32;
+  colHeaders(
+    sheet.getRow(manual.colHeaderRow),
+    ["Componente", "Doméstico (s)", "Internacional (s)", "Usado por"],
+    COLORS.slate,
+  );
+
+  for (const item of manual.rows) {
+    const pmd = rows.find((row) => row.id === item.pmdId);
+    if (!pmd) continue;
+    const metric = pmdMetrics(pmd).find((entry) => entry.key === item.metricKey);
+    if (!metric) continue;
+    const users = usedByPmd(model.registry, pmd.id);
+    const row = sheet.getRow(item.row);
+    row.getCell(1).value = pmd.title;
+    row.getCell(2).value = metric.domestico ?? "—";
+    if (typeof metric.domestico === "number") row.getCell(2).numFmt = "#,##0";
+    row.getCell(3).value = metric.internacional ?? "—";
+    if (typeof metric.internacional === "number") {
+      row.getCell(3).numFmt = "#,##0";
+    }
+    row.getCell(4).value =
       users.length === 0
         ? "—"
         : users
@@ -458,6 +527,7 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
   }
 
   writePmd(sheet, layout.sizing, model, 5);
+  writeManual(sheet, layout.manual, model, 5);
 
   for (const contract of model.contracts) {
     const evaluation = model.evaluations[contract.id];
@@ -475,7 +545,9 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       const rowIndex = block.inputRows[field.id];
       if (rowIndex === undefined) continue;
       const row = sheet.getRow(rowIndex);
-      row.getCell(1).value = field.label;
+      row.getCell(1).value = isTsecParam(field.id)
+        ? tsecExcelFieldLabel(field.label)
+        : field.label;
       row.getCell(2).value = evaluation.inputs[field.id];
       row.getCell(2).numFmt = isTaxaParam(field.id) ? "0.00" : "#,##0.00";
       row.getCell(3).value = field.unit;
@@ -500,10 +572,10 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
         const value = evaluation.inputs[field.id];
         if (standard != null && value !== standard) {
           row.getCell(5).value = just.trim()
-            ? `Fora do Manual de Anteprojeto (${standard} s). ${just.trim()}`
-            : `Fora do Manual de Anteprojeto (${standard} s).`;
+            ? `Fora do Manual de Anteprojeto (${TSEC_EXCEL_NAME}, ${standard} s). ${just.trim()}`
+            : `Fora do Manual de Anteprojeto (${TSEC_EXCEL_NAME}, ${standard} s).`;
         } else if (standard != null) {
-          row.getCell(5).value = TSEC_MANUAL_CITATION;
+          row.getCell(5).value = TSEC_EXCEL_CITATION;
         } else {
           row.getCell(5).value = "Atributo do componente";
         }
@@ -621,6 +693,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
   }
 
   writePmd(sheet, layout.sizing, model, NATURE_AREA_COLUMNS);
+  writeManual(sheet, layout.manual, model, NATURE_AREA_COLUMNS);
 
   if (layout.area) {
     titleRow(
@@ -938,7 +1011,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         "Componente",
         "DHp / DHp embarque",
         "DHp desembarque",
-        "tsec (s)",
+        "Tsec (s)",
         "Tempo de ocupação (min)",
         "Nº mín. equipamentos",
         "DHp desembarque doméstico",

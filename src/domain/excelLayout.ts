@@ -29,6 +29,13 @@ export interface SizingExcelLayout {
   rows: SizingExcelRow[];
 }
 
+export interface ManualExcelLayout {
+  headerRow: number;
+  noteRow: number;
+  colHeaderRow: number;
+  rows: SizingExcelRow[];
+}
+
 export interface ComponentExcelLayout extends ExcelCellMap {
   titleRow: number;
   colHeaderRow: number;
@@ -54,6 +61,7 @@ export interface ExcelHeaderLayout {
   noticeRow: number;
   summary: SummaryExcelLayout;
   sizing: SizingExcelLayout;
+  manual: ManualExcelLayout;
 }
 
 export interface SingleSheetLayout extends ExcelHeaderLayout {
@@ -145,7 +153,28 @@ function layoutPreamble(
   const sizingRows: SizingExcelRow[] = [];
   for (const pmd of pmdRows(source)) {
     for (const metric of pmdMetrics(pmd)) {
+      if (metric.key === "tsec") continue;
       sizingRows.push({
+        pmdId: pmd.id,
+        metricKey: metric.key,
+        row,
+      });
+      row += 1;
+    }
+  }
+  row += 1;
+
+  const manualHeaderRow = row;
+  row += 1;
+  const manualNoteRow = row;
+  row += 1;
+  const manualColHeaderRow = row;
+  row += 1;
+  const manualRows: SizingExcelRow[] = [];
+  for (const pmd of pmdRows(source)) {
+    for (const metric of pmdMetrics(pmd)) {
+      if (metric.key !== "tsec") continue;
+      manualRows.push({
         pmdId: pmd.id,
         metricKey: metric.key,
         row,
@@ -171,6 +200,12 @@ function layoutPreamble(
       headerRow: sizingHeaderRow,
       colHeaderRow: sizingColHeaderRow,
       rows: sizingRows,
+    },
+    manual: {
+      headerRow: manualHeaderRow,
+      noteRow: manualNoteRow,
+      colHeaderRow: manualColHeaderRow,
+      rows: manualRows,
     },
   };
 }
@@ -201,6 +236,7 @@ export function getSingleSheetLayout(
     noticeRow: preamble.noticeRow,
     summary: preamble.summary,
     sizing: preamble.sizing,
+    manual: preamble.manual,
     components,
   };
 }
@@ -537,6 +573,7 @@ export function getNatureSheetLayout(
     noticeRow: preamble.noticeRow,
     summary: preamble.summary,
     sizing: preamble.sizing,
+    manual: preamble.manual,
     area,
     equipment,
   };

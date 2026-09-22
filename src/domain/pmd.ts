@@ -184,6 +184,10 @@ export const TSEC_MANUAL_URL =
 export const TSEC_MANUAL_CITATION =
   "Manual de Anteprojeto (ANAC). Tempo de serviço do equipamento (tsec), em segundos. Padrão do requisito de equipamentos na falta de outro tempo informado.";
 
+/** Nome da equação 10. Só o Excel usa este rótulo. */
+export const TSEC_MANUAL_LABEL =
+  "tempo médio de processamento de passageiros nos processadores (Tsec)";
+
 export function standardTsec(
   rowId: string,
   nature: PeakNature,
