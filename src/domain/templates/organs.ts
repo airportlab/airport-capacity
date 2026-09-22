@@ -454,10 +454,17 @@ export function instantiateOrgan(
   });
 }
 
+const COMPANION_PRESET = "areaCompanions";
+
+/** Com ou sem acompanhante só nos saguões (preset `areaCompanions`). */
+export function organAllowsCompanions(entry: RegistryEntry): boolean {
+  return templateForEntry(entry)?.preset === COMPANION_PRESET;
+}
+
 export function suggestedCompanions(
   template: OrganTemplate | undefined,
 ): boolean {
-  return template?.preset === "areaCompanions";
+  return template?.preset === COMPANION_PRESET;
 }
 
 export interface ExampleOperatingValues {

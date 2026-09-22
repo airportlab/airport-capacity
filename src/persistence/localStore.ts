@@ -16,6 +16,7 @@ import {
 import { isTsecParam } from "../domain/contracts/fields";
 import { equipmentTerms } from "../domain/contracts/flowParams";
 import { makeContract, requirementsFromLegacyTemplate } from "../domain/contracts/factory";
+import { organAllowsCompanions } from "../domain/templates/organs";
 import {
   applyPmdRequirements,
   DEFAULT_PEAK_NATURE,
@@ -174,6 +175,18 @@ function parseEquipmentRequirement(
   return raw.taxaDiferente === true ? { taxaDiferente: true } : {};
 }
 
+function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {
+  const area = entry.requirements.area;
+  if (!area?.companions || organAllowsCompanions(entry)) return entry;
+  return {
+    ...entry,
+    requirements: {
+      ...entry.requirements,
+      area: { ...area, companions: false },
+    },
+  };
+}
+
 function parseRequirements(raw: unknown): ComponentRequirements | null {
   if (!isRecord(raw)) return null;
   const requirements: ComponentRequirements = {};
@@ -207,26 +220,30 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const observacoes = parseOptionalText(item.observacoes);
     const fromRequirements = parseRequirements(item.requirements);
     if (fromRequirements) {
-      entries.push({
-        id: item.id,
-        title: item.title,
-        kind: typeof item.kind === "string" ? item.kind : undefined,
-        requirements: fromRequirements,
-        pmd: parsePmd(item.pmd),
-        flows: parseFlows(item.flows),
-        sizingSources: parseSizingSources(item.sizingSources),
-        observacoes,
-        ...(item.hasConnection === true ? { hasConnection: true } : {}),
-      });
+      entries.push(
+        clampAreaCompanions({
+          id: item.id,
+          title: item.title,
+          kind: typeof item.kind === "string" ? item.kind : undefined,
+          requirements: fromRequirements,
+          pmd: parsePmd(item.pmd),
+          flows: parseFlows(item.flows),
+          sizingSources: parseSizingSources(item.sizingSources),
+          observacoes,
+          ...(item.hasConnection === true ? { hasConnection: true } : {}),
+        }),
+      );
       continue;
     }
     if (item.template === "area" || item.template === "areaAndEquipment") {
-      entries.push({
-        id: item.id,
-        title: item.title,
-        requirements: requirementsFromLegacyTemplate(item.template),
-        observacoes,
-      });
+      entries.push(
+        clampAreaCompanions({
+          id: item.id,
+          title: item.title,
+          requirements: requirementsFromLegacyTemplate(item.template),
+          observacoes,
+        }),
+      );
       continue;
     }
     return null;

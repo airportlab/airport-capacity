@@ -52,8 +52,9 @@ export function AboutPage({ onBack }: AboutPageProps) {
         </p>
         <p>
           Na aba do componente você informa DHp, área medida e equipamentos. A
-          demanda de área (Ad) usa DHp, Emp e Toi (e v.a. ou taxa de utilização
-          Tu, se o requisito estiver marcado). Equipamentos usam o teto da
+          demanda de área (Ad) usa DHp, Emp e Toi (e v.a., nos saguões, se o
+          requisito marcar acompanhante, ou taxa de utilização Tu, se estiver
+          marcada). Equipamentos usam o teto da
           conta de N. O tsec nasce no padrão do Manual de Anteprojeto de cada
           fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
           usa o seu Toi e o seu tsec. Com vários DHp no mesmo recinto, as contas somam — não se

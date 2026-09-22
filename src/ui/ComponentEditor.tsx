@@ -16,6 +16,7 @@ import {
 import {
   natureOfEntry,
   naturesForTemplate,
+  organAllowsCompanions,
   organNatureLabel,
   suggestedCompanions,
   templateForEntry,
@@ -554,14 +555,16 @@ export function ComponentEditor({
               }
             />
           )}
-          <label className="choice">
-            <input
-              type="checkbox"
-              checked={area.companions}
-              onChange={(event) => onSetCompanions(event.target.checked)}
-            />
-            Com acompanhante
-          </label>
+          {organAllowsCompanions(entry) ? (
+            <label className="choice">
+              <input
+                type="checkbox"
+                checked={area.companions}
+                onChange={(event) => onSetCompanions(event.target.checked)}
+              />
+              Com acompanhante
+            </label>
+          ) : null}
           <label className="choice">
             <input
               type="checkbox"

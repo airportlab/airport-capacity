@@ -41,6 +41,7 @@ import {
   standardTsecForParam,
   TSEC_MANUAL_CITATION,
 } from "../pmd";
+import { organAllowsCompanions } from "../templates/organs";
 
 export function emptyRequirements(): ComponentRequirements {
   return {};
@@ -100,10 +101,15 @@ export function contractHasConnection(contract: ComponentContract): boolean {
 
 export function makeContract(entry: RegistryEntry): ComponentContract {
   const title = entry.title.trim() ? entry.title : "Componente";
-  const requirements = entry.requirements ?? emptyRequirements();
-  const area = requirements.area;
+  const stored = entry.requirements ?? emptyRequirements();
+  const storedArea = stored.area;
+  const companions =
+    storedArea?.companions === true && organAllowsCompanions(entry);
+  const area = storedArea ? { ...storedArea, companions } : undefined;
+  const requirements: ComponentRequirements = area
+    ? { ...stored, area }
+    : stored;
   const equipment = hasEquipment(requirements);
-  const companions = area?.companions === true;
   const includeAreaTaxa = usesAreaTaxa(requirements);
   const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
   const seats = Boolean(area) && roundHasSeats(entry);

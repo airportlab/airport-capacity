@@ -27,6 +27,7 @@ import {
 import {
   instantiateOrgan,
   natureOfEntry,
+  organAllowsCompanions,
   organNatureLabel,
   rebindOrganNature,
   remapDemandaOnNatureChange,
@@ -495,7 +496,10 @@ export function AirportEditor() {
   function handleAddArea(id: ComponentId, companions: boolean) {
     updateRequirements(id, (entry) => ({
       ...entry,
-      requirements: { ...entry.requirements, area: { companions } },
+      requirements: {
+        ...entry.requirements,
+        area: { companions: companions && organAllowsCompanions(entry) },
+      },
     }));
     setMessage("Requisito de área cadastrado.");
   }
@@ -507,7 +511,10 @@ export function AirportEditor() {
         ...entry,
         requirements: {
           ...entry.requirements,
-          area: { ...entry.requirements.area, companions },
+          area: {
+            ...entry.requirements.area,
+            companions: companions && organAllowsCompanions(entry),
+          },
         },
       };
     });
