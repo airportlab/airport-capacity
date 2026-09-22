@@ -10,6 +10,10 @@ import { demandSum, isArrivalsOnlyMixed, tsecIdForToi } from "./flowParams";
 import {
   areaFormulaDisplay,
   arrivalsConnectionAreaDisplay,
+  beltSuffix,
+  beltSumDisplay,
+  beltTermDisplay,
+  beltTermRhs,
   connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
@@ -27,6 +31,66 @@ function requiredCell(
     throw new Error(`Célula Excel ausente para ${String(id)}`);
   }
   return cell;
+}
+
+export const BELT_TR_MIN = 30;
+export const BELT_LMP_MIN = 0.9;
+
+export function isBeltManualParam(
+  id: string,
+): id is "taxaRetiradaBagagem" | "comprimentoLinearPassageiro" {
+  return id === "taxaRetiradaBagagem" || id === "comprimentoLinearPassageiro";
+}
+
+export function beltManualStandard(
+  id: "taxaRetiradaBagagem" | "comprimentoLinearPassageiro",
+): number {
+  return id === "taxaRetiradaBagagem" ? BELT_TR_MIN : BELT_LMP_MIN;
+}
+
+export function beltTr(inputs: ResolvedInputs): number {
+  const value = inputs.taxaRetiradaBagagem;
+  if (!Number.isFinite(value)) return BELT_TR_MIN;
+  return Math.max(value, BELT_TR_MIN);
+}
+
+export function beltLmp(inputs: ResolvedInputs): number {
+  const value = inputs.comprimentoLinearPassageiro;
+  if (!Number.isFinite(value)) return BELT_LMP_MIN;
+  return Math.max(value, BELT_LMP_MIN);
+}
+
+export function beltTermValue(
+  inputs: ResolvedInputs,
+  demanda: ComponentParamId,
+  toi: ComponentParamId,
+): number {
+  return (
+    (inputs[demanda] * (beltTr(inputs) / 100) * beltLmp(inputs) * inputs[toi]) /
+    60
+  );
+}
+
+function beltTermExcel(
+  cells: ExcelCellMap["inputs"],
+  demanda: ComponentParamId,
+  toi: ComponentParamId,
+): string {
+  const tr = `MAX(${requiredCell(cells, "taxaRetiradaBagagem")},${BELT_TR_MIN})/100`;
+  const lmp = `MAX(${requiredCell(cells, "comprimentoLinearPassageiro")},${BELT_LMP_MIN})`;
+  return `(${requiredCell(cells, demanda)}*(${tr})*${lmp}*${requiredCell(cells, toi)})/60`;
+}
+
+function beltPartialResult(
+  area: FlowParamIds["area"],
+): "comprimentoMinimoDesembarqueDomestico" | "comprimentoMinimoDesembarqueInternacional" | null {
+  if (area === "areaMinimaDesembarqueDomestico") {
+    return "comprimentoMinimoDesembarqueDomestico";
+  }
+  if (area === "areaMinimaDesembarqueInternacional") {
+    return "comprimentoMinimoDesembarqueInternacional";
+  }
+  return null;
 }
 
 function ceilCount(value: number): number {
@@ -229,6 +293,7 @@ export function capacityFormulas(copy: {
   connection?: FlowParamIds | null;
   connections?: FlowParamIds[];
   equipmentTerms?: EquipmentTerm[];
+  includeBelt?: boolean;
 }): ContractFormula[] {
   const includeUsoReal = copy.includeUsoReal ?? false;
   const includeArea = copy.includeArea ?? false;
@@ -280,6 +345,7 @@ export function capacityFormulas(copy: {
   const equipmentTaxaId: ComponentParamId | null = includeEquipmentTaxa
     ? "taxaDeUsoEquipamento"
     : null;
+  const includeBelt = copy.includeBelt ?? false;
   const formulas: ContractFormula[] = [];
 
   if (includeUsoReal) {
@@ -595,6 +661,64 @@ export function capacityFormulas(copy: {
         });
         return `ROUNDUP(${parts.join("+")},0)`;
       },
+    });
+  }
+
+  if (includeBelt) {
+    const beltFlows =
+      flows.length > 0
+        ? flows.map((flow) => ({
+            demanda: flow.demanda,
+            toi: flow.toi,
+            area: flow.area,
+          }))
+        : [
+            {
+              demanda: demandIds[0] ?? "demandaPico",
+              toi: "tempoDeOcupacao" as ComponentParamId,
+              area: "areaMinima" as FlowParamIds["area"],
+            },
+          ];
+    const partials = beltFlows.flatMap((flow) => {
+      const id = beltPartialResult(flow.area);
+      return id ? [{ ...flow, id, suffix: beltSuffix(flow.area) }] : [];
+    });
+    if (beltFlows.length > 1 && partials.length === beltFlows.length) {
+      for (const flow of partials) {
+        const expression = beltTermDisplay(flow.suffix);
+        formulas.push({
+          id: flow.id,
+          label:
+            flow.suffix === "_d,int"
+              ? "Comprimento mínimo da esteira · desembarque internacional (C_d,int)"
+              : "Comprimento mínimo da esteira · desembarque doméstico (C_d,dom)",
+          unit: "m",
+          origem: expression,
+          expression,
+          evaluate: (inputs) => beltTermValue(inputs, flow.demanda, flow.toi),
+          toExcel: (cells) => beltTermExcel(cells, flow.demanda, flow.toi),
+        });
+      }
+    }
+    const singleSuffix = beltSuffix(beltFlows[0]?.area ?? "areaMinima");
+    const expression =
+      beltFlows.length > 1 ? beltSumDisplay() : `C = ${beltTermRhs(singleSuffix)}`;
+    formulas.push({
+      id: "comprimentoMinimoEsteira",
+      label: "Comprimento mínimo da esteira (C)",
+      unit: "m",
+      origem:
+        "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Tr mínimo 30%; Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.",
+      expression,
+      evaluate: (inputs) =>
+        beltFlows.reduce(
+          (sum, flow) => sum + beltTermValue(inputs, flow.demanda, flow.toi),
+          0,
+        ),
+      toExcel: (cells) =>
+        beltFlows
+          .map((flow) => beltTermExcel(cells, flow.demanda, flow.toi))
+          .join("+"),
     });
   }
 

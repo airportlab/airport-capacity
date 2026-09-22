@@ -11,7 +11,7 @@ export const arrivalsContract: ComponentContract = {
     area: { companions: false },
   },
   subtitle:
-    "Componente de chegadas. Só área pelo guia mínimo — sem equipamentos de processamento.",
+    "Componente de chegadas. Área pelo guia mínimo. O requisito opcional é o comprimento mínimo de esteira, sem N.",
   params: pickFields(AREA_PARAM_IDS, {
     areaMedida: {
       defaultValue: 260,

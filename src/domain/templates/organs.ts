@@ -154,7 +154,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "area",
     flows: [{ role: "desembarque", rowId: "sala-desembarque" }],
     detail:
-      "Desembarque da aeronave. Toi 20 doméstico, 45 internacional. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante.",
+      "Desembarque da aeronave. Toi 20 doméstico, 45 internacional. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante e sem N. O requisito opcional é o comprimento mínimo de esteira.",
   },
 ];
 

@@ -15,6 +15,14 @@ function isEquipmentFormula(id: ResultId): boolean {
   return id === "numeroMinimoEquipamentos";
 }
 
+function isBeltFormula(id: ResultId): boolean {
+  return (
+    id === "comprimentoMinimoEsteira" ||
+    id === "comprimentoMinimoDesembarqueDomestico" ||
+    id === "comprimentoMinimoDesembarqueInternacional"
+  );
+}
+
 function ResultValues({
   contract,
   evaluation,
@@ -103,6 +111,20 @@ export function EquipmentResults({
       evaluation={evaluation}
       match={isEquipmentFormula}
       check={evaluation.equipmentCheck}
+    />
+  );
+}
+
+export function EsteiraResults({
+  contract,
+  evaluation,
+}: RequirementResultsProps) {
+  return (
+    <RequirementResults
+      contract={contract}
+      evaluation={evaluation}
+      match={isBeltFormula}
+      check={evaluation.esteiraCheck}
     />
   );
 }

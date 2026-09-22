@@ -381,6 +381,31 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 0,
     origem: "Quantidade existente / instalada neste componente operacional.",
   },
+  taxaRetiradaBagagem: {
+    id: "taxaRetiradaBagagem",
+    kind: "attribute",
+    label: "Taxa de passageiros que retiram bagagem (Tr)",
+    unit: "%",
+    defaultValue: 30,
+    origem:
+      "Manual de Anteprojeto. Mínimo 30%.",
+  },
+  comprimentoLinearPassageiro: {
+    id: "comprimentoLinearPassageiro",
+    kind: "attribute",
+    label: "Comprimento de esteira por passageiro (Lmp)",
+    unit: "m",
+    defaultValue: 0.9,
+    origem: "Manual de Anteprojeto. Mínimo 0,9 m.",
+  },
+  comprimentoEsteiras: {
+    id: "comprimentoEsteiras",
+    kind: "attribute",
+    label: "Comprimento somado das esteiras",
+    unit: "m",
+    defaultValue: 0,
+    origem: "Soma dos comprimentos das esteiras instaladas nesta sala.",
+  },
   tsec: tsecField("tsec", "Tempo de uso do equipamento (tsec)"),
   tsecDomestico: tsecField(
     "tsecDomestico",

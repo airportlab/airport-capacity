@@ -1,5 +1,9 @@
 import { isSizingParam, isTsecParam } from "../domain/contracts/fields";
 import {
+  beltManualStandard,
+  isBeltManualParam,
+} from "../domain/contracts/formulas";
+import {
   isDualContract,
   isMixedNatureContract,
   isSingleFunctionMixedContract,
@@ -38,6 +42,7 @@ import {
   hasArrivalsConnection,
   hasBoardingConnection,
   hasEquipment,
+  hasEsteira,
   isDualFunction,
   isMixedNature,
   usesAreaTaxa,
@@ -45,13 +50,14 @@ import {
 } from "../domain/types";
 import { formatEditable, formatNumber, parseLocaleNumber, sameNumber } from "./format";
 import {
+  BeltFormulaCard,
   DualAreaFormulaCard,
   EquipmentFormulaCard,
   FormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
 import { NumberField } from "./NumberField";
-import { AreaResults, EquipmentResults } from "./ResultPanel";
+import { AreaResults, EquipmentResults, EsteiraResults } from "./ResultPanel";
 
 const MIXED_GROUPS = [
   ["Embarque doméstico", "EmbarqueDomestico"],
@@ -215,6 +221,63 @@ function TsecParamControl({
   );
 }
 
+function BeltManualControl({
+  field,
+  draft,
+  justification,
+  onValueChange,
+  onJustificationChange,
+  onRestore,
+}: {
+  field: ComponentContract["params"][number];
+  draft: string;
+  justification: string;
+  onValueChange: (raw: string) => void;
+  onJustificationChange: (raw: string) => void;
+  onRestore: () => void;
+}) {
+  if (!isBeltManualParam(field.id)) return null;
+  const standard = beltManualStandard(field.id);
+  const parsed = parseLocaleNumber(draft);
+  const altered = parsed !== null && !sameNumber(parsed, standard);
+  return (
+    <div className={altered ? "sizing-field altered" : "sizing-field"}>
+      <NumberField
+        field={field}
+        draft={draft}
+        origem={field.origem}
+        onValueChange={onValueChange}
+        onBlur={() => {
+          if (parsed !== null && parsed < standard) {
+            onValueChange(formatEditable(standard));
+          }
+        }}
+      />
+      {altered ? (
+        <>
+          <label className="field">
+            <span className="field-label">Justificativa</span>
+            <textarea
+              className="origem-edit"
+              rows={2}
+              value={justification}
+              onChange={(event) => onJustificationChange(event.target.value)}
+            />
+          </label>
+          {justification.trim() === "" ? (
+            <p className="justificativa-warn">
+              Informe por que o valor difere de {formatNumber(standard)} {field.unit}.
+            </p>
+          ) : null}
+          <button type="button" className="ghost" onClick={onRestore}>
+            Voltar ao valor do Manual de Anteprojeto
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 interface ComponentEditorProps {
   contract: ComponentContract;
   entry: RegistryEntry;
@@ -233,6 +296,8 @@ interface ComponentEditorProps {
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
+  onAddEsteira: () => void;
+  onRemoveEsteira: () => void;
   onSetConnection: (hasConnection: boolean) => void;
   onNatureChange: (nature: OrganNature) => void;
   onValueChange: (id: ComponentParamId, raw: string) => void;
@@ -259,6 +324,8 @@ export function ComponentEditor({
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
+  onAddEsteira,
+  onRemoveEsteira,
   onSetConnection,
   onNatureChange,
   onValueChange,
@@ -267,7 +334,9 @@ export function ComponentEditor({
   onRestoreContract,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
+  const arrivalsHall = entry.kind === "sala-desembarque";
   const equipment = hasEquipment(contract.requirements);
+  const esteira = hasEsteira(contract.requirements);
   const areaTaxa = usesAreaTaxa(contract.requirements);
   const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
   const identityIds = identityParamIds(entry);
@@ -293,6 +362,12 @@ export function ComponentEditor({
   const equipmentFields = contract.params.filter(
     (field) =>
       field.id === "quantidadeEquipamentos" || isTsecParam(field.id),
+  );
+  const beltFields = contract.params.filter(
+    (field) =>
+      field.id === "taxaRetiradaBagagem" ||
+      field.id === "comprimentoLinearPassageiro" ||
+      field.id === "comprimentoEsteiras",
   );
   const sizingFields = contract.params.filter((field) => isSizingParam(field.id));
   const mixed = isMixedNature(entry) || isMixedNatureContract(contract);
@@ -324,7 +399,7 @@ export function ComponentEditor({
           ) === index,
       )
     : flowMeta;
-  const empty = !area && !equipment;
+  const empty = !area && !equipment && !esteira;
 
   function renderSizing(fields: ComponentContract["params"]) {
     return fields.map((field) => {
@@ -511,11 +586,12 @@ export function ComponentEditor({
         </div>
         {empty ? (
           <p className="panel-lead">
-            Área e equipamentos são opcionais. Adicione o que este componente
-            operacional precisa.
+            {arrivalsHall
+              ? "Área e tamanho mínimo de esteira são opcionais. Adicione o que este componente operacional precisa."
+              : "Área e equipamentos são opcionais. Adicione o que este componente operacional precisa."}
           </p>
         ) : null}
-        {!area || !equipment ? (
+        {!area || (arrivalsHall ? !esteira : !equipment) ? (
           <div className="requirement-add">
             {!area ? (
               <button
@@ -526,7 +602,12 @@ export function ComponentEditor({
                 Adicionar requisito de área
               </button>
             ) : null}
-            {!equipment ? (
+            {arrivalsHall && !esteira ? (
+              <button type="button" className="accent" onClick={onAddEsteira}>
+                Adicionar requisito de tamanho mínimo de esteira
+              </button>
+            ) : null}
+            {!arrivalsHall && !equipment ? (
               <button
                 type="button"
                 className="accent"
@@ -761,6 +842,78 @@ export function ComponentEditor({
               onClick={onRemoveEquipment}
             >
               Remover equipamentos
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {esteira ? (
+        <section
+          className="panel balloon"
+          aria-labelledby={`${contract.id}-esteira`}
+        >
+          <h2 id={`${contract.id}-esteira`}>Tamanho mínimo de esteira</h2>
+          <BeltFormulaCard
+            mixed={mixed}
+            afterEquation={
+              <EsteiraResults contract={contract} evaluation={evaluation} />
+            }
+          />
+          <div className="fields">
+            {beltFields
+              .filter((field) => isBeltManualParam(field.id))
+              .map((field) => {
+                const id = field.id;
+                if (!isBeltManualParam(id)) return null;
+                return (
+                  <BeltManualControl
+                    key={id}
+                    field={field}
+                    draft={drafts[id] ?? formatEditable(beltManualStandard(id))}
+                    justification={justificativas[id] ?? ""}
+                    onValueChange={(raw) => onValueChange(id, raw)}
+                    onJustificationChange={(raw) =>
+                      onJustificationChange(id, raw)
+                    }
+                    onRestore={() => onRestoreContract(id)}
+                  />
+                );
+              })}
+          </div>
+          {!area && sizingFields.length > 0 ? (
+            mixed ? (
+              mixedGroups.map(([label, needle]) => {
+                const fields = sizingFields.filter((field) =>
+                  field.id.includes(needle),
+                );
+                if (fields.length === 0) return null;
+                return (
+                  <div key={needle}>
+                    <h3 className="field-label">{label}</h3>
+                    {renderSizing(fields)}
+                  </div>
+                );
+              })
+            ) : (
+              renderSizing(sizingFields)
+            )
+          ) : null}
+          <div className="fields">
+            {beltFields
+              .filter((field) => field.id === "comprimentoEsteiras")
+              .map((field) => (
+                <NumberField
+                  key={field.id}
+                  field={field}
+                  draft={drafts[field.id]}
+                  origem={origens[field.id] ?? field.origem}
+                  onValueChange={(raw) => onValueChange(field.id, raw)}
+                />
+              ))}
+          </div>
+          <div className="actions">
+            <button type="button" className="ghost" onClick={onRemoveEsteira}>
+              Remover esteira
             </button>
           </div>
         </section>

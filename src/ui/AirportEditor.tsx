@@ -9,6 +9,7 @@ import {
   defaultComponentParams,
 } from "../domain/contracts/catalog";
 import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
+import { beltManualStandard, isBeltManualParam } from "../domain/contracts/formulas";
 import { resolveContracts, slugify } from "../domain/contracts/factory";
 import { evaluateAll } from "../domain/engine";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
@@ -351,6 +352,7 @@ export function AirportEditor() {
     const freshZeros = new Set<ComponentParamId>([
       "areaMedida",
       "quantidadeEquipamentos",
+      "comprimentoEsteiras",
       "tsec",
       "demandaPicoConexao",
       "demandaPicoConexaoDesembarqueDomestico",
@@ -581,6 +583,32 @@ export function AirportEditor() {
     setMessage("Requisito de equipamentos cadastrado.");
   }
 
+  function handleAddEsteira(id: ComponentId) {
+    updateRequirements(id, (entry) => {
+      if (entry.kind !== "sala-desembarque") return entry;
+      const requirements = { ...entry.requirements, esteira: {} };
+      delete requirements.equipment;
+      return { ...entry, requirements };
+    });
+    setMessage("Requisito de tamanho mínimo de esteira cadastrado.");
+  }
+
+  function handleRemoveEsteira(id: ComponentId) {
+    if (
+      !window.confirm(
+        "Remover o requisito de tamanho mínimo de esteira deste componente?",
+      )
+    ) {
+      return;
+    }
+    updateRequirements(id, (entry) => {
+      const requirements = { ...entry.requirements };
+      delete requirements.esteira;
+      return { ...entry, requirements };
+    });
+    setMessage("Requisito de tamanho mínimo de esteira removido.");
+  }
+
   function handleRemoveEquipment(id: ComponentId) {
     if (!window.confirm("Remover o requisito de equipamentos deste componente?")) {
       return;
@@ -658,6 +686,23 @@ export function AirportEditor() {
     const contract = contracts.find((item) => item.id === componentId);
     const field = contract?.params.find((item) => item.id === id);
     if (!contract || !field) return;
+    if (isBeltManualParam(id)) {
+      const standard = beltManualStandard(id);
+      updateComponent(componentId, id, formatEditable(standard));
+      setComponentOrigens((current) => ({
+        ...current,
+        [componentId]: {
+          ...current[componentId],
+          [id]: field.origem,
+        },
+      }));
+      setJustificativas((current) => {
+        const next = { ...(current[componentId] ?? {}) };
+        delete next[id];
+        return { ...current, [componentId]: next };
+      });
+      return;
+    }
     if (isTsecParam(id)) {
       const entry = registry.find((item) => item.id === componentId);
       const standard = entry ? standardTsecForParam(entry, id) : null;
@@ -916,6 +961,8 @@ export function AirportEditor() {
             handleSetEquipmentTaxa(activeContract.id, taxaDiferente)
           }
           onRemoveEquipment={() => handleRemoveEquipment(activeContract.id)}
+          onAddEsteira={() => handleAddEsteira(activeContract.id)}
+          onRemoveEsteira={() => handleRemoveEsteira(activeContract.id)}
           onSetConnection={(hasConnection) =>
             handleSetConnection(activeContract.id, hasConnection)
           }

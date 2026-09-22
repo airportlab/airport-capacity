@@ -1,6 +1,6 @@
 import { defaultAirport, type AirportSource } from "./airports";
 import { pmdMetrics, pmdRows } from "./pmd";
-import { mixedSpecsForParams } from "./contracts/flowParams";
+import { mixedFlowLabel, mixedSpecsForParams } from "./contracts/flowParams";
 import {
   contractHasConnection,
   isMixedNatureContract,
@@ -13,7 +13,7 @@ import type {
   InputId,
   ResultId,
 } from "./types";
-import { hasEquipment, usesAreaTaxa, usesEquipmentTaxa } from "./types";
+import { hasEquipment, hasEsteira, usesAreaTaxa, usesEquipmentTaxa } from "./types";
 
 export const WORKBOOK_SHEET_NAME = "Dimensionamento";
 
@@ -43,6 +43,7 @@ export interface ComponentExcelLayout extends ExcelCellMap {
   resultRows: Partial<Record<ResultId, number>>;
   notesRow: number;
   checkRow: number | null;
+  beltCheckRow: number | null;
   localIds: ComponentParamId[];
   band: "even" | "odd";
 }
@@ -99,15 +100,25 @@ export interface NatureEquipmentBlockLayout {
   flowRows: Record<ComponentId, NatureEquipmentRowLayout[]>;
 }
 
+export interface NatureBeltBlockLayout {
+  titleRow: number;
+  noteRow: number;
+  colHeaderRow: number;
+  rows: Record<ComponentId, NatureEquipmentRowLayout>;
+  flowRows: Record<ComponentId, NatureEquipmentRowLayout[]>;
+}
+
 export interface NatureSheetLayout extends ExcelHeaderLayout {
   sheetName: string;
   area: NatureAreaBlockLayout | null;
   equipment: NatureEquipmentBlockLayout | null;
+  belt: NatureBeltBlockLayout | null;
 }
 
 export const NATURE_SHEET_NAME = "Natureza";
 export const NATURE_AREA_COLUMNS = 18;
 export const NATURE_EQUIPMENT_COLUMNS = 9;
+export const NATURE_BELT_COLUMNS = 8;
 
 export const areaCheckContract = {
   id: "statusArea" as const,
@@ -115,6 +126,15 @@ export const areaCheckContract = {
   origem: "Compara a demanda em pax/h com a capacidade do requisito de área.",
   toExcel: (cells: ExcelCellMap) =>
     `IF(${cells.inputs.areaMedida}>=${cells.results.areaMinima},"Atende","Não atende")`,
+};
+
+export const beltCheckContract = {
+  id: "statusEsteira" as const,
+  label: "Status da esteira",
+  origem:
+    "Compara o comprimento somado das esteiras com o comprimento mínimo C.",
+  toExcel: (cells: ExcelCellMap) =>
+    `IF(${cells.inputs.comprimentoEsteiras}>=${cells.results.comprimentoMinimoEsteira},"Atende","Não atende")`,
 };
 
 function layoutPreamble(
@@ -222,6 +242,7 @@ export function getSingleSheetLayout(
     const last = components[contract.id];
     const resultRows = Object.values(last.resultRows);
     const end =
+      last.beltCheckRow ??
       last.checkRow ??
       (resultRows.length > 0 ? Math.max(...resultRows) : last.notesRow);
     row = end + 2;
@@ -313,6 +334,111 @@ function layoutConnectionAreaRow(
       areaMinimaConexao: `N${r}`,
     },
     statusCell: `P${r}`,
+  };
+}
+
+function beltTermsOf(contract: ComponentContract): {
+  demanda: ComponentParamId;
+  toi: ComponentParamId;
+  partial: ResultId | null;
+  label: string;
+}[] {
+  if (isMixedNatureContract(contract)) {
+    return mixedSpecsForParams(contract.params)
+      .filter((spec) => spec.demanda.includes("Desembarque"))
+      .map((spec) => ({
+        demanda: spec.demanda,
+        toi: spec.toi,
+        partial:
+          spec.area === "areaMinimaDesembarqueDomestico"
+            ? "comprimentoMinimoDesembarqueDomestico"
+            : spec.area === "areaMinimaDesembarqueInternacional"
+              ? "comprimentoMinimoDesembarqueInternacional"
+              : null,
+        label: mixedFlowLabel(spec),
+      }));
+  }
+  const demanda: ComponentParamId = contract.params.some(
+    (field) => field.id === "demandaPicoDesembarque",
+  )
+    ? "demandaPicoDesembarque"
+    : "demandaPico";
+  const toi: ComponentParamId = contract.params.some(
+    (field) => field.id === "tempoDeOcupacaoDesembarque",
+  )
+    ? "tempoDeOcupacaoDesembarque"
+    : "tempoDeOcupacao";
+  return [{ demanda, toi, partial: null, label: contract.title }];
+}
+
+function layoutBeltBlock(
+  contracts: ComponentContract[],
+  area: NatureAreaBlockLayout | null,
+  startRow: number,
+): { belt: NatureBeltBlockLayout | null; row: number } {
+  const beltContracts = contracts.filter((contract) =>
+    hasEsteira(contract.requirements),
+  );
+  if (beltContracts.length === 0) return { belt: null, row: startRow };
+  let row = startRow;
+  const titleRow = row;
+  row += 1;
+  const noteRow = row;
+  row += 1;
+  const colHeaderRow = row;
+  row += 1;
+  const rows = {} as Record<ComponentId, NatureEquipmentRowLayout>;
+  const flowRows = {} as Record<ComponentId, NatureEquipmentRowLayout[]>;
+  for (const contract of beltContracts) {
+    const terms = beltTermsOf(contract);
+    const areaInputs = area?.rows[contract.id]?.inputs;
+    const multi = terms.length > 1;
+    const localFlows: NatureEquipmentRowLayout[] = [];
+    const totalRow = row + (multi ? terms.length : 0);
+    if (multi) {
+      for (const term of terms) {
+        const fr = row;
+        const flowInputs: ExcelCellMap["inputs"] = {
+          [term.demanda]: areaInputs?.[term.demanda] ?? `B${fr}`,
+          [term.toi]: areaInputs?.[term.toi] ?? `E${fr}`,
+          taxaRetiradaBagagem: `C${totalRow}`,
+          comprimentoLinearPassageiro: `D${totalRow}`,
+        };
+        localFlows.push({
+          row: fr,
+          label: term.label,
+          inputs: flowInputs,
+          results: term.partial ? { [term.partial]: `F${fr}` } : {},
+        });
+        row += 1;
+      }
+    }
+    const r = row;
+    const inputs: ExcelCellMap["inputs"] = {
+      taxaRetiradaBagagem: `C${r}`,
+      comprimentoLinearPassageiro: `D${r}`,
+      comprimentoEsteiras: `G${r}`,
+    };
+    if (multi) {
+      for (const flow of localFlows) Object.assign(inputs, flow.inputs);
+    } else {
+      const term = terms[0];
+      if (term) {
+        inputs[term.demanda] = areaInputs?.[term.demanda] ?? `B${r}`;
+        inputs[term.toi] = areaInputs?.[term.toi] ?? `E${r}`;
+      }
+    }
+    rows[contract.id] = {
+      row: r,
+      inputs,
+      results: { comprimentoMinimoEsteira: `F${r}` },
+    };
+    if (localFlows.length > 0) flowRows[contract.id] = localFlows;
+    row += 1;
+  }
+  return {
+    belt: { titleRow, noteRow, colHeaderRow, rows, flowRows },
+    row: row + 1,
   };
 }
 
@@ -604,6 +730,10 @@ export function getNatureSheetLayout(
     };
   }
 
+  const laidBelt = layoutBeltBlock(contracts, area, row);
+  const belt = laidBelt.belt;
+  row = laidBelt.row;
+
   return {
     sheetName: NATURE_SHEET_NAME,
     nameRow: preamble.nameRow,
@@ -616,6 +746,7 @@ export function getNatureSheetLayout(
     manual: preamble.manual,
     area,
     equipment,
+    belt,
   };
 }
 
@@ -652,7 +783,13 @@ function layoutComponent(
   }
 
   const hasAreaCheck = Boolean(results.areaMinima) && Boolean(inputs.areaMedida);
-  const checkRow = hasAreaCheck ? row : null;
+  let cursor = row;
+  const checkRow = hasAreaCheck ? cursor : null;
+  if (hasAreaCheck) cursor += 1;
+  const hasBeltCheck =
+    Boolean(results.comprimentoMinimoEsteira) &&
+    Boolean(inputs.comprimentoEsteiras);
+  const beltCheckRow = hasBeltCheck ? cursor : null;
 
   return {
     titleRow,
@@ -663,6 +800,7 @@ function layoutComponent(
     resultRows,
     notesRow,
     checkRow,
+    beltCheckRow,
     localIds,
     band: index % 2 === 0 ? "even" : "odd",
   };

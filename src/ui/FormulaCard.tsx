@@ -8,6 +8,8 @@ import {
   equipmentNumerator,
   equipmentToiSymbol,
   arrivalsConnectionNumerator,
+  beltNumerator,
+  beltSumDisplay,
   mixedAreaSumDisplay,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
@@ -17,7 +19,8 @@ import type { EquipmentTerm } from "../domain/types";
 export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
-  const pattern = /(\()?(Ad|DHp|Emp|Toi|tsec|v\.a)(?:_([A-Za-z0-9,]+))?(\))?/g;
+  const pattern =
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -441,6 +444,59 @@ export function EquipmentEquation({
       <span className="tex-ceil-brace tex-ceil-brace-close" aria-hidden="true">
         {stacked ? null : "⌉"}
       </span>
+    </div>
+  );
+}
+
+export function BeltFormulaCard({
+  mixed = false,
+  afterEquation,
+}: {
+  mixed?: boolean;
+  afterEquation?: ReactNode;
+}) {
+  if (mixed) {
+    const sum = beltSumDisplay();
+    return (
+      <div className="formula-card">
+        <p className="formula-kicker">
+          Fórmula do tamanho mínimo de esteira
+        </p>
+        <AreaEquation
+          companions={false}
+          lhs="C_d,dom"
+          numerator={beltNumerator("_d,dom")}
+        />
+        <AreaEquation
+          companions={false}
+          lhs="C_d,int"
+          numerator={beltNumerator("_d,int")}
+        />
+        <div className="tex" role="img" aria-label={sum}>
+          <span className="tex-lhs">C</span>
+          <span className="tex-eq">=</span>
+          <span>
+            <TexText text="C_d,dom + C_d,int" />
+          </span>
+        </div>
+        {afterEquation}
+        <p className="origem">
+          Manual de Anteprojeto. Um Tr e um Lmp da sala; cada fluxo entra com o
+          seu DHp e o seu Toi. Atende se o comprimento somado das esteiras for
+          maior ou igual a C. Tr mínimo 30%; Lmp mínimo 0,9 m.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="formula-card">
+      <p className="formula-kicker">Fórmula do tamanho mínimo de esteira</p>
+      <AreaEquation companions={false} lhs="C" numerator={beltNumerator()} />
+      {afterEquation}
+      <p className="origem">
+        Manual de Anteprojeto. Atende se o comprimento somado das esteiras for
+        maior ou igual a C. Tr mínimo 30%; Lmp mínimo 0,9 m.
+      </p>
     </div>
   );
 }

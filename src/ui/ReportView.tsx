@@ -14,7 +14,7 @@ import { roundLabel, sourceCitation } from "../domain/pmd";
 import { formatAirportName, formatNumber, formatReportDate, formatSaturacao } from "./format";
 import { AreaEquation, TexText } from "./FormulaCard";
 import { PmdTable } from "./PmdTable";
-import { complianceClass, complianceLabel } from "./SummaryPage";
+import { complianceClass, complianceLabel, equipmentColumn } from "./SummaryPage";
 
 interface ReportViewProps {
   kind: PdfKind;
@@ -42,9 +42,10 @@ export function ReportView({
   const failedArea = contracts.filter(
     (contract) => evaluations[contract.id]?.areaCheck?.atende === false,
   ).length;
-  const failedEquipment = contracts.filter(
-    (contract) => evaluations[contract.id]?.equipmentCheck?.atende === false,
-  ).length;
+  const failedEquipment = contracts.filter((contract) => {
+    const column = equipmentColumn(evaluations[contract.id]);
+    return column?.check.atende === false;
+  }).length;
 
   return (
     <article className="report" data-kind={kind}>
@@ -77,14 +78,15 @@ export function ReportView({
           <tbody>
             {contracts.map((contract) => {
               const evaluation = evaluations[contract.id];
+              const column = equipmentColumn(evaluation);
               return (
                 <tr key={contract.id}>
                   <td>{contract.title}</td>
                   <td className={complianceClass(evaluation?.areaCheck)}>
                     {complianceLabel(evaluation?.areaCheck)}
                   </td>
-                  <td className={complianceClass(evaluation?.equipmentCheck)}>
-                    {complianceLabel(evaluation?.equipmentCheck)}
+                  <td className={complianceClass(column?.check)}>
+                    {complianceLabel(column?.check)}
                   </td>
                 </tr>
               );
@@ -131,6 +133,7 @@ function ComponentSections({
   observacoes?: string;
 }) {
   const note = observacoes?.trim() ?? "";
+  const column = equipmentColumn(evaluation);
   return (
     <>
       <section>
@@ -206,27 +209,21 @@ function ComponentSections({
         </table>
       </section>
 
-      {evaluation.areaCheck ? (
+      {evaluation.areaCheck || column ? (
         <section className="report-status">
           <h2>Checagem · {contract.title}</h2>
-          <p className={evaluation.areaCheck.atende ? "ok" : "fail"}>
-            Área: {evaluation.areaCheck.label} ·{" "}
-            {formatSaturacao(evaluation.areaCheck.saturacao)}
-          </p>
-          {evaluation.equipmentCheck ? (
-            <p className={evaluation.equipmentCheck.atende ? "ok" : "fail"}>
-              Equipamentos: {evaluation.equipmentCheck.label} ·{" "}
-              {formatSaturacao(evaluation.equipmentCheck.saturacao)}
+          {evaluation.areaCheck ? (
+            <p className={evaluation.areaCheck.atende ? "ok" : "fail"}>
+              Área: {evaluation.areaCheck.label} ·{" "}
+              {formatSaturacao(evaluation.areaCheck.saturacao)}
             </p>
           ) : null}
-        </section>
-      ) : evaluation.equipmentCheck ? (
-        <section className="report-status">
-          <h2>Checagem · {contract.title}</h2>
-          <p className={evaluation.equipmentCheck.atende ? "ok" : "fail"}>
-            Equipamentos: {evaluation.equipmentCheck.label} ·{" "}
-            {formatSaturacao(evaluation.equipmentCheck.saturacao)}
-          </p>
+          {column ? (
+            <p className={column.check.atende ? "ok" : "fail"}>
+              {column.title}: {column.check.label} ·{" "}
+              {formatSaturacao(column.check.saturacao)}
+            </p>
+          ) : null}
         </section>
       ) : null}
     </>

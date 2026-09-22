@@ -7,12 +7,15 @@ import {
   mixedSpecsForParams,
 } from "../domain/contracts/flowParams";
 import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
+import { beltManualStandard, isBeltManualParam } from "../domain/contracts/formulas";
 import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay, singleFunctionMixedFormulaDisplay } from "../domain/contracts/notations";
 import {
   areaCheckContract,
+  beltCheckContract,
   getNatureSheetLayout,
   getSingleSheetLayout,
   NATURE_AREA_COLUMNS,
+  NATURE_BELT_COLUMNS,
   NATURE_EQUIPMENT_COLUMNS,
   type ExcelHeaderLayout,
   type NatureAreaRowLayout,
@@ -59,6 +62,14 @@ const COLORS = {
   white: "FFFFFFFF",
   result: "FFE8EEF3",
 } as const;
+
+function requirementsMet(evaluation: Evaluation): boolean {
+  return (
+    evaluation.areaCheck?.atende !== false &&
+    evaluation.equipmentCheck?.atende !== false &&
+    evaluation.esteiraCheck?.atende !== false
+  );
+}
 
 interface ExcelModel {
   airportName: string;
@@ -537,14 +548,21 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
     const evaluation = model.evaluations[contract.id];
     const block = layout.components[contract.id];
     const row = sheet.getRow(layout.summary.rows[contract.id]);
-    const check = evaluation.areaCheck ?? evaluation.equipmentCheck;
-    const statusCell = block.checkRow ? `B${block.checkRow}` : null;
+    const check =
+      evaluation.areaCheck ??
+      evaluation.equipmentCheck ??
+      evaluation.esteiraCheck;
+    const statusCell = block.checkRow
+      ? `B${block.checkRow}`
+      : block.beltCheckRow
+        ? `B${block.beltCheckRow}`
+        : null;
 
     row.getCell(1).value = contract.title;
     if (statusCell) {
       row.getCell(2).value = {
         formula: statusCell,
-        result: evaluation.areaCheck?.label ?? "—",
+        result: check?.label ?? "—",
       };
     } else if (check) {
       row.getCell(2).value = check.label;
@@ -560,8 +578,7 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       row,
       check == null
         ? COLORS.sand
-        : (evaluation.areaCheck?.atende !== false &&
-            evaluation.equipmentCheck?.atende !== false)
+        : requirementsMet(evaluation)
           ? COLORS.green
           : COLORS.red,
     );
@@ -622,6 +639,17 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
         } else {
           row.getCell(5).value = "Atributo do componente";
         }
+      } else if (isBeltManualParam(field.id)) {
+        const standard = beltManualStandard(field.id);
+        const just = model.justificativas[contract.id]?.[field.id] ?? "";
+        const value = evaluation.inputs[field.id];
+        if (value !== standard) {
+          row.getCell(5).value = just.trim()
+            ? `Fora do Manual de Anteprojeto (${standard} ${field.unit}). ${just.trim()}`
+            : `Fora do Manual de Anteprojeto (${standard} ${field.unit}).`;
+        } else {
+          row.getCell(5).value = "Manual de Anteprojeto.";
+        }
       } else {
         row.getCell(5).value = isTaxaParam(field.id)
           ? "Atributo do requisito"
@@ -671,6 +699,22 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
         evaluation.areaCheck.atende ? COLORS.green : COLORS.red,
       );
     }
+
+    if (block.beltCheckRow !== null && evaluation.esteiraCheck) {
+      const row = sheet.getRow(block.beltCheckRow);
+      row.getCell(1).value = beltCheckContract.label;
+      row.getCell(1).font = { bold: true };
+      row.getCell(2).value = {
+        formula: beltCheckContract.toExcel(block),
+        result: evaluation.esteiraCheck.label,
+      };
+      row.getCell(3).value = "—";
+      row.getCell(4).value = beltCheckContract.origem;
+      fillRow(
+        row,
+        evaluation.esteiraCheck.atende ? COLORS.green : COLORS.red,
+      );
+    }
   }
 
   writeSummaryStatusFormatting(sheet, layout, model.contracts);
@@ -704,7 +748,10 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
     const evaluation = model.evaluations[contract.id];
     const areaRow = layout.area?.rows[contract.id];
     const row = sheet.getRow(layout.summary.rows[contract.id]);
-    const check = evaluation.areaCheck ?? evaluation.equipmentCheck;
+    const check =
+      evaluation.areaCheck ??
+      evaluation.equipmentCheck ??
+      evaluation.esteiraCheck;
 
     row.getCell(1).value = contract.title;
     if (areaRow) {
@@ -726,8 +773,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       row,
       check == null
         ? COLORS.sand
-        : (evaluation.areaCheck?.atende !== false &&
-            evaluation.equipmentCheck?.atende !== false)
+        : requirementsMet(evaluation)
           ? COLORS.green
           : COLORS.red,
       1,
@@ -1192,8 +1238,185 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
     }
   }
 
+  writeBeltBlock(sheet, layout, model);
+
   writeSummaryStatusFormatting(sheet, layout, model.contracts);
   return workbook;
+}
+
+function writeLinkedMeasure(
+  cell: ExcelJS.Cell,
+  ref: string | undefined,
+  local: string,
+  value: number,
+) {
+  if (ref && ref !== local) {
+    cell.value = { formula: ref, result: value };
+  } else {
+    cell.value = value;
+  }
+  cell.numFmt = "#,##0.00";
+}
+
+function writeBeltBlock(
+  sheet: ExcelJS.Worksheet,
+  layout: NatureSheetLayout,
+  model: ExcelModel,
+) {
+  if (!layout.belt) return;
+  titleRow(
+    sheet.getRow(layout.belt.titleRow),
+    "Tamanho mínimo de esteira",
+    COLORS.navy,
+    NATURE_AREA_COLUMNS,
+  );
+  const expression = model.contracts
+    .flatMap((contract) => contract.formulas)
+    .find((formula) => formula.id === "comprimentoMinimoEsteira")?.expression;
+  const note = sheet.getRow(layout.belt.noteRow);
+  note.getCell(1).value = expression
+    ? `Comprimento mínimo da esteira: ${expression}. Tr mínimo 30%. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.`
+    : "Comprimento mínimo da esteira.";
+  note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
+  sheet.mergeCells(
+    layout.belt.noteRow,
+    1,
+    layout.belt.noteRow,
+    NATURE_AREA_COLUMNS,
+  );
+  fillRow(note, COLORS.paper, 1, NATURE_AREA_COLUMNS);
+  note.height = 32;
+  colHeaders(
+    sheet.getRow(layout.belt.colHeaderRow),
+    [
+      "Componente",
+      "DHp (pax/h)",
+      "Tr (%)",
+      "Lmp (m)",
+      "Toi (min)",
+      "C (m)",
+      "Comprimento somado (m)",
+      "Atende",
+    ],
+    "FF3D4A58",
+  );
+
+  for (const contract of model.contracts) {
+    const block = layout.belt.rows[contract.id];
+    if (!block) continue;
+    const evaluation = model.evaluations[contract.id];
+    const flows = layout.belt.flowRows[contract.id] ?? [];
+    for (const flow of flows) {
+      const flowRow = sheet.getRow(flow.row);
+      flowRow.getCell(1).value = flow.label ?? contract.title;
+      const demandId = (Object.keys(flow.inputs) as ComponentParamId[]).find(
+        (id) => id.startsWith("demandaPico"),
+      );
+      const toiId = (Object.keys(flow.inputs) as ComponentParamId[]).find(
+        (id) => id.startsWith("tempoDeOcupacao"),
+      );
+      if (demandId) {
+        writeLinkedMeasure(
+          flowRow.getCell(2),
+          flow.inputs[demandId],
+          `B${flow.row}`,
+          evaluation.inputs[demandId],
+        );
+      }
+      flowRow.getCell(3).value = "—";
+      flowRow.getCell(4).value = "—";
+      if (toiId) {
+        writeLinkedMeasure(
+          flowRow.getCell(5),
+          flow.inputs[toiId],
+          `E${flow.row}`,
+          evaluation.inputs[toiId],
+        );
+      }
+      const partialId = (Object.keys(flow.results) as (keyof typeof flow.results)[]).find(
+        (id) => id.startsWith("comprimentoMinimo"),
+      );
+      const partial = partialId
+        ? contract.formulas.find((formula) => formula.id === partialId)
+        : undefined;
+      if (partial && partialId) {
+        flowRow.getCell(6).value = {
+          formula: partial.toExcel(flow.inputs),
+          result: evaluation.results[partialId],
+        };
+        flowRow.getCell(6).numFmt = "#,##0.00";
+      }
+      flowRow.getCell(7).value = "—";
+      flowRow.getCell(8).value = "—";
+      fillRow(flowRow, COLORS.paper, 1, NATURE_BELT_COLUMNS);
+    }
+
+    const row = sheet.getRow(block.row);
+    row.getCell(1).value = contract.title;
+    if (flows.length > 0) {
+      row.getCell(2).value = "—";
+      row.getCell(5).value = "—";
+    } else {
+      const demandId = (Object.keys(block.inputs) as ComponentParamId[]).find(
+        (id) => id.startsWith("demandaPico"),
+      );
+      const toiId = (Object.keys(block.inputs) as ComponentParamId[]).find(
+        (id) => id.startsWith("tempoDeOcupacao"),
+      );
+      if (demandId) {
+        writeLinkedMeasure(
+          row.getCell(2),
+          block.inputs[demandId],
+          `B${block.row}`,
+          evaluation.inputs[demandId],
+        );
+      }
+      if (toiId) {
+        writeLinkedMeasure(
+          row.getCell(5),
+          block.inputs[toiId],
+          `E${block.row}`,
+          evaluation.inputs[toiId],
+        );
+      }
+    }
+    row.getCell(3).value = evaluation.inputs.taxaRetiradaBagagem;
+    row.getCell(3).numFmt = "0.00";
+    row.getCell(4).value = evaluation.inputs.comprimentoLinearPassageiro;
+    row.getCell(4).numFmt = "0.00";
+    const formula = contract.formulas.find(
+      (item) => item.id === "comprimentoMinimoEsteira",
+    );
+    if (formula) {
+      row.getCell(6).value = {
+        formula: formula.toExcel(block.inputs),
+        result: evaluation.results.comprimentoMinimoEsteira,
+      };
+      row.getCell(6).numFmt = "#,##0.00";
+      row.getCell(6).font = { bold: true };
+    }
+    row.getCell(7).value = evaluation.inputs.comprimentoEsteiras;
+    row.getCell(7).numFmt = "#,##0.00";
+    if (evaluation.esteiraCheck) {
+      row.getCell(8).value = {
+        formula: beltCheckContract.toExcel({
+          inputs: block.inputs,
+          results: block.results,
+        }),
+        result: evaluation.esteiraCheck.label,
+      };
+    }
+    fillRow(
+      row,
+      evaluation.esteiraCheck == null
+        ? COLORS.paper
+        : evaluation.esteiraCheck.atende
+          ? COLORS.green
+          : COLORS.red,
+      1,
+      NATURE_BELT_COLUMNS,
+    );
+  }
 }
 
 export async function exportAirportExcel(

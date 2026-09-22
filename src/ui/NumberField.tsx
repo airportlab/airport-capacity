@@ -6,6 +6,7 @@ interface NumberFieldProps {
   origem: string;
   onValueChange: (raw: string) => void;
   onOrigemChange?: (raw: string) => void;
+  onBlur?: () => void;
   describedBy?: string;
 }
 
@@ -15,6 +16,7 @@ export function NumberField({
   origem,
   onValueChange,
   onOrigemChange,
+  onBlur,
   describedBy,
 }: NumberFieldProps) {
   const origemId = describedBy ?? `${field.id}-origem`;
@@ -32,6 +34,7 @@ export function NumberField({
         inputMode="decimal"
         value={draft}
         onChange={(event) => onValueChange(event.target.value)}
+        onBlur={onBlur}
         aria-describedby={origemShown ? origemId : undefined}
       />
       {origemEdit ? (

@@ -34,6 +34,7 @@ import type {
   ComponentParams,
   ComponentRequirements,
   EquipmentRequirement,
+  EsteiraRequirement,
   OrganFunctionRole,
   PmdBinding,
   RegistryEntry,
@@ -47,7 +48,7 @@ import {
   type JustificativaId,
 } from "../domain/types";
 
-export const STATE_VERSION = 12 as const;
+export const STATE_VERSION = 13 as const;
 
 export interface PersistedAirportState {
   version: typeof STATE_VERSION;
@@ -175,6 +176,24 @@ function parseEquipmentRequirement(
   return raw.taxaDiferente === true ? { taxaDiferente: true } : {};
 }
 
+function parseEsteiraRequirement(raw: unknown): EsteiraRequirement | undefined {
+  if (raw === true || isRecord(raw)) return {};
+  return undefined;
+}
+
+function clampArrivalsRequirements(entry: RegistryEntry): RegistryEntry {
+  if (entry.kind === "sala-desembarque") {
+    if (!entry.requirements.equipment) return entry;
+    const requirements = { ...entry.requirements };
+    delete requirements.equipment;
+    return { ...entry, requirements };
+  }
+  if (!entry.requirements.esteira) return entry;
+  const requirements = { ...entry.requirements };
+  delete requirements.esteira;
+  return { ...entry, requirements };
+}
+
 function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {
   const area = entry.requirements.area;
   if (!area?.companions || organAllowsCompanions(entry)) return entry;
@@ -194,6 +213,8 @@ function parseRequirements(raw: unknown): ComponentRequirements | null {
   if (area) requirements.area = area;
   const equipment = parseEquipmentRequirement(raw.equipment);
   if (equipment) requirements.equipment = equipment;
+  const esteira = parseEsteiraRequirement(raw.esteira);
+  if (esteira) requirements.esteira = esteira;
   return requirements;
 }
 
@@ -221,7 +242,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const fromRequirements = parseRequirements(item.requirements);
     if (fromRequirements) {
       entries.push(
-        clampAreaCompanions({
+        clampArrivalsRequirements(clampAreaCompanions({
           id: item.id,
           title: item.title,
           kind: typeof item.kind === "string" ? item.kind : undefined,
@@ -231,18 +252,18 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
           sizingSources: parseSizingSources(item.sizingSources),
           observacoes,
           ...(item.hasConnection === true ? { hasConnection: true } : {}),
-        }),
+        })),
       );
       continue;
     }
     if (item.template === "area" || item.template === "areaAndEquipment") {
       entries.push(
-        clampAreaCompanions({
+        clampArrivalsRequirements(clampAreaCompanions({
           id: item.id,
           title: item.title,
           requirements: requirementsFromLegacyTemplate(item.template),
           observacoes,
-        }),
+        })),
       );
       continue;
     }
@@ -435,6 +456,7 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
   if (parsed === null || typeof raw.savedAt !== "string") return null;
   const nature = parsePeakNature(raw.peakNature);
   const registry =
+    raw.version === 13 ||
     raw.version === 12 ||
     raw.version === 11 ||
     raw.version === 10 ||
@@ -561,6 +583,7 @@ function parseLegacyCheckin(raw: unknown): PersistedAirportState | null {
 export function parsePersistedState(raw: unknown): PersistedAirportState | null {
   if (!isRecord(raw)) return null;
   if (
+    raw.version === 13 ||
     raw.version === 12 ||
     raw.version === 11 ||
     raw.version === 10 ||

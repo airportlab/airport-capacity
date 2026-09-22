@@ -11,15 +11,25 @@ export interface EquipmentRequirement {
   taxaDiferente?: boolean;
 }
 
+/** Comprimento mínimo de esteira. Só na sala de desembarque. */
+export interface EsteiraRequirement {}
+
 export interface ComponentRequirements {
   area?: AreaRequirement;
   equipment?: EquipmentRequirement;
+  esteira?: EsteiraRequirement;
 }
 
 export function hasEquipment(
   requirements: ComponentRequirements,
 ): boolean {
   return requirements.equipment != null;
+}
+
+export function hasEsteira(
+  requirements: ComponentRequirements,
+): boolean {
+  return requirements.esteira != null;
 }
 
 export function usesAreaTaxa(requirements: ComponentRequirements): boolean {
@@ -94,6 +104,9 @@ export const COMPONENT_PARAM_IDS = [
   "vaInternacional",
   "percentualMinimoAssentos",
   "quantidadeEquipamentos",
+  "taxaRetiradaBagagem",
+  "comprimentoLinearPassageiro",
+  "comprimentoEsteiras",
   ...TSEC_PARAM_IDS,
 ] as const;
 export type ComponentParamId = (typeof COMPONENT_PARAM_IDS)[number];
@@ -130,7 +143,16 @@ export const SIZING_PARAM_IDS = [
 ] as const;
 export type SizingParamId = (typeof SIZING_PARAM_IDS)[number];
 
-export const JUSTIFICATIVA_IDS = [...SIZING_PARAM_IDS, ...TSEC_PARAM_IDS] as const;
+export const BELT_MANUAL_PARAM_IDS = [
+  "taxaRetiradaBagagem",
+  "comprimentoLinearPassageiro",
+] as const;
+
+export const JUSTIFICATIVA_IDS = [
+  ...SIZING_PARAM_IDS,
+  ...TSEC_PARAM_IDS,
+  ...BELT_MANUAL_PARAM_IDS,
+] as const;
 export type JustificativaId = (typeof JUSTIFICATIVA_IDS)[number];
 
 export type SizingSources = Partial<Record<SizingParamId, PmdBinding>>;
@@ -212,7 +234,10 @@ export type ResultId =
   | "areaMinimaConexaoInternacional"
   | "areaMinima"
   | "assentosMinimos"
-  | "numeroMinimoEquipamentos";
+  | "numeroMinimoEquipamentos"
+  | "comprimentoMinimoDesembarqueDomestico"
+  | "comprimentoMinimoDesembarqueInternacional"
+  | "comprimentoMinimoEsteira";
 
 export type ComponentParams = Record<ComponentParamId, number>;
 export type ResolvedInputs = ComponentParams;
@@ -275,6 +300,7 @@ export interface Evaluation {
   results: ComponentResults;
   areaCheck: RequirementCheckResult | null;
   equipmentCheck: RequirementCheckResult | null;
+  esteiraCheck: RequirementCheckResult | null;
 }
 
 export type PdfKind = "simplificado" | "completo";

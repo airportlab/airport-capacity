@@ -282,6 +282,43 @@ const SINGLE_EQUIPMENT_TERM: EquipmentTerm = {
   tsec: "tsec",
 };
 
+export function beltSuffix(area: string): string {
+  switch (area) {
+    case "areaMinimaDesembarqueDomestico":
+      return "_d,dom";
+    case "areaMinimaDesembarqueInternacional":
+      return "_d,int";
+    case "areaMinimaDesembarque":
+      return "_d";
+    default:
+      return "";
+  }
+}
+
+export function beltNumerator(suffix = ""): string {
+  const dhp = suffix ? `DHp${suffix}` : "DHp";
+  const toi = suffix ? `Toi${suffix}` : "Toi";
+  return `${dhp} × Tr × Lmp × ${toi}`;
+}
+
+export function beltTermRhs(suffix = ""): string {
+  return `(${beltNumerator(suffix)}) / 60`;
+}
+
+export function beltLhs(suffix: string): string {
+  if (suffix === "_d,dom") return "C_d,dom";
+  if (suffix === "_d,int") return "C_d,int";
+  return "C";
+}
+
+export function beltTermDisplay(suffix: string): string {
+  return `${beltLhs(suffix)} = ${beltTermRhs(suffix)}`;
+}
+
+export function beltSumDisplay(): string {
+  return "C = C_d,dom + C_d,int";
+}
+
 export function equipmentFormulaDisplay(
   terms: readonly EquipmentTerm[] = [SINGLE_EQUIPMENT_TERM],
   includeTaxa = false,

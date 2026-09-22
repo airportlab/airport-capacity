@@ -57,7 +57,10 @@ export function AboutPage({ onBack }: AboutPageProps) {
           marcada). Equipamentos usam o teto da
           conta de N. O tsec nasce no padrão do Manual de Anteprojeto de cada
           fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
-          usa o seu Toi e o seu tsec. Com vários DHp no mesmo recinto, as contas somam — não se
+          usa o seu Toi e o seu tsec. Na sala de desembarque não há N: o
+          requisito opcional é o tamanho mínimo de esteira, com Tr mínimo de
+          30% e Lmp mínimo de 0,9 m. Valor diferente desse mínimo pede
+          justificativa. Com vários DHp no mesmo recinto, as contas somam — não se
           fundem. Saguão de embarque misto soma doméstico e internacional;
           check-in misto soma Ad_dom e Ad_int. Saguão de embarque e desembarque soma as funções (e as quatro contas,
           se misto). A saturação compara a demanda com o que a área ou os

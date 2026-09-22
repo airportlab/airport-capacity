@@ -128,6 +128,9 @@ export function evaluateComponent(
     equipmentCheck: hasResult(contract, "numeroMinimoEquipamentos")
       ? evaluateEquipmentCheck(contract, inputs, results)
       : null,
+    esteiraCheck: hasResult(contract, "comprimentoMinimoEsteira")
+      ? evaluateBeltCheck(contract, inputs, results)
+      : null,
   };
 }
 
@@ -169,6 +172,26 @@ export function evaluateEquipmentCheck(
   const capacidade = equipmentCapacity(contract, inputs, demanda);
   const atende =
     inputs.quantidadeEquipamentos >= minimo && Number.isFinite(minimo);
+
+  return {
+    atende,
+    demanda,
+    capacidade,
+    saturacao: saturacaoPercent(demanda, capacidade),
+    label: atende ? "Atende" : "Não atende",
+  };
+}
+
+export function evaluateBeltCheck(
+  contract: ComponentContract,
+  inputs: ResolvedInputs,
+  results: ComponentResults,
+): RequirementCheckResult {
+  const minimo = results.comprimentoMinimoEsteira ?? Number.NaN;
+  const demanda = peopleDemand(contract, inputs, null);
+  const capacidade = scaledCapacity(demanda, inputs.comprimentoEsteiras, minimo);
+  const atende =
+    inputs.comprimentoEsteiras >= minimo && Number.isFinite(minimo);
 
   return {
     atende,

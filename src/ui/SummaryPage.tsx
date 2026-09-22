@@ -66,11 +66,26 @@ function journeyGroups(
   return groups;
 }
 
+export function equipmentColumn(
+  evaluation: Evaluation | null | undefined,
+): { title: string; check: RequirementCheckResult } | null {
+  if (!evaluation) return null;
+  if (evaluation.equipmentCheck) {
+    return { title: "Equipamentos", check: evaluation.equipmentCheck };
+  }
+  if (evaluation.esteiraCheck) {
+    return { title: "Esteira", check: evaluation.esteiraCheck };
+  }
+  return null;
+}
+
 function rowTone(evaluation: Evaluation | undefined): string {
   if (!evaluation) return "";
-  const checks = [evaluation.areaCheck, evaluation.equipmentCheck].filter(
-    (item): item is RequirementCheckResult => item != null,
-  );
+  const checks = [
+    evaluation.areaCheck,
+    evaluation.equipmentCheck,
+    evaluation.esteiraCheck,
+  ].filter((item): item is RequirementCheckResult => item != null);
   if (checks.length === 0) return "";
   return checks.every((item) => item.atende) ? "ok" : "fail";
 }
@@ -94,9 +109,10 @@ export function SummaryPage({
   const failedArea = contracts.filter(
     (contract) => evaluations[contract.id]?.areaCheck?.atende === false,
   ).length;
-  const failedEquipment = contracts.filter(
-    (contract) => evaluations[contract.id]?.equipmentCheck?.atende === false,
-  ).length;
+  const failedEquipment = contracts.filter((contract) => {
+    const column = equipmentColumn(evaluations[contract.id]);
+    return column?.check.atende === false;
+  }).length;
   const groups = journeyGroups(contracts, kinds);
 
   return (
@@ -177,6 +193,7 @@ export function SummaryPage({
               <h3 className="summary-leg-label">{LEG_LABEL[group.leg]}</h3>
               {group.contracts.map((contract) => {
                 const evaluation = evaluations[contract.id];
+                const column = equipmentColumn(evaluation);
                 return (
                   <article
                     key={contract.id}
@@ -188,14 +205,14 @@ export function SummaryPage({
                         Área: {complianceLabel(evaluation.areaCheck)}
                       </p>
                     ) : null}
-                    {evaluation?.equipmentCheck ? (
+                    {column ? (
                       <p
-                        className={`status-label ${complianceClass(evaluation.equipmentCheck)}`}
+                        className={`status-label ${complianceClass(column.check)}`}
                       >
-                        Equipamentos: {complianceLabel(evaluation.equipmentCheck)}
+                        {column.title}: {complianceLabel(column.check)}
                       </p>
                     ) : null}
-                    {!evaluation?.areaCheck && !evaluation?.equipmentCheck ? (
+                    {!evaluation?.areaCheck && !column ? (
                       <p className="status-label">Sem requisitos</p>
                     ) : null}
                     <div className="summary-card-actions">
@@ -239,6 +256,7 @@ export function SummaryPage({
                 </tr>
                 {group.contracts.map((contract) => {
                   const evaluation = evaluations[contract.id];
+                  const column = equipmentColumn(evaluation);
                   return (
                     <tr key={contract.id} className={rowTone(evaluation)}>
                       <td>
@@ -253,8 +271,8 @@ export function SummaryPage({
                       <td className={complianceClass(evaluation?.areaCheck)}>
                         {complianceLabel(evaluation?.areaCheck)}
                       </td>
-                      <td className={complianceClass(evaluation?.equipmentCheck)}>
-                        {complianceLabel(evaluation?.equipmentCheck)}
+                      <td className={complianceClass(column?.check)}>
+                        {complianceLabel(column?.check)}
                       </td>
                       <td>
                         <button

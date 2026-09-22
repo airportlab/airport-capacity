@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import {
   hasEquipment,
+  hasEsteira,
   isDualFunction,
   isMixedNature,
   natureOfEntry,
@@ -127,10 +128,13 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const companions =
     storedArea?.companions === true && organAllowsCompanions(entry);
   const area = storedArea ? { ...storedArea, companions } : undefined;
-  const requirements: ComponentRequirements = area
-    ? { ...stored, area }
-    : stored;
+  const requirements: ComponentRequirements = {
+    ...(area ? { ...stored, area } : stored),
+  };
+  if (entry.kind === "sala-desembarque") delete requirements.equipment;
+  else delete requirements.esteira;
   const equipment = hasEquipment(requirements);
+  const belt = hasEsteira(requirements);
   const includeAreaTaxa = usesAreaTaxa(requirements);
   const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
   const seats = Boolean(area) && roundHasSeats(entry);
@@ -202,6 +206,18 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           ...(area ? [] : equipmentToiIds),
         ]
       : []),
+    ...(belt
+      ? [
+          "taxaRetiradaBagagem" as const,
+          "comprimentoLinearPassageiro" as const,
+          "comprimentoEsteiras" as const,
+          ...(area
+            ? []
+            : flows.length > 0
+              ? [...new Set(flows.map((flow) => flow.toi))]
+              : (["tempoDeOcupacao"] as const)),
+        ]
+      : []),
   ];
 
   const areaCopy = singleFunctionMixed
@@ -225,10 +241,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     subtitle = `Requisito de área ${areaCopy}, assentos e equipamentos.`;
   } else if (area && seats) {
     subtitle = `Requisito de área ${areaCopy} e percentual mínimo de assentos.`;
+  } else if (area && belt) {
+    subtitle = `Requisito de área ${areaCopy} e tamanho mínimo de esteira.`;
   } else if (area && equipment) {
     subtitle = `Requisito de área ${areaCopy} e equipamentos.`;
   } else if (area) {
     subtitle = `Requisito de área: ${areaCopy}.`;
+  } else if (belt) {
+    subtitle = "Requisito de tamanho mínimo de esteira.";
   } else if (equipment) {
     subtitle =
       terms.length > 1
@@ -318,6 +338,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeSeats: seats && !mixedNature,
       includeAreaTaxa,
       includeEquipmentTaxa,
+      includeBelt: belt,
       companions,
       flows: flows.length > 1 ? flows : [],
       demandIds,

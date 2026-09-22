@@ -636,6 +636,12 @@ button.pmd-card.empty {
   margin-top: 28px;
 }
 
+.manual-single-title {
+  margin: 22px 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
 .panel-notice {
   margin-top: 0;
   margin-bottom: 16px;
@@ -1221,6 +1227,10 @@ button:disabled {
 
   .pmd-table td:nth-child(2)::before {
     content: "Doméstico";
+  }
+
+  .pmd-table.manual-single td:nth-child(2)::before {
+    content: "Valor";
   }
 
   .pmd-table td:nth-child(3)::before {
