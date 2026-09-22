@@ -10,6 +10,7 @@ import {
   hasEquipment,
   isDualFunction,
   isMixedNature,
+  natureOfEntry,
   usesAreaTaxa,
   usesEquipmentTaxa,
 } from "../types";
@@ -115,6 +116,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const seats = Boolean(area) && roundHasSeats(entry);
   const dualFlows = isDualFunction(entry);
   const mixedNature = isMixedNature(entry);
+  const internationalHall = natureOfEntry(entry) === "internacional";
   const demandIds = identityParamIds(entry);
   const flows = entryFlowParams(entry);
   const singleFunctionMixed =
@@ -248,6 +250,26 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       espacoMinimoPorPassageiroInternacional: {
         unit: empUnit,
       },
+      ...(dualFlows && !mixedNature
+        ? {
+            demandaPicoEmbarque: {
+              label: internationalHall
+                ? "DHp (Origem Internacional)"
+                : "DHp (Origem Doméstico)",
+              origem: internationalHall
+                ? "Atributo do fluxo de origem internacional."
+                : "Atributo do fluxo de origem doméstico.",
+            },
+            demandaPicoDesembarque: {
+              label: internationalHall
+                ? "DHp (Destino Internacional)"
+                : "DHp (Destino Doméstico)",
+              origem: internationalHall
+                ? "Atributo do fluxo de destino internacional."
+                : "Atributo do fluxo de destino doméstico.",
+            },
+          }
+        : {}),
       ...(dualFlows && seats
         ? {
             percentualMinimoAssentos: {
