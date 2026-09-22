@@ -78,7 +78,11 @@ function FieldList({
           key={field.id}
           field={field}
           draft={drafts[field.id]}
-          origem={origens[field.id] ?? field.origem}
+          origem={
+            field.id === "demandaPicoConexao"
+              ? field.origem
+              : (origens[field.id] ?? field.origem)
+          }
           onValueChange={(raw) => onValueChange(field.id, raw)}
           onOrigemChange={
             field.origemEditavel

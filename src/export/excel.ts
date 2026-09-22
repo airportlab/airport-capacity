@@ -552,7 +552,9 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       row.getCell(2).numFmt = isTaxaParam(field.id) ? "0.00" : "#,##0.00";
       row.getCell(3).value = field.unit;
       row.getCell(4).value =
-        model.componentOrigens[contract.id]?.[field.id] ?? field.origem;
+        field.id === "demandaPicoConexao"
+          ? field.origem
+          : (model.componentOrigens[contract.id]?.[field.id] ?? field.origem);
       if (isSizingParam(field.id)) {
         const entry = model.registry.find((item) => item.id === contract.id);
         const just = model.justificativas[contract.id]?.[field.id] ?? "";

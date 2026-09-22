@@ -150,7 +150,11 @@ function ComponentSections({
                 <td>{field.label}</td>
                 <td>{formatNumber(evaluation.inputs[field.id])}</td>
                 <td>{field.unit}</td>
-                <td>{origens[field.id] ?? field.origem}</td>
+                <td>
+                  {field.id === "demandaPicoConexao"
+                    ? field.origem
+                    : (origens[field.id] ?? field.origem)}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -100,6 +100,18 @@ export function contractHasConnection(contract: ComponentContract): boolean {
   return contract.params.some((field) => field.id === "demandaPicoConexao");
 }
 
+/** Emp, Toi e tsec da conexão vêm do embarque: no misto e no doméstico, da coluna doméstica. */
+export function connectionDemandOrigem(entry: RegistryEntry): string {
+  const nature = natureOfEntry(entry);
+  if (nature === "misto") {
+    return "Demanda agregada das conexões. Emp, Toi e tsec usados nesta conta são os do embarque doméstico.";
+  }
+  if (nature === "internacional") {
+    return "Emp, Toi e tsec usados nesta conta são os do embarque internacional.";
+  }
+  return "Emp, Toi e tsec usados nesta conta são os do embarque doméstico.";
+}
+
 export function makeContract(entry: RegistryEntry): ComponentContract {
   const title = entry.title.trim() ? entry.title : "Componente";
   const stored = entry.requirements ?? emptyRequirements();
@@ -283,6 +295,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
               label: mixedNature
                 ? "DHp conexões (agregado)"
                 : "DHp embarque via conexão",
+              origem: connectionDemandOrigem(entry),
             },
           }
         : {}),
