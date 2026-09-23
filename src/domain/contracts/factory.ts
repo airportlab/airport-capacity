@@ -45,7 +45,7 @@ import {
   standardTsecForParam,
   TSEC_MANUAL_CITATION,
 } from "../pmd";
-import { organAllowsCompanions } from "../templates/organs";
+import { organAllowsCompanions, organAllowsEquipment } from "../templates/organs";
 
 export function emptyRequirements(): ComponentRequirements {
   return {};
@@ -131,8 +131,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const requirements: ComponentRequirements = {
     ...(area ? { ...stored, area } : stored),
   };
-  if (entry.kind === "sala-desembarque") delete requirements.equipment;
-  else delete requirements.esteira;
+  if (!organAllowsEquipment(entry)) delete requirements.equipment;
+  if (entry.kind !== "sala-desembarque") delete requirements.esteira;
   const equipment = hasEquipment(requirements);
   const belt = hasEsteira(requirements);
   const includeAreaTaxa = usesAreaTaxa(requirements);

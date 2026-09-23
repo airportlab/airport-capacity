@@ -16,7 +16,10 @@ import {
 import { isTsecParam } from "../domain/contracts/fields";
 import { equipmentTerms } from "../domain/contracts/flowParams";
 import { makeContract, requirementsFromLegacyTemplate } from "../domain/contracts/factory";
-import { organAllowsCompanions } from "../domain/templates/organs";
+import {
+  organAllowsCompanions,
+  organAllowsEquipment,
+} from "../domain/templates/organs";
 import {
   applyPmdRequirements,
   DEFAULT_PEAK_NATURE,
@@ -182,16 +185,16 @@ function parseEsteiraRequirement(raw: unknown): EsteiraRequirement | undefined {
 }
 
 function clampArrivalsRequirements(entry: RegistryEntry): RegistryEntry {
-  if (entry.kind === "sala-desembarque") {
-    if (!entry.requirements.equipment) return entry;
+  let next = entry;
+  if (!organAllowsEquipment(entry) && entry.requirements.equipment) {
     const requirements = { ...entry.requirements };
     delete requirements.equipment;
-    return { ...entry, requirements };
+    next = { ...entry, requirements };
   }
-  if (!entry.requirements.esteira) return entry;
-  const requirements = { ...entry.requirements };
+  if (next.kind === "sala-desembarque" || !next.requirements.esteira) return next;
+  const requirements = { ...next.requirements };
   delete requirements.esteira;
-  return { ...entry, requirements };
+  return { ...next, requirements };
 }
 
 function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {

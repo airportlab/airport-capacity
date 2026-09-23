@@ -28,9 +28,11 @@ export function AboutPage({ onBack }: AboutPageProps) {
           aeroporto de estudo. Cada componente é uma instância independente, com
           o próprio DHp. A criação escolhe um tipo da lista do PMD — ou o
           saguão de embarque e desembarque — e a natureza (doméstico,
-          internacional ou, nos saguões de embarque e no check-in, misto). Área e
-          equipamentos são requisitos opcionais. O aplicativo começa sem
-          componentes.
+          internacional ou, nos saguões de embarque e no check-in, misto). Área é
+          requisito opcional em todos os tipos. Equipamentos são opcionais só
+          nos processadores (check-in, inspeção, emigração, imigração e
+          aduana). Saguões e salas são dimensionados só por área. O aplicativo
+          começa sem componentes.
         </p>
         <p>
           No <strong>Resumo</strong> você escolhe o aeroporto de estudo (a fonte
@@ -51,13 +53,15 @@ export function AboutPage({ onBack }: AboutPageProps) {
           embarque e desembarque combinada não entram na criação.
         </p>
         <p>
-          Na aba do componente você informa DHp, área medida e equipamentos. A
+          Na aba do componente você informa DHp e área medida. Nos
+          processadores, também equipamentos. A
           demanda de área (Ad) usa DHp, Emp e Toi (e v.a., nos saguões, se o
           requisito marcar acompanhante, ou taxa de utilização Tu, se estiver
           marcada). Equipamentos usam o teto da
           conta de N. O tsec nasce no padrão do Manual de Anteprojeto de cada
           fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
-          usa o seu Toi e o seu tsec. Na sala de desembarque não há N: o
+          usa o seu Toi e o seu tsec. Saguões e salas não têm N. Na sala de
+          desembarque o
           requisito opcional é o tamanho mínimo de esteira, com Tr mínimo de
           30% e Lmp mínimo de 0,9 m. Valor diferente desse mínimo pede
           justificativa. Com vários DHp no mesmo recinto, as contas somam — não se

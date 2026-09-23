@@ -29,6 +29,7 @@ import {
   instantiateOrgan,
   natureOfEntry,
   organAllowsCompanions,
+  organAllowsEquipment,
   organNatureLabel,
   rebindOrganNature,
   remapDemandaOnNatureChange,
@@ -576,10 +577,15 @@ export function AirportEditor() {
   }
 
   function handleAddEquipment(id: ComponentId) {
-    updateRequirements(id, (entry) => ({
-      ...entry,
-      requirements: { ...entry.requirements, equipment: {} },
-    }));
+    const current = registry.find((item) => item.id === id);
+    if (!current || !organAllowsEquipment(current)) return;
+    updateRequirements(id, (entry) => {
+      if (!organAllowsEquipment(entry)) return entry;
+      return {
+        ...entry,
+        requirements: { ...entry.requirements, equipment: {} },
+      };
+    });
     setMessage("Requisito de equipamentos cadastrado.");
   }
 

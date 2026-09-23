@@ -463,6 +463,19 @@ export function organAllowsCompanions(entry: RegistryEntry): boolean {
   return templateForEntry(entry)?.preset === COMPANION_PRESET;
 }
 
+const EQUIPMENT_KINDS = new Set<OrganKind>([
+  "checkin-bagagens",
+  "inspecao",
+  "emigracao",
+  "imigracao",
+  "aduana",
+]);
+
+/** Requisito de equipamentos só nos processadores. Saguões e salas são só área. */
+export function organAllowsEquipment(entry: { kind?: string }): boolean {
+  return EQUIPMENT_KINDS.has(entry.kind as OrganKind);
+}
+
 export function suggestedCompanions(
   template: OrganTemplate | undefined,
 ): boolean {

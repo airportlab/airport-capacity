@@ -21,6 +21,7 @@ import {
   natureOfEntry,
   naturesForTemplate,
   organAllowsCompanions,
+  organAllowsEquipment,
   organNatureLabel,
   suggestedCompanions,
   templateForEntry,
@@ -335,7 +336,8 @@ export function ComponentEditor({
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
-  const equipment = hasEquipment(contract.requirements);
+  const allowsEquipment = organAllowsEquipment(entry);
+  const equipment = allowsEquipment && hasEquipment(contract.requirements);
   const esteira = hasEsteira(contract.requirements);
   const areaTaxa = usesAreaTaxa(contract.requirements);
   const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
@@ -588,10 +590,12 @@ export function ComponentEditor({
           <p className="panel-lead">
             {arrivalsHall
               ? "Área e tamanho mínimo de esteira são opcionais. Adicione o que este componente operacional precisa."
-              : "Área e equipamentos são opcionais. Adicione o que este componente operacional precisa."}
+              : allowsEquipment
+                ? "Área e equipamentos são opcionais. Adicione o que este componente operacional precisa."
+                : "Área é opcional. Adicione o que este componente operacional precisa."}
           </p>
         ) : null}
-        {!area || (arrivalsHall ? !esteira : !equipment) ? (
+        {!area || (arrivalsHall ? !esteira : allowsEquipment && !equipment) ? (
           <div className="requirement-add">
             {!area ? (
               <button
@@ -607,7 +611,7 @@ export function ComponentEditor({
                 Adicionar requisito de tamanho mínimo de esteira
               </button>
             ) : null}
-            {!arrivalsHall && !equipment ? (
+            {allowsEquipment && !equipment ? (
               <button
                 type="button"
                 className="accent"
