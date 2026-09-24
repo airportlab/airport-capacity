@@ -180,7 +180,7 @@ export function emptyAirportDefaults(source: AirportSource = defaultAirport()) {
   const registry = seedRegistry(source);
   const components = paramsFromRegistry(registry, source);
   const componentOrigens = origensFromRegistry(registry, source);
-  overlayExampleOperatingValues(registry, components, componentOrigens);
+  overlayExampleOperatingValues(registry, components);
   return {
     airportId: source.id,
     roundId: source.roundId,
@@ -194,34 +194,28 @@ export function emptyAirportDefaults(source: AirportSource = defaultAirport()) {
 function overlayExampleOperatingValues(
   registry: RegistryEntry[],
   components: Record<ComponentId, ComponentParams>,
-  origens: Record<ComponentId, Record<ComponentParamId, string>>,
 ) {
   for (const entry of registry) {
     const spec = exampleOperatingValues(entry.kind);
     if (!spec) continue;
     const params = components[entry.id];
-    const notes = origens[entry.id];
-    if (!params || !notes) continue;
+    if (!params) continue;
     const contract = resolveContracts([entry])[0];
     for (const field of contract.params) {
       if (field.id.startsWith("demandaPico")) {
         params[field.id] = spec.demandaPico;
-        notes[field.id] = "Valor de exemplo.";
       }
       if (field.id === "areaMedida") {
         params.areaMedida = spec.areaMedida;
-        notes.areaMedida = "Área de exemplo.";
       }
       if (
         field.id === "quantidadeEquipamentos" &&
         spec.quantidadeEquipamentos != null
       ) {
         params.quantidadeEquipamentos = spec.quantidadeEquipamentos;
-        notes.quantidadeEquipamentos = "Quantidade de exemplo.";
       }
       if (field.id === "tsec" && spec.tsec != null) {
         params.tsec = spec.tsec;
-        notes.tsec = "Tempo de exemplo.";
       }
     }
   }
