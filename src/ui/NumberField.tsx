@@ -26,20 +26,32 @@ export function NumberField({
   const origemShown = origemEdit || origemText.length > 0;
 
   return (
-    <label className="field">
-      <span className="field-label">
-        <span>
-          <TexText text={field.label} />
+    <label className="field field-inline">
+      <span className="field-copy">
+        <span className="field-label">
+          <span>
+            <TexText text={field.label} />
+          </span>
         </span>
-        <span className="unit">{field.unit}</span>
+        {!origemEdit && origemText ? (
+          <span id={origemId} className="origem">
+            {origemText}
+          </span>
+        ) : null}
       </span>
-      <input
-        inputMode="decimal"
-        value={draft}
-        onChange={(event) => onValueChange(event.target.value)}
-        onBlur={onBlur}
-        aria-describedby={origemShown ? origemId : undefined}
-      />
+      <span className="field-value">
+        {field.unit ? <span className="unit">[{field.unit}]</span> : null}
+        <input
+          inputMode="decimal"
+          value={draft}
+          onChange={(event) => onValueChange(event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+          onClick={(event) => event.currentTarget.select()}
+          onMouseUp={(event) => event.preventDefault()}
+          onBlur={onBlur}
+          aria-describedby={origemShown ? origemId : undefined}
+        />
+      </span>
       {origemEdit ? (
         <textarea
           id={origemId}
@@ -48,10 +60,6 @@ export function NumberField({
           onChange={(event) => onOrigemChange?.(event.target.value)}
           rows={3}
         />
-      ) : origemText ? (
-        <span id={origemId} className="origem">
-          {origemText}
-        </span>
       ) : null}
     </label>
   );

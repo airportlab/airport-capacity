@@ -684,9 +684,54 @@ button.pmd-card.empty {
   gap: 16px;
 }
 
+.balloon .fields {
+  gap: 28px;
+}
+
+.balloon .fields + .fields,
+.balloon .fields + .sizing-field,
+.balloon .sizing-field + .sizing-field {
+  margin-top: 28px;
+}
+
+.balloon .fields .sizing-field + .sizing-field {
+  margin-top: 0;
+}
+
 .field {
   display: grid;
   gap: 6px;
+}
+
+.field.field-inline {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+}
+
+.field-copy {
+  display: grid;
+  row-gap: 2px;
+  align-content: start;
+}
+
+.field-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field.field-inline input {
+  width: calc(5ch + 24px);
+  max-width: 100%;
+  box-sizing: border-box;
+  justify-self: end;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.field.field-inline .origem-edit {
+  grid-column: 1 / -1;
 }
 
 .field-label,
@@ -1211,6 +1256,10 @@ button:disabled {
 }
 
 @media (max-width: 700px) {
+  .field.field-inline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .layout.layout-split {
     grid-template-columns: minmax(0, 1fr);
   }

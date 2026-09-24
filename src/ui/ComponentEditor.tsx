@@ -11,6 +11,7 @@ import {
 } from "../domain/contracts/factory";
 import { identityParamIds } from "../domain/contracts/flowParams";
 import {
+  isSplitLoungeEntry,
   loungeInvalidForAirport,
   peakNatureLabel,
   pmdById,
@@ -436,9 +437,7 @@ export function ComponentEditor({
   return (
     <div
       className={[
-        contract.params.some((field) => field.id === "percentualMinimoAssentos")
-          ? "layout layout-split"
-          : "layout",
+        area && isSplitLoungeEntry(entry) ? "layout layout-split" : "layout",
         loungeInvalid ? "layout-invalid" : "",
       ]
         .filter(Boolean)
@@ -898,6 +897,19 @@ export function ComponentEditor({
           />
           <div className="fields">
             {beltFields
+              .filter((field) => field.id === "comprimentoEsteiras")
+              .map((field) => (
+                <NumberField
+                  key={field.id}
+                  field={field}
+                  draft={drafts[field.id]}
+                  origem={origens[field.id] ?? field.origem}
+                  onValueChange={(raw) => onValueChange(field.id, raw)}
+                />
+              ))}
+          </div>
+          <div className="fields">
+            {beltFields
               .filter((field) => isBeltManualParam(field.id))
               .map((field) => {
                 const id = field.id;
@@ -935,19 +947,6 @@ export function ComponentEditor({
               renderSizing(sizingFields)
             )
           ) : null}
-          <div className="fields">
-            {beltFields
-              .filter((field) => field.id === "comprimentoEsteiras")
-              .map((field) => (
-                <NumberField
-                  key={field.id}
-                  field={field}
-                  draft={drafts[field.id]}
-                  origem={origens[field.id] ?? field.origem}
-                  onValueChange={(raw) => onValueChange(field.id, raw)}
-                />
-              ))}
-          </div>
           <div className="actions">
             <button type="button" className="ghost" onClick={onRemoveEsteira}>
               Remover esteira
