@@ -431,38 +431,38 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 0,
     origem: "Soma dos comprimentos das esteiras instaladas nesta sala.",
   },
-  tsec: tsecField("tsec", "Tempo de uso do equipamento (tsec)"),
+  tsec: tsecField("tsec", "Tempo de uso do equipamento (Tsec)"),
   tsecDomestico: tsecField(
     "tsecDomestico",
-    "Tempo de uso do equipamento (tsec) · doméstico",
+    "Tempo de uso do equipamento (Tsec) · doméstico",
   ),
   tsecInternacional: tsecField(
     "tsecInternacional",
-    "Tempo de uso do equipamento (tsec) · internacional",
+    "Tempo de uso do equipamento (Tsec) · internacional",
   ),
   tsecEmbarque: tsecField(
     "tsecEmbarque",
-    "Tempo de uso do equipamento (tsec) · embarque",
+    "Tempo de uso do equipamento (Tsec) · embarque",
   ),
   tsecDesembarque: tsecField(
     "tsecDesembarque",
-    "Tempo de uso do equipamento (tsec) · desembarque",
+    "Tempo de uso do equipamento (Tsec) · desembarque",
   ),
   tsecEmbarqueDomestico: tsecField(
     "tsecEmbarqueDomestico",
-    "Tempo de uso do equipamento (tsec) · embarque doméstico",
+    "Tempo de uso do equipamento (Tsec) · embarque doméstico",
   ),
   tsecEmbarqueInternacional: tsecField(
     "tsecEmbarqueInternacional",
-    "Tempo de uso do equipamento (tsec) · embarque internacional",
+    "Tempo de uso do equipamento (Tsec) · embarque internacional",
   ),
   tsecDesembarqueDomestico: tsecField(
     "tsecDesembarqueDomestico",
-    "Tempo de uso do equipamento (tsec) · desembarque doméstico",
+    "Tempo de uso do equipamento (Tsec) · desembarque doméstico",
   ),
   tsecDesembarqueInternacional: tsecField(
     "tsecDesembarqueInternacional",
-    "Tempo de uso do equipamento (tsec) · desembarque internacional",
+    "Tempo de uso do equipamento (Tsec) · desembarque internacional",
   ),
 };
 

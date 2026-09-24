@@ -20,7 +20,7 @@ export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
   const pattern =
-    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|Pa|Ocup|tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|Pa|Ocup|Tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -588,9 +588,9 @@ export function EquipmentFormulaCard({
       {afterEquation}
       <p className="origem">
         Inteiro mínimo, arredondado para cima. O Toi é o tempo de ocupação do
-        requisito de área, em minutos; tsec em segundos.
+        requisito de área, em minutos; Tsec em segundos.
         {shown.length > 1
-          ? " Cada fluxo usa o seu Toi e o seu tsec; N é o teto da soma."
+          ? " Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
           : ""}
       </p>
     </div>

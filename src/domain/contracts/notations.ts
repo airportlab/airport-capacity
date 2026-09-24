@@ -223,23 +223,23 @@ export function equipmentDemandDisplay(
 export function equipmentTsecSymbol(id: ComponentParamId = "tsec"): string {
   switch (id) {
     case "tsecEmbarque":
-      return "tsec_e";
+      return "Tsec_e";
     case "tsecDesembarque":
-      return "tsec_d";
+      return "Tsec_d";
     case "tsecEmbarqueDomestico":
-      return "tsec_e,dom";
+      return "Tsec_e,dom";
     case "tsecEmbarqueInternacional":
-      return "tsec_e,int";
+      return "Tsec_e,int";
     case "tsecDesembarqueDomestico":
-      return "tsec_d,dom";
+      return "Tsec_d,dom";
     case "tsecDesembarqueInternacional":
-      return "tsec_d,int";
+      return "Tsec_d,int";
     case "tsecDomestico":
-      return "tsec_dom";
+      return "Tsec_dom";
     case "tsecInternacional":
-      return "tsec_int";
+      return "Tsec_int";
     default:
-      return "tsec";
+      return "Tsec";
   }
 }
 

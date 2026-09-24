@@ -62,9 +62,9 @@ export function AboutPage({ onBack }: AboutPageProps) {
           demanda de área (Ad) usa DHp, Emp e Toi (e v.a., nos saguões, se o
           requisito marcar acompanhante, ou taxa de utilização Tu, se estiver
           marcada). Equipamentos usam o teto da
-          conta de N. O tsec nasce no padrão do Manual de Anteprojeto de cada
+          conta de N. O Tsec nasce no padrão do Manual de Anteprojeto de cada
           fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
-          usa o seu Toi e o seu tsec. Saguões e salas não têm N. Na sala de
+          usa o seu Toi e o seu Tsec. Saguões e salas não têm N. Na sala de
           desembarque o
           requisito opcional é o tamanho mínimo de esteira, com Tr mínimo de
           30% e Lmp mínimo de 0,9 m. Valor diferente desse mínimo pede
@@ -73,7 +73,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           check-in misto soma Ad_dom e Ad_int. Saguão de embarque e desembarque soma as funções (e as quatro contas,
           se misto). A saturação compara a demanda com o que a área ou os
           equipamentos podem atender. A aba <strong>Parâmetros</strong> consulta
-          a tabela PMD da fonte selecionada e o tsec do Manual de Anteprojeto,
+          a tabela PMD da fonte selecionada e o Tsec do Manual de Anteprojeto,
           padrão do requisito de equipamentos quando o tipo tem valor; as
           fórmulas aparecem no próprio componente, junto do requisito.
         </p>

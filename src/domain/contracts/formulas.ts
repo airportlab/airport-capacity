@@ -682,8 +682,8 @@ export function capacityFormulas(copy: {
       label: "Número mínimo de equipamentos",
       unit: "un",
       origem: multi
-        ? "Número mínimo inteiro de equipamentos, arredondado para cima. Cada fluxo usa o seu Toi e o seu tsec; N é o teto da soma. tsec em segundos."
-        : `Número mínimo inteiro de equipamentos, arredondado para cima: ${equipmentFormulaDisplay(equipmentTerms, includeEquipmentTaxa)}. O Toi é o tempo de ocupação do requisito de área, em minutos; tsec em segundos.`,
+        ? "Número mínimo inteiro de equipamentos, arredondado para cima. Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma. Tsec em segundos."
+        : `Número mínimo inteiro de equipamentos, arredondado para cima: ${equipmentFormulaDisplay(equipmentTerms, includeEquipmentTaxa)}. O Toi é o tempo de ocupação do requisito de área, em minutos; Tsec em segundos.`,
       expression: equipmentFormulaDisplay(equipmentTerms, includeEquipmentTaxa),
       evaluate: (inputs) =>
         ceilCount(

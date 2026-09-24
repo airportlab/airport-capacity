@@ -8,7 +8,6 @@ import {
 } from "../domain/contracts/flowParams";
 import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
 import { beltManualStandard, isBeltManualParam } from "../domain/contracts/formulas";
-import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay, singleFunctionMixedFormulaDisplay, splitLoungeFormulaDisplay } from "../domain/contracts/notations";
 import {
   areaCheckContract,
   beltCheckContract,
@@ -725,6 +724,36 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
   return workbook;
 }
 
+const AREA_NOTE_PURPOSE =
+  "Ad é a área mínima do componente, em m². A coluna Ad de cada linha repete essa conta. O componente atende se a área medida for maior ou igual a Ad.";
+
+function areaNoteText(contracts: ComponentContract[]): string {
+  const groups = new Map<string, string[]>();
+  for (const contract of contracts) {
+    const expressions = contract.formulas
+      .filter((formula) => formula.unit === "m²")
+      .map((formula) => formula.expression);
+    if (expressions.length === 0) continue;
+    const key = expressions.join("; ");
+    const names = groups.get(key) ?? [];
+    names.push(contract.title);
+    groups.set(key, names);
+  }
+  const lines = [AREA_NOTE_PURPOSE];
+  for (const [expressions, names] of groups) {
+    lines.push(`${names.join(", ")}: ${expressions}`);
+  }
+  return lines.join("\n");
+}
+
+function areaNoteHeight(text: string): number {
+  const visualLines = text.split("\n").reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil(line.length / 180)),
+    0,
+  );
+  return Math.max(32, visualLines * 18);
+}
+
 function exportByNature(model: ExcelModel): ExcelJS.Workbook {
   const layout: NatureSheetLayout = getNatureSheetLayout(
     model.contracts,
@@ -796,8 +825,8 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       NATURE_AREA_COLUMNS,
     );
     const note = sheet.getRow(layout.area.noteRow);
-    note.getCell(1).value =
-      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Desembarque misto: ${mixedAreaFormulaDisplay(true, 2, false, false, true)}. Desembarque misto com conexão: ${mixedAreaFormulaDisplay(true, 2, false, true, true)}. Sala de desembarque mista: ${mixedAreaFormulaDisplay(false, 2, false, false, true)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}. Sala de embarque sentado e em pé: ${splitLoungeFormulaDisplay(false)}.`;
+    const noteText = areaNoteText(model.contracts);
+    note.getCell(1).value = noteText;
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(
       layout.area.noteRow,
@@ -806,7 +835,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       NATURE_AREA_COLUMNS,
     );
     fillRow(note, COLORS.paper, 1, NATURE_AREA_COLUMNS);
-    note.height = 68;
+    note.height = areaNoteHeight(noteText);
     colHeaders(
       sheet.getRow(layout.area.colHeaderRow),
       [
@@ -1106,7 +1135,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       .find((formula) => formula.id === "numeroMinimoEquipamentos");
     const note = sheet.getRow(layout.equipment.noteRow);
     note.getCell(1).value = equipmentFormula
-      ? `${equipmentFormula.label}: ${equipmentFormula.expression}. Cada fluxo usa o seu Toi e o seu tsec.`
+      ? `${equipmentFormula.label}: ${equipmentFormula.expression}. Cada fluxo usa o seu Toi e o seu Tsec.`
       : "Número mínimo de equipamentos.";
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(

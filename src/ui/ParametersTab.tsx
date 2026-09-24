@@ -41,7 +41,7 @@ export function ParametersTab({
           Manual de Anteprojeto
         </h2>
         <p className="panel-lead">
-          Tempo de serviço do equipamento (tsec), em segundos, separado por
+          Tempo de serviço do equipamento (Tsec), em segundos, separado por
           natureza. É o padrão ao cadastrar equipamentos, na falta de outro
           tempo informado. No componente, tempo diferente desse padrão pede
           justificativa. Só entram os tipos que têm valor. Tr e Lmp da sala de

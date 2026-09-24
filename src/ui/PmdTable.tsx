@@ -35,7 +35,7 @@ function linesFor(
   if (mode === "tsec") {
     const value = standardTsec(row.id, nature);
     if (value == null) return [];
-    return [{ key: "tsec", label: "tsec", unit: "s", value }];
+    return [{ key: "tsec", label: "Tsec", unit: "s", value }];
   }
   const lines = pmdSideLines(row, nature);
   if (mode === "pmd") return lines.filter((line) => line.key !== "tsec");

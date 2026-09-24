@@ -115,12 +115,12 @@ export function contractHasConnection(contract: ComponentContract): boolean {
 export function connectionDemandOrigem(entry: RegistryEntry): string {
   const nature = natureOfEntry(entry);
   if (nature === "misto") {
-    return "Demanda agregada das conexões. Emp, Toi e tsec usados nesta conta são os do embarque doméstico.";
+    return "Demanda agregada das conexões. Emp, Toi e Tsec usados nesta conta são os do embarque doméstico.";
   }
   if (nature === "internacional") {
-    return "Emp, Toi e tsec usados nesta conta são os do embarque internacional.";
+    return "Emp, Toi e Tsec usados nesta conta são os do embarque internacional.";
   }
-  return "Emp, Toi e tsec usados nesta conta são os do embarque doméstico.";
+  return "Emp, Toi e Tsec usados nesta conta são os do embarque doméstico.";
 }
 
 export function makeContract(entry: RegistryEntry): ComponentContract {
@@ -267,7 +267,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   } else if (equipment) {
     subtitle =
       terms.length > 1
-        ? "Requisito de equipamentos. Cada fluxo usa o seu Toi e o seu tsec; N é o teto da soma."
+        ? "Requisito de equipamentos. Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
         : "Requisito de equipamentos de processamento.";
   }
 

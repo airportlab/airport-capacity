@@ -245,7 +245,7 @@ export const TSEC_MANUAL_URL =
   "https://www.gov.br/anac/pt-br/assuntos/concessoes/ManualdeAnteprojeto.pdf";
 
 export const TSEC_MANUAL_CITATION =
-  "Manual de Anteprojeto (ANAC). Tempo de serviço do equipamento (tsec), em segundos. Padrão do requisito de equipamentos na falta de outro tempo informado.";
+  "Manual de Anteprojeto (ANAC). Tempo de serviço do equipamento (Tsec), em segundos. Padrão do requisito de equipamentos na falta de outro tempo informado.";
 
 /** Nome da equação 10. Só o Excel usa este rótulo. */
 export const TSEC_MANUAL_LABEL =
@@ -770,7 +770,7 @@ export function pmdSideLines(
   if (tsec != null) {
     lines.push({
       key: "tsec",
-      label: "tsec",
+      label: "Tsec",
       unit: "s",
       value: tsec,
     });
@@ -868,7 +868,7 @@ export function pmdMetrics(row: PmdRow): PmdMetricView[] {
   if (tsecDomestico != null || tsecInternacional != null) {
     metrics.push({
       key: "tsec",
-      label: "Tempo de serviço do equipamento (tsec)",
+      label: "Tempo de serviço do equipamento (Tsec)",
       unit: "s",
       domestico: tsecDomestico,
       internacional: tsecInternacional,
