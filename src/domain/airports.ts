@@ -1,5 +1,6 @@
 export type AirportId =
   | "sbsg"
+  | "sbmo"
   | "sbgo"
   | "sbmt"
   | "sbjr"
@@ -18,9 +19,10 @@ export type AirportId =
   | "sbur";
 
 export type RoundId = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
-export type PmdTableId = "standard";
+export type PmdTableId = "standard" | "nordeste";
 export type AirportBlock =
   | "Relicitação"
+  | "Nordeste"
   | "Central"
   | "Aviação Geral"
   | "Norte II"
@@ -54,6 +56,7 @@ function source(
   roundId: RoundId,
   block: AirportBlock,
   contract: string,
+  pmdTableId: PmdTableId = "standard",
 ): AirportSource {
   return {
     id,
@@ -64,7 +67,7 @@ function source(
     block,
     contract,
     peakLabel: PEAK_LABEL,
-    pmdTableId: "standard",
+    pmdTableId,
   };
 }
 
@@ -76,6 +79,15 @@ export const AIRPORTS: AirportSource[] = [
     "1",
     "Relicitação",
     "Contrato de Concessão nº 004/ANAC/2023",
+  ),
+  source(
+    "sbmo",
+    "SBMO",
+    "Maceió",
+    "5",
+    "Nordeste",
+    "Contrato de Concessão do Bloco Nordeste, Termo Aditivo n. 002, de 07 de junho de 2023",
+    "nordeste",
   ),
   source(
     "sbgo",

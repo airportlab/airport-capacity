@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import type { AirportSource } from "../domain/airports";
 import { pmdById, pmdSideLines } from "../domain/pmd";
 import type { ComponentContract } from "../domain/types";
 import {
-  INSTANTIABLE_ORGANS,
   defaultTitleFor,
+  instantiableOrgans,
   naturesForTemplate,
   organNatureLabel,
   templateByKind,
@@ -11,9 +12,11 @@ import {
   type OrganNature,
 } from "../domain/templates/organs";
 import { formatNumber } from "./format";
+import { TexText } from "./FormulaCard";
 
 interface RegisterComponentProps {
   open: boolean;
+  airport: AirportSource;
   contracts: ComponentContract[];
   onClose: () => void;
   onCreate: (kind: OrganKind, nature: OrganNature, title: string) => void;
@@ -22,12 +25,14 @@ interface RegisterComponentProps {
 
 export function RegisterComponent({
   open,
+  airport,
   contracts,
   onClose,
   onCreate,
   onClone,
 }: RegisterComponentProps) {
-  const firstKind = INSTANTIABLE_ORGANS[0]?.kind ?? "saguao-embarque";
+  const catalog = instantiableOrgans(airport);
+  const firstKind = catalog[0]?.kind ?? "saguao-embarque";
   const [mode, setMode] = useState<"create" | "clone">("create");
   const [kind, setKind] = useState<OrganKind>(firstKind);
   const [nature, setNature] = useState<OrganNature>("domestico");
@@ -35,7 +40,7 @@ export function RegisterComponent({
   const [titleTouched, setTitleTouched] = useState(false);
   const [sourceId, setSourceId] = useState(contracts[0]?.id ?? "");
 
-  const template = templateByKind(kind) ?? INSTANTIABLE_ORGANS[0];
+  const template = templateByKind(kind) ?? catalog[0];
   const natures = template ? naturesForTemplate(template) : [];
   const resolvedNature = natures.includes(nature)
     ? nature
@@ -50,7 +55,7 @@ export function RegisterComponent({
         ? ["domestico", "internacional"]
         : [resolvedNature];
     return template.flows.flatMap((flow) => {
-      const row = pmdById(flow.rowId);
+      const row = pmdById(flow.rowId, airport.pmdTableId);
       if (!row) return [];
       const role =
         flow.role === "embarque"
@@ -68,13 +73,13 @@ export function RegisterComponent({
         })),
       );
     });
-  }, [template, resolvedNature]);
+  }, [template, resolvedNature, airport.pmdTableId]);
 
   useEffect(() => {
     if (!open) return;
     setMode("create");
     setKind(firstKind);
-    const start = INSTANTIABLE_ORGANS[0];
+    const start = catalog[0];
     const startNature = start ? naturesForTemplate(start)[0] : "domestico";
     setNature(startNature ?? "domestico");
     setTitle(start ? defaultTitleFor(start, startNature ?? "domestico") : "");
@@ -84,7 +89,7 @@ export function RegisterComponent({
         ? current
         : (contracts[0]?.id ?? ""),
     );
-  }, [open, contracts, firstKind]);
+  }, [open, contracts, firstKind, airport.id]);
 
   useEffect(() => {
     if (nature === resolvedNature) return;
@@ -161,7 +166,7 @@ export function RegisterComponent({
                   setTitleTouched(false);
                 }}
               >
-                {INSTANTIABLE_ORGANS.map((item) => (
+                {catalog.map((item) => (
                   <option key={item.kind} value={item.kind}>
                     {item.title}
                   </option>
@@ -193,7 +198,9 @@ export function RegisterComponent({
                 <dl className="pmd-values">
                   {absorbed.map((line) => (
                     <div key={line.key} className="pmd-value">
-                      <dt>{line.label}</dt>
+                      <dt>
+                        <TexText text={line.label} />
+                      </dt>
                       <dd>
                         {formatNumber(line.value)}{" "}
                         <span className="unit">{line.unit}</span>

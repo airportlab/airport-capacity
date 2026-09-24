@@ -24,8 +24,9 @@ export function ParametersTab({
         <h2 id="parametros-heading">Parâmetros mínimos de dimensionamento</h2>
         <p className="panel-lead">
           {airport.contract} ({airport.icao}). {airport.peakLabel} doméstico e
-          internacional. Emp, Toi, v.a. e assentos vêm do contrato; o componente
-          operacional os absorve na criação. Aqui não se cadastra componente.
+          internacional. Emp, Toi, v.a. e os critérios da sala de embarque vêm
+          do contrato; o componente operacional os absorve na criação. Aqui não
+          se cadastra componente.
         </p>
         <p className="round-meta">
           Fonte: <strong>{sourceCitation(airport)}</strong>

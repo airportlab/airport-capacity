@@ -12,7 +12,7 @@ import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import { usesAreaTaxa } from "../domain/types";
 import { roundLabel, sourceCitation } from "../domain/pmd";
 import { formatAirportName, formatNumber, formatReportDate, formatSaturacao } from "./format";
-import { AreaEquation, TexText } from "./FormulaCard";
+import { AreaEquation, SplitLoungeEquation, TexText } from "./FormulaCard";
 import { PmdTable } from "./PmdTable";
 import { complianceClass, complianceLabel, equipmentColumn } from "./SummaryPage";
 
@@ -150,7 +150,9 @@ function ComponentSections({
           <tbody>
             {contract.params.map((field) => (
               <tr key={field.id}>
-                <td>{field.label}</td>
+                <td>
+                  <TexText text={field.label} />
+                </td>
                 <td>{formatNumber(evaluation.inputs[field.id])}</td>
                 <td>{field.unit}</td>
                 <td>
@@ -190,7 +192,14 @@ function ComponentSections({
                 <td>{formula.unit}</td>
                 <td>
                   {formula.id === "areaMinima" &&
-                  !(isDualContract(contract) || contractHasConnection(contract))
+                  contract.params.some(
+                    (field) => field.id === "percentualOcupacaoMaxima",
+                  ) ? (
+                    <SplitLoungeEquation
+                      includeTaxa={usesAreaTaxa(contract.requirements)}
+                    />
+                  ) : formula.id === "areaMinima" &&
+                    !(isDualContract(contract) || contractHasConnection(contract))
                     ? (
                         <AreaEquation
                           companions={

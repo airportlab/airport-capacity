@@ -373,6 +373,31 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     origem:
       "Parâmetro mínimo de dimensionamento das salas de embarque. Fração da ocupação simultânea que deve ter assento.",
   },
+  percentualOcupacaoMaxima: {
+    id: "percentualOcupacaoMaxima",
+    kind: "sizing",
+    label: "Máxima ocupação das salas (Ocup_max)",
+    unit: "%",
+    defaultValue: 65,
+    origem:
+      "Parâmetro do contrato. Divide a área mínima da sala de embarque sentado e em pé.",
+  },
+  espacoMinimoEmPe: {
+    id: "espacoMinimoEmPe",
+    kind: "sizing",
+    label: "Área necessária para passageiros em pé (Emp_p)",
+    unit: "m²/pax",
+    defaultValue: 1.2,
+    origem: "Espaço mínimo por passageiro em pé na sala de embarque.",
+  },
+  tempoDeOcupacaoEmPe: {
+    id: "tempoDeOcupacaoEmPe",
+    kind: "sizing",
+    label: "Tempo médio de ocupação para passageiros em pé (Toi_p)",
+    unit: "min",
+    defaultValue: 20,
+    origem: "Tempo de ocupação do passageiro em pé na sala de embarque.",
+  },
   quantidadeEquipamentos: {
     id: "quantidadeEquipamentos",
     kind: "attribute",

@@ -32,6 +32,7 @@ import {
 import { capacityFormulas } from "./formulas";
 import {
   areaFormulaDisplay,
+  splitLoungeFormulaDisplay,
   dualAreaFormulaDisplay,
   mixedAreaFormulaDisplay,
   simpleConnectionFormulaDisplay,
@@ -41,6 +42,7 @@ import {
   empLabelFor,
   empUnitFor,
   empUnitForFlow,
+  isSplitLoungeEntry,
   roundHasSeats,
   standardTsecForParam,
   TSEC_MANUAL_CITATION,
@@ -137,7 +139,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const belt = hasEsteira(requirements);
   const includeAreaTaxa = usesAreaTaxa(requirements);
   const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
-  const seats = Boolean(area) && roundHasSeats(entry);
+  const splitLounge = Boolean(area) && isSplitLoungeEntry(entry);
+  const seats = Boolean(area) && !splitLounge && roundHasSeats(entry);
   const dualFlows = isDualFunction(entry);
   const mixedNature = isMixedNature(entry);
   const internationalHall = natureOfEntry(entry) === "internacional";
@@ -186,6 +189,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       : [
           ...(companions ? AREA_BODY_WITH_COMPANIONS_IDS : AREA_BODY_IDS),
           ...(seats ? (["percentualMinimoAssentos"] as const) : []),
+          ...(splitLounge
+            ? ([
+                "percentualMinimoAssentos",
+                "percentualOcupacaoMaxima",
+                "espacoMinimoEmPe",
+                "tempoDeOcupacaoEmPe",
+              ] as const)
+            : []),
         ];
 
   const paramIds: ComponentParamId[] = [
@@ -220,7 +231,9 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       : []),
   ];
 
-  const areaCopy = singleFunctionMixed
+  const areaCopy = splitLounge
+    ? splitLoungeFormulaDisplay(includeAreaTaxa)
+    : singleFunctionMixed
     ? singleFunctionMixedFormulaDisplay(companions, includeAreaTaxa)
     : mixedNature
       ? mixedAreaFormulaDisplay(
@@ -241,6 +254,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     subtitle = `Requisito de área ${areaCopy}, assentos e equipamentos.`;
   } else if (area && seats) {
     subtitle = `Requisito de área ${areaCopy} e percentual mínimo de assentos.`;
+  } else if (area && splitLounge) {
+    subtitle = `Requisito de área: ${areaCopy}.`;
   } else if (area && belt) {
     subtitle = `Requisito de área ${areaCopy} e tamanho mínimo de esteira.`;
   } else if (area && equipment) {
@@ -265,7 +280,9 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     params: pickFields(paramIds, {
       espacoMinimoPorPassageiro: {
         unit: empUnit,
-        label: empLabelFor(empUnit),
+        label: splitLounge
+          ? "Área necessária para passageiros sentados (Emp_s)"
+          : empLabelFor(empUnit),
       },
       espacoMinimoPorPassageiroEmbarque: {
         unit: empUnitEmbarque,
@@ -293,6 +310,16 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       espacoMinimoPorPassageiroInternacional: {
         unit: empUnit,
       },
+      ...(splitLounge
+        ? {
+            tempoDeOcupacao: {
+              label: "Tempo médio de ocupação para passageiros sentados (Toi_s)",
+            },
+            percentualMinimoAssentos: {
+              label: "Acesso a assentos na sala de embarque (Pa)",
+            },
+          }
+        : {}),
       ...(dualFlows && !mixedNature
         ? {
             demandaPicoEmbarque: {
@@ -336,6 +363,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeArea: Boolean(area),
       includeEquipment: equipment,
       includeSeats: seats && !mixedNature,
+      includeSplitLounge: splitLounge,
       includeAreaTaxa,
       includeEquipmentTaxa,
       includeBelt: belt,

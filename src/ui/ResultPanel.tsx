@@ -36,7 +36,9 @@ function ResultValues({
       {formulas.map((formula) => (
         <li key={formula.id}>
           <span className="result-label">
-            <TexText text={formula.label} />
+            <span>
+              <TexText text={formula.label} />
+            </span>
           </span>
           <strong>
             {formatNumber(evaluation.results[formula.id] ?? Number.NaN)}{" "}

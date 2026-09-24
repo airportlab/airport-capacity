@@ -185,7 +185,7 @@
 
 .tab {
   flex: 0 0 auto;
-  border: 0;
+  border: 1px solid var(--border);
   background: transparent;
   color: var(--ink);
   border-radius: 999px;
@@ -196,6 +196,17 @@
 .tab.active {
   background: var(--ink);
   color: var(--on-ink);
+  border-color: var(--ink);
+}
+
+.tab.invalid:not(.active) {
+  background: var(--no-bg);
+  border-color: var(--no-border);
+  color: var(--no);
+}
+
+.tab.invalid.active {
+  box-shadow: inset 0 0 0 2px var(--no);
 }
 
 .tab-add {
@@ -338,6 +349,18 @@
   font-weight: 600;
 }
 
+.contract-invalid-warn {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: var(--no);
+  font-weight: 600;
+}
+
+.layout-invalid .panel {
+  background: var(--no-bg);
+  border-color: var(--no);
+}
+
 .layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
@@ -353,6 +376,14 @@
 
 .layout.params-only {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.layout.layout-split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.layout.layout-split > :nth-child(n + 3) {
+  grid-column: 1 / -1;
 }
 
 .summary-page {
@@ -587,6 +618,7 @@ button.pmd-card.empty {
 
 .summary-card.fail {
   border-color: var(--no-border);
+  background: var(--no-bg);
 }
 
 .summary-card-actions {
@@ -781,6 +813,10 @@ fieldset.field {
   font-family: var(--font-serif);
   font-size: 1.2rem;
   font-weight: 600;
+}
+
+.formula-card .tex {
+  justify-content: safe center;
 }
 
 .tex {
@@ -1175,6 +1211,14 @@ button:disabled {
 }
 
 @media (max-width: 700px) {
+  .layout.layout-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout.layout-split > :nth-child(n + 3) {
+    grid-column: auto;
+  }
+
   .page {
     width: min(1200px, calc(100% - 16px));
     padding: 16px 0 48px;

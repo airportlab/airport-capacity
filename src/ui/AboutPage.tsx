@@ -46,8 +46,12 @@ export function AboutPage({ onBack }: AboutPageProps) {
         <p>
           Em <strong>+ Componente</strong> o cadastro usa a lista exaustiva do
           PMD. Várias instâncias do mesmo tipo são permitidas. O componente
-          absorve Emp, Toi, v.a. e assentos da fonte escolhida; o valor pode
-          diferir com justificativa, sem mudar a fonte do tipo. Nas entradas
+          absorve Emp, Toi, v.a. e os critérios da sala de embarque da fonte
+          escolhida; o valor pode diferir com justificativa, sem mudar a fonte
+          do tipo. No SBMO a sala de embarque é uma só: área ponderada entre
+          passageiro sentado e em pé, dividida pela ocupação máxima. Se o
+          estudo mudar para um contrato com outra conta, essa sala fica
+          inválida e o Excel e o PDF não saem. Nas entradas
           do componente a natureza (doméstico, internacional ou, nos saguões
           de embarque e no check-in, misto) pode ser alterada depois. Meio-fio e sala de
           embarque e desembarque combinada não entram na criação.
@@ -118,7 +122,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
         <p>
           Os cálculos rodam no navegador. Você pode gerar <strong>Excel</strong>{" "}
           (por componente ou por natureza) e <strong>PDF</strong> (simplificado
-          ou completo), e <strong>guardar</strong> o estudo num arquivo{" "}
+          ou completo). Dá para{" "}
+          <strong>guardar</strong> o estudo num arquivo{" "}
           <code>.airport</code> para <strong>carregar</strong> depois.
           Recarregar a página sem esse arquivo perde o estado da sessão. Os
           dados só saem da máquina se você exportar, copiar ou enviar o arquivo

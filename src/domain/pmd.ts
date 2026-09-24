@@ -26,11 +26,19 @@ export const DEFAULT_PEAK_NATURE: PeakNature = "domestico";
 
 export type EmpUnit = "m²/ocup" | "m²/pax";
 
+export type LoungeAreaMode = "emp-e-assentos" | "sentado-em-pe";
+
 export interface RoundAreaValues {
   emp: number | null;
   toiMinutes: number | null;
   vaPerPax: number | null;
   seatPercent: number | null;
+  /** Máxima ocupação das salas (Ocup_max), só no modo sentado-em-pe. */
+  occupancyPercent?: number | null;
+  /** Espaço do passageiro em pé (Emp_p). */
+  empStanding?: number | null;
+  /** Tempo de ocupação do passageiro em pé (Toi_p). */
+  toiStandingMinutes?: number | null;
 }
 
 export interface PmdRow {
@@ -38,12 +46,22 @@ export interface PmdRow {
   title: string;
   detail: string;
   empUnit: EmpUnit;
+  /** Sala de embarque. Ausente nas outras linhas. */
+  loungeMode?: LoungeAreaMode;
   domestico: RoundAreaValues;
   internacional: RoundAreaValues;
 }
 
 export interface PmdMetricView {
-  key: "emp" | "va" | "toi" | "seats" | "tsec";
+  key:
+    | "emp"
+    | "va"
+    | "toi"
+    | "seats"
+    | "occupancy"
+    | "empStanding"
+    | "toiStanding"
+    | "tsec";
   label: string;
   unit: string;
   domestico: number | null;
@@ -55,8 +73,19 @@ function sizing(
   toiMinutes: number | null,
   vaPerPax: number | null = null,
   seatPercent: number | null = null,
+  occupancyPercent: number | null = null,
+  empStanding: number | null = null,
+  toiStandingMinutes: number | null = null,
 ): RoundAreaValues {
-  return { emp, toiMinutes, vaPerPax, seatPercent };
+  return {
+    emp,
+    toiMinutes,
+    vaPerPax,
+    seatPercent,
+    occupancyPercent,
+    empStanding,
+    toiStandingMinutes,
+  };
 }
 
 /** Tabela PMD compartilhada (1ª rodada — relicitação do SBSG, 6ª rodada Central e 7ª rodada). */
@@ -131,6 +160,7 @@ export const STANDARD_PMD: PmdRow[] = [
     detail:
       "Espaço mínimo por passageiro (m²/pax), tempo médio de ocupação no componente (min) e percentual mínimo de assentos oferecidos.",
     empUnit: "m²/pax",
+    loungeMode: "emp-e-assentos",
     domestico: sizing(2.3, 40, null, 70),
     internacional: sizing(2.3, 60, null, 70),
   },
@@ -140,6 +170,7 @@ export const STANDARD_PMD: PmdRow[] = [
     detail:
       "Espaço mínimo por passageiro (m²/pax), tempo médio de ocupação no componente (min) e percentual mínimo de assentos oferecidos.",
     empUnit: "m²/pax",
+    loungeMode: "emp-e-assentos",
     domestico: sizing(2.3, 40, null, 70),
     internacional: sizing(2.3, 60, null, 70),
   },
@@ -154,13 +185,45 @@ export const STANDARD_PMD: PmdRow[] = [
   },
 ];
 
-const PMD_TABLES: Record<PmdTableId, PmdRow[]> = {
-  standard: STANDARD_PMD,
+const SALAS_EMBARQUE_NORDESTE: PmdRow = {
+  id: "salas-embarque",
+  title: "Salas de embarque",
+  detail:
+    "Máxima ocupação das salas (Ocup_max), acesso a assentos (Pa), área e tempo do passageiro sentado e do passageiro em pé. Ad pondera os dois e divide por Ocup_max.",
+  empUnit: "m²/pax",
+  loungeMode: "sentado-em-pe",
+  domestico: sizing(1.7, 40, null, 70, 65, 1.2, 20),
+  internacional: sizing(1.7, 60, null, 70, 65, 1.2, 20),
 };
 
-const PMD_BY_ID: Record<string, PmdRow> = Object.fromEntries(
-  STANDARD_PMD.map((row) => [row.id, row]),
-);
+function withArrivalsToi(row: PmdRow, domestico: number, internacional: number): PmdRow {
+  return {
+    ...row,
+    domestico: sizing(row.domestico.emp, domestico),
+    internacional: sizing(row.internacional.emp, internacional),
+  };
+}
+
+/** Bloco Nordeste, Termo Aditivo n. 002/2023. Sala de embarque única, sentado e em pé. */
+export const NORDESTE_PMD: PmdRow[] = STANDARD_PMD.flatMap((row) => {
+  if (row.id === "sala-embarque-pontes" || row.id === "sala-embarque-remotas") {
+    return row.id === "sala-embarque-pontes" ? [SALAS_EMBARQUE_NORDESTE] : [];
+  }
+  if (row.id === "sala-desembarque") return [withArrivalsToi(row, 30, 45)];
+  return [row];
+});
+
+const PMD_TABLES: Record<PmdTableId, PmdRow[]> = {
+  standard: STANDARD_PMD,
+  nordeste: NORDESTE_PMD,
+};
+
+const PMD_BY_ID: Record<string, PmdRow> = {};
+for (const table of Object.values(PMD_TABLES)) {
+  for (const row of table) {
+    if (!PMD_BY_ID[row.id]) PMD_BY_ID[row.id] = row;
+  }
+}
 
 export interface TsecByNature {
   domestico: number | null;
@@ -306,8 +369,49 @@ export const LEGACY_COMPONENT_TO_PMD: Record<string, string> = {
   arrivals: "sala-desembarque",
 };
 
-export function pmdById(id: string): PmdRow | undefined {
+export function pmdById(id: string, tableId?: PmdTableId): PmdRow | undefined {
+  if (tableId) return PMD_TABLES[tableId].find((row) => row.id === id);
   return PMD_BY_ID[id];
+}
+
+export function pmdRowFor(
+  rowId: string,
+  source: AirportSource = defaultAirport(),
+): PmdRow | undefined {
+  return pmdRows(source).find((row) => row.id === rowId);
+}
+
+const LOUNGE_ROW_IDS = new Set([
+  "sala-embarque-pontes",
+  "sala-embarque-remotas",
+  "salas-embarque",
+]);
+
+export function loungeRowIds(entry: RegistryEntry): string[] {
+  const ids = [
+    entry.pmd?.rowId,
+    ...(entry.flows?.map((flow) => flow.pmd.rowId) ?? []),
+  ];
+  return [...new Set(ids.filter((id): id is string => id != null && LOUNGE_ROW_IDS.has(id)))];
+}
+
+/** A sala nasceu noutra conta de área e não vale para o aeroporto selecionado. */
+export function loungeInvalidForAirport(
+  entry: RegistryEntry,
+  source: AirportSource = defaultAirport(),
+): boolean {
+  const ids = loungeRowIds(entry);
+  if (ids.length === 0) return false;
+  const rows = new Set(pmdRows(source).map((row) => row.id));
+  return ids.some((id) => !rows.has(id));
+}
+
+export function isSplitLoungeRow(row: PmdRow | undefined): boolean {
+  return row?.loungeMode === "sentado-em-pe";
+}
+
+export function isSplitLoungeEntry(entry: RegistryEntry): boolean {
+  return loungeRowIds(entry).some((id) => isSplitLoungeRow(pmdById(id)));
 }
 
 export function roundLabel(roundId: RoundId = defaultAirport().roundId): string {
@@ -335,7 +439,10 @@ export function natureHasValues(row: PmdRow, nature: PeakNature): boolean {
     values.emp != null ||
     values.toiMinutes != null ||
     values.vaPerPax != null ||
-    values.seatPercent != null
+    values.seatPercent != null ||
+    values.occupancyPercent != null ||
+    values.empStanding != null ||
+    values.toiStandingMinutes != null
   );
 }
 
@@ -377,6 +484,9 @@ export function sizingMetricFor(
   id: SizingParamId,
 ): PmdMetricView["key"] {
   if (id === "percentualMinimoAssentos") return "seats";
+  if (id === "percentualOcupacaoMaxima") return "occupancy";
+  if (id === "espacoMinimoEmPe") return "empStanding";
+  if (id === "tempoDeOcupacaoEmPe") return "toiStanding";
   if (id === "va" || id.startsWith("va")) return "va";
   if (id.startsWith("tempoDeOcupacao")) return "toi";
   return "emp";
@@ -395,6 +505,12 @@ function areaValue(
       return values.vaPerPax;
     case "seats":
       return values.seatPercent;
+    case "occupancy":
+      return values.occupancyPercent ?? null;
+    case "empStanding":
+      return values.empStanding ?? null;
+    case "toiStanding":
+      return values.toiStandingMinutes ?? null;
     case "tsec":
       return null;
   }
@@ -403,8 +519,9 @@ function areaValue(
 export function pmdValueFor(
   binding: PmdBinding,
   id: SizingParamId,
+  source: AirportSource = defaultAirport(),
 ): number | null {
-  const row = pmdById(binding.rowId);
+  const row = pmdRowFor(binding.rowId, source);
   if (!row) return null;
   return areaValue(pickAreaValues(row, binding.nature), id);
 }
@@ -475,6 +592,11 @@ function assignFlowSources(
   ) {
     next.percentualMinimoAssentos = binding;
   }
+  if (values.percentualOcupacaoMaxima != null) {
+    next.percentualOcupacaoMaxima = binding;
+  }
+  if (values.espacoMinimoEmPe != null) next.espacoMinimoEmPe = binding;
+  if (values.tempoDeOcupacaoEmPe != null) next.tempoDeOcupacaoEmPe = binding;
 }
 
 export function sizingSourcesFromFlows(flows: RegistryFlow[]): SizingSources {
@@ -513,7 +635,7 @@ export function overlaySizingSources(
   for (const id of Object.keys(sources) as SizingParamId[]) {
     const ref = sources[id];
     if (!ref) continue;
-    const value = pmdValueFor(ref, id);
+    const value = pmdValueFor(ref, id, source);
     if (value == null) continue;
     nextParams[id] = value;
     nextOrigens[id] = pmdOrigem(ref, source);
@@ -538,6 +660,7 @@ export function relabelPmdOrigens(
     for (const id of Object.keys(sources) as SizingParamId[]) {
       const ref = sources[id];
       if (!ref) continue;
+      if (!pmdRowFor(ref.rowId, next)) continue;
       if (nextOrigens[id] === pmdOrigem(ref, previous)) {
         nextOrigens[id] = pmdOrigem(ref, next);
       }
@@ -560,6 +683,57 @@ export function pmdSideLines(
 ): PmdSideLine[] {
   const values = row[nature];
   const lines: PmdSideLine[] = [];
+  if (row.loungeMode === "sentado-em-pe") {
+    if (values.occupancyPercent != null) {
+      lines.push({
+        key: "occupancy",
+        label: "Ocup_max",
+        unit: "%",
+        value: values.occupancyPercent,
+      });
+    }
+    if (values.seatPercent != null) {
+      lines.push({
+        key: "seats",
+        label: "Acesso a assentos (Pa)",
+        unit: "%",
+        value: values.seatPercent,
+      });
+    }
+    if (values.emp != null) {
+      lines.push({
+        key: "emp",
+        label: "Emp_s",
+        unit: row.empUnit,
+        value: values.emp,
+      });
+    }
+    if (values.toiMinutes != null) {
+      lines.push({
+        key: "toi",
+        label: "Toi_s",
+        unit: "min",
+        value: values.toiMinutes,
+      });
+    }
+    if (values.empStanding != null) {
+      lines.push({
+        key: "empStanding",
+        label: "Emp_p",
+        unit: row.empUnit,
+        value: values.empStanding,
+      });
+    }
+    if (values.toiStandingMinutes != null) {
+      lines.push({
+        key: "toiStanding",
+        label: "Toi_p",
+        unit: "min",
+        value: values.toiStandingMinutes,
+      });
+    }
+    return lines;
+  }
   if (values.emp != null) {
     lines.push({
       key: "emp",
@@ -606,6 +780,53 @@ export function pmdSideLines(
 
 export function pmdMetrics(row: PmdRow): PmdMetricView[] {
   const metrics: PmdMetricView[] = [];
+  if (row.loungeMode === "sentado-em-pe") {
+    metrics.push(
+      {
+        key: "occupancy",
+        label: "Máxima ocupação das salas (Ocup_max)",
+        unit: "%",
+        domestico: row.domestico.occupancyPercent ?? null,
+        internacional: row.internacional.occupancyPercent ?? null,
+      },
+      {
+        key: "seats",
+        label: "Acesso a assentos (Pa)",
+        unit: "%",
+        domestico: row.domestico.seatPercent,
+        internacional: row.internacional.seatPercent,
+      },
+      {
+        key: "emp",
+        label: "Área para passageiros sentados (Emp_s)",
+        unit: row.empUnit,
+        domestico: row.domestico.emp,
+        internacional: row.internacional.emp,
+      },
+      {
+        key: "toi",
+        label: "Tempo de ocupação sentado (Toi_s)",
+        unit: "min",
+        domestico: row.domestico.toiMinutes,
+        internacional: row.internacional.toiMinutes,
+      },
+      {
+        key: "empStanding",
+        label: "Área para passageiros em pé (Emp_p)",
+        unit: row.empUnit,
+        domestico: row.domestico.empStanding ?? null,
+        internacional: row.internacional.empStanding ?? null,
+      },
+      {
+        key: "toiStanding",
+        label: "Tempo de ocupação em pé (Toi_p)",
+        unit: "min",
+        domestico: row.domestico.toiStandingMinutes ?? null,
+        internacional: row.internacional.toiStandingMinutes ?? null,
+      },
+    );
+    return metrics;
+  }
   if (row.domestico.emp != null || row.internacional.emp != null) {
     metrics.push({
       key: "emp",
@@ -727,6 +948,18 @@ export function overlayRoundParams(
     nextParams.percentualMinimoAssentos = values.seatPercent;
     nextOrigens.percentualMinimoAssentos = origem;
   }
+  if (values.occupancyPercent != null) {
+    nextParams.percentualOcupacaoMaxima = values.occupancyPercent;
+    nextOrigens.percentualOcupacaoMaxima = origem;
+  }
+  if (values.empStanding != null) {
+    nextParams.espacoMinimoEmPe = values.empStanding;
+    nextOrigens.espacoMinimoEmPe = origem;
+  }
+  if (values.toiStandingMinutes != null) {
+    nextParams.tempoDeOcupacaoEmPe = values.toiStandingMinutes;
+    nextOrigens.tempoDeOcupacaoEmPe = origem;
+  }
   return { params: nextParams, origens: nextOrigens };
 }
 
@@ -743,11 +976,19 @@ export function contractSizingValues(
   if (values.toiMinutes != null) next.tempoDeOcupacao = values.toiMinutes;
   if (values.vaPerPax != null) next.va = values.vaPerPax;
   if (values.seatPercent != null) next.percentualMinimoAssentos = values.seatPercent;
+  if (values.occupancyPercent != null) {
+    next.percentualOcupacaoMaxima = values.occupancyPercent;
+  }
+  if (values.empStanding != null) next.espacoMinimoEmPe = values.empStanding;
+  if (values.toiStandingMinutes != null) {
+    next.tempoDeOcupacaoEmPe = values.toiStandingMinutes;
+  }
   return next;
 }
 
 export function roundHasSeats(entry: RegistryEntry): boolean {
   if (!entry.requirements.area) return false;
+  if (isSplitLoungeEntry(entry)) return false;
   const sources = resolvedSources(entry);
   if (sources.percentualMinimoAssentos) return true;
   for (const ref of Object.values(sources)) {
@@ -802,11 +1043,12 @@ export function empLabelFor(unit: EmpUnit): string {
 export function resolveContractValue(
   entry: RegistryEntry | undefined,
   field: ParamField<ComponentParamId>,
+  source: AirportSource = defaultAirport(),
 ): { value: number; source: "pmd" | "model" } {
   if (field.kind === "sizing" && entry) {
     const ref = resolvedSources(entry)[field.id as SizingParamId];
     if (ref) {
-      const fromPmd = pmdValueFor(ref, field.id as SizingParamId);
+      const fromPmd = pmdValueFor(ref, field.id as SizingParamId, source);
       if (fromPmd != null) return { value: fromPmd, source: "pmd" };
     }
   }

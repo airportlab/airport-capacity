@@ -1,10 +1,12 @@
 import { slugify } from "../contracts/factory";
 import { identityParamIds } from "../contracts/flowParams";
+import type { AirportSource } from "../airports";
 import {
   applyPmdRequirements,
   natureHasValues,
   normalizePmdBinding,
   pmdById,
+  pmdRows,
 } from "../pmd";
 import {
   natureOfEntry,
@@ -34,6 +36,7 @@ export type OrganKind =
   | "aduana"
   | "sala-embarque-pontes"
   | "sala-embarque-remotas"
+  | "salas-embarque"
   | "sala-desembarque"
   | "sala-embarque-desembarque";
 
@@ -148,13 +151,22 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     detail: "Espera em posições remotas. Mesmos números de pontes nesta rodada.",
   },
   {
+    kind: "salas-embarque",
+    title: "Salas de embarque",
+    natures: ["domestico", "internacional"],
+    preset: "areaSeats",
+    flows: [{ role: "embarque", rowId: "salas-embarque" }],
+    detail:
+      "Contrato com sentado e em pé. Ocup_max, Pa, Emp_s, Toi_s, Emp_p e Toi_p. Sem contagem separada de assentos.",
+  },
+  {
     kind: "sala-desembarque",
     title: "Sala de desembarque",
     natures: ["domestico", "internacional", "misto"],
     preset: "area",
     flows: [{ role: "desembarque", rowId: "sala-desembarque" }],
     detail:
-      "Desembarque da aeronave. Toi 20 doméstico, 45 internacional. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante e sem N. O requisito opcional é o comprimento mínimo de esteira.",
+      "Desembarque da aeronave. Toi vem da tabela do aeroporto. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante e sem N. O requisito opcional é o comprimento mínimo de esteira.",
   },
 ];
 
@@ -188,6 +200,14 @@ export const INSTANTIABLE_ORGANS: OrganTemplate[] = PREDEFINED_ORGANS.filter(
     template.kind === "saguao-embarque-desembarque",
 );
 
+/** Tipos cuja linha existe na tabela PMD do aeroporto. */
+export function instantiableOrgans(source: AirportSource): OrganTemplate[] {
+  const rows = new Set(pmdRows(source).map((row) => row.id));
+  return INSTANTIABLE_ORGANS.filter((template) =>
+    template.flows.every((flow) => rows.has(flow.rowId)),
+  );
+}
+
 /** Ordem da jornada no Resumo: embarque e, em seguida, desembarque. */
 export const JOURNEY_ORDER: readonly {
   kind: OrganKind;
@@ -200,6 +220,7 @@ export const JOURNEY_ORDER: readonly {
   { kind: "emigracao", leg: "embarque" },
   { kind: "sala-embarque-pontes", leg: "embarque" },
   { kind: "sala-embarque-remotas", leg: "embarque" },
+  { kind: "salas-embarque", leg: "embarque" },
   { kind: "sala-desembarque", leg: "desembarque" },
   { kind: "imigracao", leg: "desembarque" },
   { kind: "aduana", leg: "desembarque" },
@@ -525,6 +546,8 @@ export function exampleOperatingValues(
       return { demandaPico: 350, areaMedida: 380 };
     case "sala-embarque-remotas":
       return { demandaPico: 200, areaMedida: 280 };
+    case "salas-embarque":
+      return { demandaPico: 350, areaMedida: 380 };
     case "sala-desembarque":
       return { demandaPico: 400, areaMedida: 260 };
     default:

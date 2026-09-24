@@ -17,6 +17,7 @@ interface SummaryPageProps {
   contracts: ComponentContract[];
   kinds: Record<ComponentId, string | undefined>;
   evaluations: Record<ComponentId, Evaluation>;
+  invalidIds: ComponentId[];
   onOpenComponent: (id: ComponentId) => void;
   onRegister: () => void;
   onLoadExample: () => void;
@@ -99,6 +100,7 @@ export function SummaryPage({
   contracts,
   kinds,
   evaluations,
+  invalidIds,
   onOpenComponent,
   onRegister,
   onLoadExample,
@@ -107,7 +109,9 @@ export function SummaryPage({
 }: SummaryPageProps) {
   const today = formatReportDate(new Date());
   const failedArea = contracts.filter(
-    (contract) => evaluations[contract.id]?.areaCheck?.atende === false,
+    (contract) =>
+      !invalidIds.includes(contract.id) &&
+      evaluations[contract.id]?.areaCheck?.atende === false,
   ).length;
   const failedEquipment = contracts.filter((contract) => {
     const column = equipmentColumn(evaluations[contract.id]);
@@ -194,25 +198,31 @@ export function SummaryPage({
               {group.contracts.map((contract) => {
                 const evaluation = evaluations[contract.id];
                 const column = equipmentColumn(evaluation);
+                const invalid = invalidIds.includes(contract.id);
                 return (
                   <article
                     key={contract.id}
-                    className={`summary-card ${rowTone(evaluation)}`}
+                    className={`summary-card ${invalid ? "fail" : rowTone(evaluation)}`}
                   >
                     <h3>{contract.title}</h3>
-                    {evaluation?.areaCheck ? (
+                    {invalid ? (
+                      <p className="status-label fail">
+                        Não vale para este contrato
+                      </p>
+                    ) : null}
+                    {!invalid && evaluation?.areaCheck ? (
                       <p className={`status-label ${complianceClass(evaluation.areaCheck)}`}>
                         Área: {complianceLabel(evaluation.areaCheck)}
                       </p>
                     ) : null}
-                    {column ? (
+                    {!invalid && column ? (
                       <p
                         className={`status-label ${complianceClass(column.check)}`}
                       >
                         {column.title}: {complianceLabel(column.check)}
                       </p>
                     ) : null}
-                    {!evaluation?.areaCheck && !column ? (
+                    {!invalid && !evaluation?.areaCheck && !column ? (
                       <p className="status-label">Sem requisitos</p>
                     ) : null}
                     <div className="summary-card-actions">

@@ -116,7 +116,7 @@ export interface NatureSheetLayout extends ExcelHeaderLayout {
 }
 
 export const NATURE_SHEET_NAME = "Natureza";
-export const NATURE_AREA_COLUMNS = 18;
+export const NATURE_AREA_COLUMNS = 21;
 export const NATURE_EQUIPMENT_COLUMNS = 9;
 export const NATURE_BELT_COLUMNS = 8;
 
@@ -575,6 +575,9 @@ export function getNatureSheetLayout(
           va: `G${r}`,
           vaEmbarque: `G${r}`,
           percentualMinimoAssentos: `H${r}`,
+          espacoMinimoEmPe: `S${r}`,
+          tempoDeOcupacaoEmPe: `T${r}`,
+          percentualOcupacaoMaxima: `U${r}`,
           espacoMinimoPorPassageiroDesembarque: `I${r}`,
           tempoDeOcupacaoDesembarque: `J${r}`,
           vaDesembarque: `Q${r}`,

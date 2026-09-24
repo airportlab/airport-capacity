@@ -8,7 +8,7 @@ import {
 } from "../domain/contracts/flowParams";
 import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
 import { beltManualStandard, isBeltManualParam } from "../domain/contracts/formulas";
-import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay, singleFunctionMixedFormulaDisplay } from "../domain/contracts/notations";
+import { areaFormulaDisplay, dualAreaFormulaDisplay, mixedAreaFormulaDisplay, singleFunctionMixedFormulaDisplay, splitLoungeFormulaDisplay } from "../domain/contracts/notations";
 import {
   areaCheckContract,
   beltCheckContract,
@@ -616,7 +616,11 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
       if (isSizingParam(field.id)) {
         const entry = model.registry.find((item) => item.id === contract.id);
         const just = model.justificativas[contract.id]?.[field.id] ?? "";
-        const contractMeta = resolveContractValue(entry, field);
+        const contractMeta = resolveContractValue(
+          entry,
+          field,
+          model.airport ?? defaultAirport(),
+        );
         const sourceRef = entry
           ? resolvedSources(entry)[field.id]
           : undefined;
@@ -793,7 +797,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
     );
     const note = sheet.getRow(layout.area.noteRow);
     note.getCell(1).value =
-      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Desembarque misto: ${mixedAreaFormulaDisplay(true, 2, false, false, true)}. Desembarque misto com conexão: ${mixedAreaFormulaDisplay(true, 2, false, true, true)}. Sala de desembarque mista: ${mixedAreaFormulaDisplay(false, 2, false, false, true)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}.`;
+      `${areaFormulaDisplay(false)}. Com acompanhante: ${areaFormulaDisplay(true)}. Saguão combinado: ${dualAreaFormulaDisplay(true)}. Natureza mista: ${mixedAreaFormulaDisplay(true, 2)} ou ${mixedAreaFormulaDisplay(true, 4)}. Desembarque misto: ${mixedAreaFormulaDisplay(true, 2, false, false, true)}. Desembarque misto com conexão: ${mixedAreaFormulaDisplay(true, 2, false, true, true)}. Sala de desembarque mista: ${mixedAreaFormulaDisplay(false, 2, false, false, true)}. Check-in misto: ${singleFunctionMixedFormulaDisplay(false)}. Sala de embarque sentado e em pé: ${splitLoungeFormulaDisplay(false)}.`;
     note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
     sheet.mergeCells(
       layout.area.noteRow,
@@ -824,6 +828,9 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         "Status",
         "v.a. desembarque",
         "Taxa de utilização (%)",
+        "Emp em pé",
+        "Toi em pé",
+        "Ocupação máxima (Ocup_max)",
       ],
       "FF3D4A58",
     );
@@ -889,6 +896,9 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       const row = sheet.getRow(block.row);
       const companions = contract.requirements.area?.companions === true;
       const seats = hasResult(contract, "assentosMinimos");
+      const splitLounge = contract.params.some(
+        (field) => field.id === "percentualOcupacaoMaxima",
+      );
       const mixed = isMixedNatureContract(contract);
       const dual = isDualContract(contract) && !mixed;
       const empField = contract.params.find(
@@ -1002,7 +1012,22 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
       writeDashOrNumber(
         row.getCell(8),
         evaluation.inputs.percentualMinimoAssentos,
-        seats,
+        seats || splitLounge,
+      );
+      writeDashOrNumber(
+        row.getCell(19),
+        evaluation.inputs.espacoMinimoEmPe,
+        splitLounge,
+      );
+      writeDashOrNumber(
+        row.getCell(20),
+        evaluation.inputs.tempoDeOcupacaoEmPe,
+        splitLounge,
+      );
+      writeDashOrNumber(
+        row.getCell(21),
+        evaluation.inputs.percentualOcupacaoMaxima,
+        splitLounge,
       );
       if (dual) {
         row.getCell(9).numFmt = "#,##0.00";

@@ -103,6 +103,9 @@ export const COMPONENT_PARAM_IDS = [
   "vaDomestico",
   "vaInternacional",
   "percentualMinimoAssentos",
+  "percentualOcupacaoMaxima",
+  "espacoMinimoEmPe",
+  "tempoDeOcupacaoEmPe",
   "quantidadeEquipamentos",
   "taxaRetiradaBagagem",
   "comprimentoLinearPassageiro",
@@ -140,6 +143,9 @@ export const SIZING_PARAM_IDS = [
   "vaDomestico",
   "vaInternacional",
   "percentualMinimoAssentos",
+  "percentualOcupacaoMaxima",
+  "espacoMinimoEmPe",
+  "tempoDeOcupacaoEmPe",
 ] as const;
 export type SizingParamId = (typeof SIZING_PARAM_IDS)[number];
 

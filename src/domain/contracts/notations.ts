@@ -35,6 +35,11 @@ export function areaFormulaRhs(
   return `(${areaNumerator(companions, includeTaxa)}) / 60`;
 }
 
+export function splitLoungeFormulaDisplay(includeTaxa = false): string {
+  const demand = includeTaxa ? "DHp × Tu" : "DHp";
+  return `Ad = ${demand} × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)] / (Ocup_max%)`;
+}
+
 export function areaFormulaDisplay(
   companions: boolean,
   includeTaxa = false,

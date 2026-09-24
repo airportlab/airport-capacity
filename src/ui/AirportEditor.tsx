@@ -14,6 +14,7 @@ import { resolveContracts, slugify } from "../domain/contracts/factory";
 import { evaluateAll } from "../domain/engine";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import {
+  loungeInvalidForAirport,
   overlaySizingSources,
   pmdOrigem,
   relabelPmdOrigens,
@@ -99,6 +100,14 @@ export function AirportEditor() {
   );
   const [justificativas, setJustificativas] = useState(initial.justificativas);
   const contracts = useMemo(() => resolveContracts(registry), [registry]);
+  const invalidLoungeIds = useMemo(
+    () =>
+      registry
+        .filter((entry) => loungeInvalidForAirport(entry, airport))
+        .map((entry) => entry.id),
+    [registry, airport],
+  );
+  const exportBlocked = invalidLoungeIds.length > 0;
   const [componentDrafts, setComponentDrafts] = useState(() =>
     Object.fromEntries(
       resolveContracts(initial.registry).map((contract) => [
@@ -113,7 +122,12 @@ export function AirportEditor() {
   const [savedAt, setSavedAt] = useState<string | null>(initial.savedAt);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<
-    "excel-component" | "excel-nature" | PdfKind | "save" | "load" | null
+    | "excel-component"
+    | "excel-nature"
+    | PdfKind
+    | "save"
+    | "load"
+    | null
   >(null);
   const [pdfKind, setPdfKind] = useState<PdfKind>("simplificado");
   const reportRef = useRef<HTMLDivElement>(null);
@@ -729,7 +743,7 @@ export function AirportEditor() {
       return;
     }
     const entry = registry.find((item) => item.id === componentId);
-    const meta = resolveContractValue(entry, field);
+    const meta = resolveContractValue(entry, field, airport);
     const sourceRef = entry ? resolvedSources(entry)[id] : undefined;
     updateComponent(componentId, id, formatEditable(meta.value));
     setComponentOrigens((current) => ({
@@ -872,17 +886,23 @@ export function AirportEditor() {
           </button>
         </div>
         <div className="tabs-scroll">
-          {contracts.map((contract) => (
+          {contracts.map((contract) => {
+            const active = tab === contract.id;
+            const invalid = invalidLoungeIds.includes(contract.id);
+            return (
             <button
               key={contract.id}
               type="button"
-              className={tab === contract.id ? "tab active" : "tab"}
-              aria-current={tab === contract.id ? "page" : undefined}
+              className={["tab", active ? "active" : "", invalid ? "invalid" : ""]
+                .filter(Boolean)
+                .join(" ")}
+              aria-current={active ? "page" : undefined}
               onClick={() => setTab(contract.id)}
             >
               {contract.title}
             </button>
-          ))}
+            );
+          })}
         </div>
         <button
           type="button"
@@ -908,6 +928,7 @@ export function AirportEditor() {
             ]),
           )}
           evaluations={evaluations}
+          invalidIds={invalidLoungeIds}
           onOpenComponent={setTab}
           onRegister={() => setRegisterOpen(true)}
           onLoadExample={handleLoadExample}
@@ -926,6 +947,7 @@ export function AirportEditor() {
 
       {activeContract && evaluations[activeContract.id] ? (
         <ComponentEditor
+          airport={airport}
           contract={activeContract}
           entry={
             registry.find((item) => item.id === activeContract.id) ?? {
@@ -1023,7 +1045,7 @@ export function AirportEditor() {
           type="button"
           className="accent"
           onClick={() => void handleExcel("component")}
-          disabled={busy !== null || contracts.length === 0}
+          disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "excel-component"
             ? "A exportar…"
@@ -1033,7 +1055,7 @@ export function AirportEditor() {
           type="button"
           className="accent"
           onClick={() => void handleExcel("nature")}
-          disabled={busy !== null || contracts.length === 0}
+          disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "excel-nature" ? "A exportar…" : "Excel por natureza"}
         </button>
@@ -1041,7 +1063,7 @@ export function AirportEditor() {
           type="button"
           className="accent"
           onClick={() => void handlePdf("simplificado")}
-          disabled={busy !== null || contracts.length === 0}
+          disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "simplificado" ? "A exportar…" : "PDF simplificado"}
         </button>
@@ -1049,16 +1071,24 @@ export function AirportEditor() {
           type="button"
           className="accent"
           onClick={() => void handlePdf("completo")}
-          disabled={busy !== null || contracts.length === 0}
+          disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "completo" ? "A exportar…" : "PDF completo"}
         </button>
       </section>
 
+      {exportBlocked ? (
+        <p className="justificativa-warn">
+          Há sala de embarque que não vale para este contrato. Excel e PDF ficam
+          indisponíveis até ela ser apagada ou o aeroporto voltar à conta em que
+          ela nasceu.
+        </p>
+      ) : null}
       {message ? <p className="flash">{message}</p> : null}
 
       <RegisterComponent
         open={registerOpen}
+        airport={airport}
         contracts={contracts}
         onClose={() => setRegisterOpen(false)}
         onCreate={handleCreate}

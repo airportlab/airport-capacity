@@ -1,4 +1,5 @@
 import type { ParamField } from "../domain/types";
+import { TexText } from "./FormulaCard";
 
 interface NumberFieldProps {
   field: ParamField;
@@ -27,7 +28,9 @@ export function NumberField({
   return (
     <label className="field">
       <span className="field-label">
-        {field.label}
+        <span>
+          <TexText text={field.label} />
+        </span>
         <span className="unit">{field.unit}</span>
       </span>
       <input

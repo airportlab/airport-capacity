@@ -17,6 +17,7 @@ import {
   connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
+  splitLoungeFormulaDisplay,
   mixedAreaSumDisplay,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
@@ -125,6 +126,31 @@ function usedDemandExcel(
   const dhp = requiredCell(cells, demanda);
   if (!taxaId || !cells[taxaId]) return dhp;
   return `${dhp}*(${requiredCell(cells, taxaId)}/100)`;
+}
+
+function splitLoungeArea(
+  inputs: ResolvedInputs,
+  taxaId: ComponentParamId | null,
+): number {
+  const share = inputs.percentualMinimoAssentos / 100;
+  const occupancy = inputs.percentualOcupacaoMaxima / 100;
+  if (!Number.isFinite(occupancy) || occupancy === 0) return Number.NaN;
+  const seated =
+    share * inputs.espacoMinimoPorPassageiro * (inputs.tempoDeOcupacao / 60);
+  const standing =
+    (1 - share) * inputs.espacoMinimoEmPe * (inputs.tempoDeOcupacaoEmPe / 60);
+  return (usedDemand(inputs, "demandaPico", taxaId) * (seated + standing)) / occupancy;
+}
+
+function splitLoungeExcel(
+  cells: ExcelCellMap["inputs"],
+  taxaId: ComponentParamId | null,
+): string {
+  const share = `(${requiredCell(cells, "percentualMinimoAssentos")}/100)`;
+  const occupancy = `(${requiredCell(cells, "percentualOcupacaoMaxima")}/100)`;
+  const seated = `${share}*${requiredCell(cells, "espacoMinimoPorPassageiro")}*(${requiredCell(cells, "tempoDeOcupacao")}/60)`;
+  const standing = `(1-${share})*${requiredCell(cells, "espacoMinimoEmPe")}*(${requiredCell(cells, "tempoDeOcupacaoEmPe")}/60)`;
+  return `(${usedDemandExcel(cells, "demandaPico", taxaId)}*(${seated}+${standing}))/${occupancy}`;
 }
 
 function areaValue(
@@ -285,6 +311,7 @@ export function capacityFormulas(copy: {
   includeArea?: boolean;
   includeEquipment?: boolean;
   includeSeats?: boolean;
+  includeSplitLounge?: boolean;
   includeAreaTaxa?: boolean;
   includeEquipmentTaxa?: boolean;
   companions?: boolean;
@@ -299,6 +326,7 @@ export function capacityFormulas(copy: {
   const includeArea = copy.includeArea ?? false;
   const includeEquipment = copy.includeEquipment ?? false;
   const includeSeats = copy.includeSeats ?? false;
+  const includeSplitLounge = copy.includeSplitLounge ?? false;
   const includeAreaTaxa = copy.includeAreaTaxa ?? false;
   const includeEquipmentTaxa = copy.includeEquipmentTaxa ?? false;
   const companions = copy.companions ?? false;
@@ -566,6 +594,17 @@ export function capacityFormulas(copy: {
               areaTaxaId,
             ),
           ].join("+"),
+      });
+    } else if (includeSplitLounge) {
+      const expression = splitLoungeFormulaDisplay(includeAreaTaxa);
+      formulas.push({
+        id: "areaMinima",
+        label: "Área mínima necessária (Ad)",
+        unit: "m²",
+        origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé.`,
+        expression,
+        evaluate: (inputs) => splitLoungeArea(inputs, areaTaxaId),
+        toExcel: (cells) => splitLoungeExcel(cells, areaTaxaId),
       });
     } else {
       formulas.push({

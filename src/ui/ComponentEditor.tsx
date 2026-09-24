@@ -1,3 +1,4 @@
+import type { AirportSource } from "../domain/airports";
 import { isSizingParam, isTsecParam } from "../domain/contracts/fields";
 import {
   beltManualStandard,
@@ -10,6 +11,7 @@ import {
 } from "../domain/contracts/factory";
 import { identityParamIds } from "../domain/contracts/flowParams";
 import {
+  loungeInvalidForAirport,
   peakNatureLabel,
   pmdById,
   pmdValueFor,
@@ -55,6 +57,7 @@ import {
   DualAreaFormulaCard,
   EquipmentFormulaCard,
   FormulaCard,
+  SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
 import { NumberField } from "./NumberField";
@@ -107,6 +110,7 @@ function FieldList({
 function SizingParamControl({
   field,
   draft,
+  airport,
   source,
   justification,
   onValueChange,
@@ -115,6 +119,7 @@ function SizingParamControl({
 }: {
   field: ComponentContract["params"][number];
   draft: string;
+  airport: AirportSource;
   source: PmdBinding | undefined;
   justification: string;
   onValueChange: (raw: string) => void;
@@ -123,7 +128,7 @@ function SizingParamControl({
 }) {
   const sizingId = field.id as SizingParamId;
   const parsed = parseLocaleNumber(draft);
-  const pmdValue = source ? pmdValueFor(source, sizingId) : null;
+  const pmdValue = source ? pmdValueFor(source, sizingId, airport) : null;
   const fromPmd = source != null && pmdValue != null;
   const altered =
     fromPmd && parsed !== null && !sameNumber(parsed, pmdValue);
@@ -279,7 +284,11 @@ function BeltManualControl({
   );
 }
 
+export const LOUNGE_INVALID_MESSAGE =
+  "Esta sala de embarque não vale para o contrato deste aeroporto. Apague e cadastre de novo, ou volte ao aeroporto da conta em que ela nasceu.";
+
 interface ComponentEditorProps {
+  airport: AirportSource;
   contract: ComponentContract;
   entry: RegistryEntry;
   drafts: Record<ComponentParamId, string>;
@@ -308,6 +317,7 @@ interface ComponentEditorProps {
 }
 
 export function ComponentEditor({
+  airport,
   contract,
   entry,
   drafts,
@@ -402,6 +412,7 @@ export function ComponentEditor({
       )
     : flowMeta;
   const empty = !area && !equipment && !esteira;
+  const loungeInvalid = loungeInvalidForAirport(entry, airport);
 
   function renderSizing(fields: ComponentContract["params"]) {
     return fields.map((field) => {
@@ -411,6 +422,7 @@ export function ComponentEditor({
           key={field.id}
           field={field}
           draft={drafts[field.id] ?? formatEditable(0)}
+          airport={airport}
           source={sources[sizingId]}
           justification={justificativas[sizingId] ?? ""}
           onValueChange={(raw) => onValueChange(field.id, raw)}
@@ -422,9 +434,21 @@ export function ComponentEditor({
   }
 
   return (
-    <div className="layout">
+    <div
+      className={[
+        contract.params.some((field) => field.id === "percentualMinimoAssentos")
+          ? "layout layout-split"
+          : "layout",
+        loungeInvalid ? "layout-invalid" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <section className="panel balloon" aria-labelledby={`${contract.id}-entradas`}>
         <h2 id={`${contract.id}-entradas`}>Entradas do componente</h2>
+        {loungeInvalid ? (
+          <p className="contract-invalid-warn">{LOUNGE_INVALID_MESSAGE}</p>
+        ) : null}
         {typeMeta.length > 0 ? (
           <p className="round-meta">
             {typeMeta.map((flow, index) => {
@@ -653,6 +677,15 @@ export function ComponentEditor({
               companions={area.companions}
               includeTaxa={areaTaxa}
               hasConnection={hasBoardingConnection(entry)}
+              afterEquation={
+                <AreaResults contract={contract} evaluation={evaluation} />
+              }
+            />
+          ) : contract.params.some(
+              (field) => field.id === "percentualOcupacaoMaxima",
+            ) ? (
+            <SplitLoungeFormulaCard
+              includeTaxa={areaTaxa}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }

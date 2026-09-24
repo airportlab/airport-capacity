@@ -20,7 +20,7 @@ export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
   const pattern =
-    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|Pa|Ocup|tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -121,6 +121,80 @@ function AreaLegend({
         </div>
       ))}
     </dl>
+  );
+}
+
+const SPLIT_LOUNGE_NOTATIONS = [
+  { symbol: "DHp", meaning: "Demanda hora pico do componente", unit: "pax/h" },
+  { symbol: "Tu", meaning: "Taxa de utilização", unit: "%" },
+  { symbol: "Pa", meaning: "Acesso a assentos", unit: "%" },
+  { symbol: "Ocup_max", meaning: "Máxima ocupação das salas", unit: "%" },
+  { symbol: "Emp_s", meaning: "Espaço mínimo por passageiro sentado", unit: "m²/pax" },
+  { symbol: "Toi_s", meaning: "Tempo de ocupação do passageiro sentado", unit: "min" },
+  { symbol: "Emp_p", meaning: "Espaço mínimo por passageiro em pé", unit: "m²/pax" },
+  { symbol: "Toi_p", meaning: "Tempo de ocupação do passageiro em pé", unit: "min" },
+] as const;
+
+export function splitLoungeNumerator(includeTaxa = false): string {
+  const demand = includeTaxa ? "DHp × Tu" : "DHp";
+  return `${demand} × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)]`;
+}
+
+export function SplitLoungeEquation({
+  includeTaxa = false,
+}: {
+  includeTaxa?: boolean;
+}) {
+  const numerator = splitLoungeNumerator(includeTaxa);
+  return (
+    <div
+      className="tex"
+      role="img"
+      aria-label={`Ad = (${numerator}) / (Ocup_max%)`}
+    >
+      <span className="tex-lhs">
+        <TexText text="Ad" />
+      </span>
+      <span className="tex-eq">=</span>
+      <span className="tex-frac">
+        <span className="tex-num">
+          <TexText text={numerator} />
+        </span>
+        <span className="tex-den">
+          <TexText text="Ocup_max%" />
+        </span>
+      </span>
+    </div>
+  );
+}
+
+export function SplitLoungeFormulaCard({
+  includeTaxa = false,
+  afterEquation,
+}: {
+  includeTaxa?: boolean;
+  afterEquation?: ReactNode;
+}) {
+  return (
+    <div className="formula-card">
+      <p className="formula-kicker">Fórmula do requisito de área</p>
+      <SplitLoungeEquation includeTaxa={includeTaxa} />
+      {afterEquation}
+      <dl className="formula-legend">
+        {SPLIT_LOUNGE_NOTATIONS.filter(
+          (item) => item.symbol !== "Tu" || includeTaxa,
+        ).map((item) => (
+          <div key={item.symbol}>
+            <dt>
+              <TexText text={item.symbol} />
+            </dt>
+            <dd>
+              {item.meaning} <span className="unit">{item.unit}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

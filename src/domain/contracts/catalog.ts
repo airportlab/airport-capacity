@@ -25,6 +25,7 @@ import {
   PMD_LINE_ORGANS,
   exampleOperatingValues,
   instantiateOrgan,
+  instantiableOrgans,
   naturesForTemplate,
   requirementsFromPreset,
 } from "../templates/organs";
@@ -44,9 +45,13 @@ export const SEED_CONTRACTS: ComponentContract[] = [
 ];
 
 /** Um componente operacional por tipo do PMD, natureza padrão da linha. Meio-fio fica de fora. */
-export function seedRegistry(): RegistryEntry[] {
+export function seedRegistry(source: AirportSource = defaultAirport()): RegistryEntry[] {
+  const lineIds = new Set(PMD_LINE_ORGANS.map((template) => template.kind));
+  const templates = instantiableOrgans(source).filter((template) =>
+    lineIds.has(template.kind),
+  );
   const registry: RegistryEntry[] = [];
-  for (const template of PMD_LINE_ORGANS) {
+  for (const template of templates) {
     const nature = naturesForTemplate(template)[0];
     if (!nature) continue;
     registry.push({
@@ -172,7 +177,7 @@ export function origensFromRegistry(
 }
 
 export function emptyAirportDefaults(source: AirportSource = defaultAirport()) {
-  const registry = seedRegistry();
+  const registry = seedRegistry(source);
   const components = paramsFromRegistry(registry, source);
   const componentOrigens = origensFromRegistry(registry, source);
   overlayExampleOperatingValues(registry, components, componentOrigens);

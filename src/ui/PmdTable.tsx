@@ -11,6 +11,7 @@ import {
 } from "../domain/pmd";
 import type { ComponentId, RegistryEntry } from "../domain/types";
 import { formatNumber } from "./format";
+import { TexText } from "./FormulaCard";
 
 /** `all` mantém Emp/Toi/v.a./assentos e tsec juntos (PDF). */
 export type PmdTableMode = "all" | "pmd" | "tsec";
@@ -66,7 +67,9 @@ function PmdSide({
     <dl className="pmd-values">
       {lines.map((line) => (
         <div key={line.key} className="pmd-value">
-          <dt>{line.label}</dt>
+          <dt>
+            <TexText text={line.label} />
+          </dt>
           <dd>
             {formatNumber(line.value)}{" "}
             <span className="unit">{line.unit}</span>
