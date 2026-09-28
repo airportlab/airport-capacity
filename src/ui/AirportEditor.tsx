@@ -124,6 +124,7 @@ export function AirportEditor() {
   const [busy, setBusy] = useState<
     | "excel-component"
     | "excel-nature"
+    | "excel-modelo"
     | PdfKind
     | "save"
     | "load"
@@ -761,27 +762,39 @@ export function AirportEditor() {
   }
 
   async function handleExcel(kind: ExcelKind) {
-    setBusy(kind === "nature" ? "excel-nature" : "excel-component");
+    setBusy(
+      kind === "nature"
+        ? "excel-nature"
+        : kind === "modelo"
+          ? "excel-modelo"
+          : "excel-component",
+    );
     try {
-      const { exportAirportExcel } = await import("../export/excel");
-      await exportAirportExcel(
-        {
-          airportName: formatAirportName(airportName),
-          airport,
-          generatedAt: new Date(),
-          registry,
-          contracts,
-          evaluations,
-          componentOrigens,
-          justificativas,
-        },
-        kind,
-      );
-      setMessage(
-        kind === "nature"
-          ? "Planilha por natureza exportada: requisitos de área e de equipamentos."
-          : "Planilha por componente exportada com resumo, parâmetros e fórmulas.",
-      );
+      const payload = {
+        airportName: formatAirportName(airportName),
+        airport,
+        generatedAt: new Date(),
+        registry,
+        contracts,
+        evaluations,
+        componentOrigens,
+        justificativas,
+      };
+      if (kind === "modelo") {
+        const { exportModeloExcel } = await import("../export/excelModelo");
+        await exportModeloExcel(payload);
+        setMessage(
+          "Planilha modelo exportada. Blocos ainda sem conta ficam em branco.",
+        );
+      } else {
+        const { exportAirportExcel } = await import("../export/excel");
+        await exportAirportExcel(payload, kind);
+        setMessage(
+          kind === "nature"
+            ? "Planilha por natureza exportada: requisitos de área e de equipamentos."
+            : "Planilha por componente exportada com resumo, parâmetros e fórmulas.",
+        );
+      }
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Falha ao exportar Excel.",
@@ -1058,6 +1071,14 @@ export function AirportEditor() {
           disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "excel-nature" ? "A exportar…" : "Excel por natureza"}
+        </button>
+        <button
+          type="button"
+          className="accent"
+          onClick={() => void handleExcel("modelo")}
+          disabled={busy !== null || contracts.length === 0 || exportBlocked}
+        >
+          {busy === "excel-modelo" ? "A exportar…" : "Excel modelo"}
         </button>
         <button
           type="button"

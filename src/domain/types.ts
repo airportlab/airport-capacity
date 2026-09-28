@@ -311,6 +311,6 @@ export interface Evaluation {
 
 export type PdfKind = "simplificado" | "completo";
 
-export type ExcelKind = "component" | "nature";
+export type ExcelKind = "component" | "nature" | "modelo";
 
 export type EditorTab = "summary" | "params" | "about" | ComponentId;
