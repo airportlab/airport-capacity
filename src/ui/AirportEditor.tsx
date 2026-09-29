@@ -5,6 +5,11 @@ import {
   type AirportId,
 } from "../domain/airports";
 import {
+  clearCirculationComponent,
+  clearCirculationLinks,
+  type HorizontalCirculation,
+} from "../domain/circulation";
+import {
   defaultComponentOrigens,
   defaultComponentParams,
 } from "../domain/contracts/catalog";
@@ -65,6 +70,7 @@ import {
   unpackSnapshot,
 } from "../persistence/snapshot";
 import { AboutPage } from "./AboutPage";
+import { CirculationsTab } from "./CirculationsTab";
 import { ComponentEditor } from "./ComponentEditor";
 import {
   formatAirportName,
@@ -99,6 +105,9 @@ export function AirportEditor() {
     initial.componentOrigens,
   );
   const [justificativas, setJustificativas] = useState(initial.justificativas);
+  const [circulations, setCirculations] = useState<HorizontalCirculation[]>(
+    initial.circulations,
+  );
   const contracts = useMemo(() => resolveContracts(registry), [registry]);
   const invalidLoungeIds = useMemo(
     () =>
@@ -181,6 +190,7 @@ export function AirportEditor() {
     setComponents(next.components);
     setComponentOrigens(next.componentOrigens);
     setJustificativas(next.justificativas);
+    setCirculations(next.circulations);
     rebuildDrafts(next.registry, next.components);
   }
 
@@ -208,6 +218,7 @@ export function AirportEditor() {
         components,
         componentOrigens,
         justificativas,
+        circulations,
       });
       const blob = await packSnapshot(persisted);
       const base = slugify(airportName.trim() || "aeroporto", []);
@@ -262,7 +273,10 @@ export function AirportEditor() {
     ) {
       return;
     }
-    applyState(exampleEditorState(airportName, airport.id));
+    applyState({
+      ...exampleEditorState(airportName, airport.id),
+      circulations: clearCirculationLinks(circulations),
+    });
     setTab("summary");
     setMessage(
       "Exemplo fictício carregado: um componente operacional de cada tipo do PMD.",
@@ -649,6 +663,7 @@ export function AirportEditor() {
     setComponents({});
     setComponentOrigens({});
     setJustificativas({});
+    setCirculations((current) => clearCirculationLinks(current));
     rebuildDrafts([], {});
     setTab("summary");
     setMessage("Todos os componentes operacionais foram apagados.");
@@ -672,6 +687,7 @@ export function AirportEditor() {
     setComponentOrigens(nextOrigens);
     setComponentDrafts(nextDrafts);
     setJustificativas(nextJust);
+    setCirculations((current) => clearCirculationComponent(current, id));
     if (tab === id) setTab("summary");
     setMessage(`Componente “${entry.title}” removido.`);
   }
@@ -782,7 +798,7 @@ export function AirportEditor() {
       };
       if (kind === "modelo") {
         const { exportModeloExcel } = await import("../export/excelModelo");
-        await exportModeloExcel(payload);
+        await exportModeloExcel({ ...payload, circulations });
         setMessage(
           "Planilha modelo exportada. Blocos ainda sem conta ficam em branco.",
         );
@@ -830,7 +846,10 @@ export function AirportEditor() {
 
   const viewingAbout = tab === "about";
   const activeContract =
-    tab === "params" || tab === "summary" || viewingAbout
+    tab === "params" ||
+    tab === "summary" ||
+    tab === "circulations" ||
+    viewingAbout
       ? null
       : (contracts.find((contract) => contract.id === tab) ?? null);
 
@@ -897,6 +916,14 @@ export function AirportEditor() {
           >
             Parâmetros
           </button>
+          <button
+            type="button"
+            className={tab === "circulations" ? "tab active" : "tab"}
+            aria-current={tab === "circulations" ? "page" : undefined}
+            onClick={() => setTab("circulations")}
+          >
+            Circulações
+          </button>
         </div>
         <div className="tabs-scroll">
           {contracts.map((contract) => {
@@ -955,6 +982,14 @@ export function AirportEditor() {
           airport={airport}
           registry={registry}
           onOpenComponent={setTab}
+        />
+      ) : null}
+
+      {tab === "circulations" ? (
+        <CirculationsTab
+          items={circulations}
+          registry={registry}
+          onChange={setCirculations}
         />
       ) : null}
 

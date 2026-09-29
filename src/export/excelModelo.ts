@@ -1,5 +1,11 @@
 import ExcelJS from "exceljs";
 import { defaultAirport, type AirportSource } from "../domain/airports";
+import {
+  WIDTH_FLOOR_M,
+  circulationWidths,
+  type CirculationWidths,
+  type HorizontalCirculation,
+} from "../domain/circulation";
 import { isSizingParam, pickFields } from "../domain/contracts/fields";
 import {
   identityParamIds,
@@ -41,6 +47,16 @@ const BOX: Partial<ExcelJS.Borders> = {
 
 const PAGE_START = 2;
 const PAGE_END = 7;
+const MODELO_SHEET_NAME = "Modelo";
+const MODELO_COLUMN_WIDTHS = [3, 6, 38, 26, 14, 13, 8];
+const MODELO_NAME_WIDTH = MODELO_COLUMN_WIDTHS[2];
+const MODELO_PARAM_WIDTH = MODELO_COLUMN_WIDTHS[3];
+const MODELO_BOX_WIDTH = MODELO_COLUMN_WIDTHS.slice(PAGE_START - 1, PAGE_END).reduce(
+  (sum, width) => sum + width,
+  0,
+);
+const MIN_ROW_HEIGHT = 30;
+const LINE_HEIGHT = 16;
 
 export interface ModeloExcelModel {
   airport?: AirportSource;
@@ -48,6 +64,7 @@ export interface ModeloExcelModel {
   registry: RegistryEntry[];
   contracts: ComponentContract[];
   evaluations: Record<ComponentId, Evaluation>;
+  circulations: HorizontalCirculation[];
   componentOrigens?: Record<ComponentId, Record<ComponentParamId, string>>;
   justificativas?: Record<ComponentId, ComponentJustificativas>;
   airportName?: string;
@@ -459,7 +476,305 @@ function liftGrid(
   band(row, PAGE_START, PAGE_END, "data", striped);
 }
 
-function appendUnmodeled(sheet: ExcelJS.Worksheet, rowNumber: number): number {
+interface CirculationExportRow {
+  id: string;
+  ref: number;
+  row: number;
+  label: string;
+  item: HorizontalCirculation;
+  widths: CirculationWidths;
+}
+
+interface CirculationAtendeLink {
+  cell: string;
+  atende: boolean | null;
+}
+
+const CIRCULATION_PARAM_LINES = [
+  { key: "largura", label: "Largura medida", unit: "m" },
+  { key: "pmm", label: "PMM", unit: "pax/(m·min)" },
+  { key: "eb", label: "Eb", unit: "m" },
+  { key: "ec", label: "Ec", unit: "m" },
+] as const;
+
+type CirculationParamKey = (typeof CIRCULATION_PARAM_LINES)[number]["key"];
+
+function componentTitle(registry: RegistryEntry[], id: string): string | null {
+  if (!id) return null;
+  return registry.find((entry) => entry.id === id)?.title ?? null;
+}
+
+function circulationLabel(
+  item: HorizontalCirculation,
+  registry: RegistryEntry[],
+): string {
+  if (item.kind === "interna") {
+    return componentTitle(registry, item.componentId) ?? item.title;
+  }
+  const from = componentTitle(registry, item.fromId);
+  const to = componentTitle(registry, item.toId);
+  if (!from && !to) return item.title;
+  return `${from ?? "—"} → ${to ?? "—"}`;
+}
+
+function fittedRowHeight(text: string, columnWidth: number): number {
+  const width = Math.max(8, Math.floor(columnWidth * 0.75));
+  const lines = text.split(/\r?\n/).reduce((sum, line) => {
+    const length = Math.max(1, [...line].length);
+    return sum + Math.ceil(length / width);
+  }, 0);
+  return Math.max(MIN_ROW_HEIGHT, lines * LINE_HEIGHT);
+}
+
+function formatMeters(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function effectSentence(marked: boolean, name: string, meters: number): string {
+  if (!marked) return `Não visualizou-se efeito ${name}.`;
+  return `Considerou-se efeito ${name} de ${formatMeters(meters)} m.`;
+}
+
+function circulationObservationsText(rows: CirculationExportRow[]): string {
+  return rows
+    .map((line) => {
+      const contrafluxo = effectSentence(
+        line.item.efeitoContrafluxo,
+        "contra fluxo",
+        line.item.ec,
+      );
+      const borda = effectSentence(line.item.efeitoBorda, "borda", line.item.eb);
+      const note = line.item.observacoes.trim();
+      const sentence = `${line.ref}. ${contrafluxo} ${borda}`;
+      return note ? `${sentence} ${note}` : sentence;
+    })
+    .join("\n");
+}
+
+function appliedEb(item: HorizontalCirculation): number {
+  return item.efeitoBorda ? item.eb : 0;
+}
+
+function appliedEc(item: HorizontalCirculation): number {
+  return item.efeitoContrafluxo ? item.ec : 0;
+}
+
+function circulationParamValue(
+  item: HorizontalCirculation,
+  key: CirculationParamKey,
+): number | null {
+  switch (key) {
+    case "largura":
+      return item.larguraMedida;
+    case "pmm":
+      return item.pmm;
+    case "eb":
+      return appliedEb(item);
+    case "ec":
+      return appliedEc(item);
+  }
+}
+
+function linkedComponentIds(item: HorizontalCirculation): string[] {
+  if (item.kind === "interna") {
+    return item.componentId ? [item.componentId] : [];
+  }
+  return [...new Set([item.fromId, item.toId].filter((id) => id !== ""))];
+}
+
+function atendeByComponent(
+  rows: CirculationExportRow[],
+): Map<string, CirculationAtendeLink[]> {
+  const map = new Map<string, CirculationAtendeLink[]>();
+  for (const line of rows) {
+    for (const componentId of linkedComponentIds(line.item)) {
+      const list = map.get(componentId) ?? [];
+      list.push({ cell: `G${line.row}`, atende: line.widths.atende });
+      map.set(componentId, list);
+    }
+  }
+  return map;
+}
+
+function circulationStatus(values: (boolean | null)[]): "SIM" | "NÃO" | "" {
+  if (values.some((value) => value === false)) return "NÃO";
+  if (values.length > 0 && values.every((value) => value === true)) return "SIM";
+  return "";
+}
+
+function circulationStatusFormula(cells: string[]): string {
+  const nao = cells.map((cell) => `${cell}="NÃO"`).join(",");
+  const sim = cells.map((cell) => `${cell}="SIM"`).join(",");
+  return `IF(OR(${nao}),"NÃO",IF(AND(${sim}),"SIM",""))`;
+}
+
+function writeCirculationSection(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  items: HorizontalCirculation[],
+  registry: RegistryEntry[],
+): { nextRow: number; rows: CirculationExportRow[] } {
+  rowNumber = sectionTitle(sheet, rowNumber, "5. CIRCULAÇÃO HORIZONTAL");
+  const head = sheet.getRow(rowNumber);
+  head.getCell(2).value = "REF";
+  head.getCell(3).value = "CIRCULAÇÃO";
+  head.getCell(4).value = "LARGURA TOTAL (m)";
+  head.getCell(5).value = "CHp (pax/h)";
+  head.getCell(6).value = "DHp (pax/h)";
+  head.getCell(7).value = "ATENDE";
+  band(head, PAGE_START, PAGE_END, "header");
+  head.height = 32;
+  rowNumber += 1;
+
+  const rows: CirculationExportRow[] = [];
+  items.forEach((item, index) => {
+    const label = circulationLabel(item, registry);
+    const row = sheet.getRow(rowNumber);
+    row.getCell(2).value = index + 1;
+    row.getCell(3).value = label;
+    const demand = row.getCell(6);
+    demand.value = item.dhp;
+    demand.numFmt = "#,##0";
+    band(row, PAGE_START, PAGE_END, "data", index % 2 === 0);
+    row.getCell(3).alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    row.height = fittedRowHeight(label, MODELO_NAME_WIDTH);
+    rows.push({
+      id: item.id,
+      ref: index + 1,
+      row: rowNumber,
+      label,
+      item,
+      widths: circulationWidths(item),
+    });
+    rowNumber += 1;
+  });
+  const first = rows[0]?.row ?? 0;
+  const last = rows.at(-1)?.row ?? 0;
+  paintMeets(sheet, first, last, 5);
+  if (rows.length > 0) {
+    rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
+    const text = circulationObservationsText(rows);
+    const row = sheet.getRow(rowNumber);
+    row.getCell(PAGE_START).value = text;
+    sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
+    band(row, PAGE_START, PAGE_END, "data", false);
+    row.getCell(PAGE_START).alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    row.height = fittedRowHeight(text, MODELO_BOX_WIDTH);
+    rowNumber += 1;
+  }
+  return { nextRow: rowNumber, rows };
+}
+
+function writeCirculationParams(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  rows: CirculationExportRow[],
+  addresses: Map<string, string>,
+): number {
+  rowNumber = sectionTitle(sheet, rowNumber, "CIRCULAÇÃO HORIZONTAL");
+  const head = sheet.getRow(rowNumber);
+  head.getCell(2).value = "REF";
+  head.getCell(3).value = "CIRCULAÇÃO";
+  head.getCell(4).value = "PARÂMETRO";
+  head.getCell(5).value = "VALOR";
+  head.getCell(6).value = "UNIDADE";
+  sheet.mergeCells(rowNumber, 6, rowNumber, 7);
+  band(head, PAGE_START, PAGE_END, "header");
+  rowNumber += 1;
+  let index = 0;
+  for (const line of rows) {
+    for (const param of CIRCULATION_PARAM_LINES) {
+      const row = sheet.getRow(rowNumber);
+      row.getCell(2).value = line.ref;
+      row.getCell(3).value = line.label;
+      row.getCell(4).value = param.label;
+      const value = row.getCell(5);
+      const raw = circulationParamValue(line.item, param.key);
+      if (raw == null || !Number.isFinite(raw)) {
+        value.value = null;
+      } else {
+        value.value = raw;
+        value.numFmt = "#,##0.00";
+      }
+      row.getCell(6).value = param.unit;
+      sheet.mergeCells(rowNumber, 6, rowNumber, 7);
+      band(row, PAGE_START, PAGE_END, "data", index % 2 === 0);
+      row.getCell(3).alignment = {
+        horizontal: "left",
+        vertical: "middle",
+        wrapText: true,
+      };
+      row.getCell(4).alignment = {
+        horizontal: "left",
+        vertical: "middle",
+        wrapText: true,
+      };
+      row.height = Math.max(
+        fittedRowHeight(line.label, MODELO_NAME_WIDTH),
+        fittedRowHeight(param.label, MODELO_PARAM_WIDTH),
+      );
+      addresses.set(`${line.id}|${param.key}`, `E${rowNumber}`);
+      rowNumber += 1;
+      index += 1;
+    }
+  }
+  return rowNumber;
+}
+
+function applyCirculationFormulas(
+  sheet: ExcelJS.Worksheet,
+  rows: CirculationExportRow[],
+  addresses: Map<string, string>,
+): void {
+  for (const line of rows) {
+    const measured = addresses.get(`${line.id}|largura`);
+    const pmm = addresses.get(`${line.id}|pmm`);
+    const eb = addresses.get(`${line.id}|eb`);
+    const ec = addresses.get(`${line.id}|ec`);
+    if (!measured || !pmm || !eb || !ec) continue;
+    const demand = `F${line.row}`;
+    const total = `D${line.row}`;
+    const lt = Number.isFinite(line.widths.lt) ? line.widths.lt : "";
+    writeFormula(
+      sheet.getRow(line.row).getCell(4),
+      `MAX(${WIDTH_FLOOR_M},${demand}/(${pmm}*60)+2*${eb}+${ec})`,
+      lt,
+      lt === "" ? undefined : "#,##0.00",
+    );
+    const chp = line.widths.chp;
+    const chpResult = chp == null || !Number.isFinite(chp) ? "" : chp;
+    writeFormula(
+      sheet.getRow(line.row).getCell(5),
+      `IF(${measured}="","",MAX(0,(${measured}-2*${eb}-${ec})*${pmm}*60))`,
+      chpResult,
+      chpResult === "" ? undefined : "#,##0.00",
+    );
+    const meets =
+      line.widths.atende == null ? "" : line.widths.atende ? "SIM" : "NÃO";
+    writeFormula(
+      sheet.getRow(line.row).getCell(7),
+      `IF(${measured}="","",IF(${measured}>=${total},"SIM","NÃO"))`,
+      meets,
+    );
+  }
+}
+
+function appendUnmodeled(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  circulations: HorizontalCirculation[],
+  registry: RegistryEntry[],
+): { endRow: number; circulationRows: CirculationExportRow[] } {
   let hatched = true;
   const line = (text: string) => {
     rowNumber = blankValue(sheet, rowNumber, text, hatched);
@@ -498,22 +813,13 @@ function appendUnmodeled(sheet: ExcelJS.Worksheet, rowNumber: number): number {
   blankNote(sheet, rowNumber);
 
   rowNumber += 2;
-  rowNumber = sectionTitle(sheet, rowNumber, "5. CIRCULAÇÃO HORIZONTAL");
-  flowGrid(sheet, rowNumber, [
-    "LARGURA TOTAL (m)",
-    "CHp (pax/h)",
-    "DHp (pax/h)",
-    "ATENDE",
-  ]);
-  rowNumber += 1;
-  flowGrid(sheet, rowNumber, null, true);
-  rowNumber += 1;
-  rowNumber = blankValue(
+  const circulation = writeCirculationSection(
     sheet,
     rowNumber,
-    "PMM - Passageiros por metro por minuto (pax/(m·min))",
-    true,
+    circulations,
+    registry,
   );
+  rowNumber = circulation.nextRow;
 
   rowNumber += 1;
   rowNumber = sectionTitle(sheet, rowNumber, "6. CIRCULAÇÃO VERTICAL");
@@ -540,12 +846,13 @@ function appendUnmodeled(sheet: ExcelJS.Worksheet, rowNumber: number): number {
   rowNumber = sectionTitle(sheet, rowNumber, "8. OUTRAS OBSERVAÇÕES");
   rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES E RECOMENDAÇÕES");
   blankNote(sheet, rowNumber);
-  return rowNumber;
+  return { endRow: rowNumber, circulationRows: circulation.rows };
 }
 
 function writePainel(
   workbook: ExcelJS.Workbook,
   model: ModeloExcelModel,
+  atendeLinks: Map<string, CirculationAtendeLink[]>,
 ): void {
   const airport = model.airport ?? defaultAirport();
   const sheet = workbook.addWorksheet("Painel", {
@@ -608,6 +915,16 @@ function writePainel(
       vertical: "middle",
       wrapText: true,
     };
+    const links = atendeLinks.get(contract.id) ?? [];
+    if (links.length > 0) {
+      writeFormula(
+        row.getCell(9),
+        circulationStatusFormula(
+          links.map((link) => `${MODELO_SHEET_NAME}!${link.cell}`),
+        ),
+        circulationStatus(links.map((link) => link.atende)),
+      );
+    }
     rowNumber += 1;
   });
 
@@ -634,18 +951,10 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Airport Capacity";
   workbook.created = model.generatedAt;
-  const sheet = workbook.addWorksheet("Modelo", {
+  const sheet = workbook.addWorksheet(MODELO_SHEET_NAME, {
     views: [{ showGridLines: false, showRowColHeaders: true }],
   });
-  sheet.columns = [
-    { width: 3 },
-    { width: 6 },
-    { width: 38 },
-    { width: 26 },
-    { width: 14 },
-    { width: 13 },
-    { width: 8 },
-  ];
+  sheet.columns = MODELO_COLUMN_WIDTHS.map((width) => ({ width }));
 
   label(sheet.getCell("B3"), "AEROPORTO");
   sheet.mergeCells("B3:C3");
@@ -939,15 +1248,34 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
   }
   paintMeets(sheet, equipmentMeetsFirst, equipmentMeetsLast, 3);
 
-  const noteRow = appendUnmodeled(sheet, rowNumber - 1);
+  const unmodeled = appendUnmodeled(
+    sheet,
+    rowNumber - 1,
+    model.circulations,
+    model.registry,
+  );
   const { pmd, other } = collectParamLines(indexed, model.evaluations);
-  let paramRow = sectionTitle(sheet, noteRow + 2, "9. PARÂMETROS UTILIZADOS");
+  let paramRow = sectionTitle(
+    sheet,
+    unmodeled.endRow + 2,
+    "9. PARÂMETROS UTILIZADOS",
+  );
   paramRow = writeParamBlock(sheet, paramRow, "PMD", pmd, addresses);
   paramRow += 1;
   paramRow = writeParamBlock(sheet, paramRow, "OUTROS (MANUAIS)", other, addresses);
+  if (unmodeled.circulationRows.length > 0) {
+    paramRow += 1;
+    paramRow = writeCirculationParams(
+      sheet,
+      paramRow,
+      unmodeled.circulationRows,
+      addresses,
+    );
+  }
   applyAccounts(sheet, pending, addresses);
+  applyCirculationFormulas(sheet, unmodeled.circulationRows, addresses);
   fitReportPage(sheet, "G", paramRow - 1);
-  writePainel(workbook, model);
+  writePainel(workbook, model, atendeByComponent(unmodeled.circulationRows));
 
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(

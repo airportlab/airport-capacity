@@ -77,6 +77,19 @@ export function AboutPage({ onBack }: AboutPageProps) {
           padrão do requisito de equipamentos quando o tipo tem valor; as
           fórmulas aparecem no próprio componente, junto do requisito.
         </p>
+        <p>
+          A aba <strong>Circulações</strong> cadastra circulações horizontais.
+          Cada uma tem o próprio DHp. A interna liga a um componente; a
+          transição, a dois. O componente só identifica o trecho. No início da
+          aba estão a largura total (Lt), a largura efetiva (Le) e a capacidade
+          teórica (CHp). CHp usa a largura medida, o Lt medido. Efeito borda e efeito contrafluxo
+          são marcações separadas: sem a marcação, o termo vale zero. Cada um
+          nasce em 0,5 m; outro valor pede justificativa. O PMM nasce em 20. Lt
+          não fica abaixo de 1,5 m. Atende se a largura medida for maior ou
+          igual a Lt. Essa lista não
+          entra no exemplo fictício, e a circulação vertical não é cadastrada
+          aqui.
+        </p>
       </section>
 
       <section className="panel">

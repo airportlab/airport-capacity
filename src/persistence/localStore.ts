@@ -5,6 +5,10 @@ import {
   type AirportId,
 } from "../domain/airports";
 import {
+  parseCirculations,
+  type HorizontalCirculation,
+} from "../domain/circulation";
+import {
   defaultComponentOrigens,
   defaultComponentParams,
   emptyAirportDefaults,
@@ -51,7 +55,7 @@ import {
   type JustificativaId,
 } from "../domain/types";
 
-export const STATE_VERSION = 13 as const;
+export const STATE_VERSION = 15 as const;
 
 export interface PersistedAirportState {
   version: typeof STATE_VERSION;
@@ -63,6 +67,7 @@ export interface PersistedAirportState {
   components: Record<ComponentId, ComponentParams>;
   componentOrigens: Record<ComponentId, Record<ComponentParamId, string>>;
   justificativas: Record<ComponentId, ComponentJustificativas>;
+  circulations: HorizontalCirculation[];
 }
 
 export type EditorState = Omit<PersistedAirportState, "savedAt"> & {
@@ -459,6 +464,8 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
   if (parsed === null || typeof raw.savedAt !== "string") return null;
   const nature = parsePeakNature(raw.peakNature);
   const registry =
+    raw.version === 15 ||
+    raw.version === 14 ||
     raw.version === 13 ||
     raw.version === 12 ||
     raw.version === 11 ||
@@ -505,6 +512,10 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
     components: applyLegacySharedDhp(withTsec.components, raw.shared),
     componentOrigens: overlaid.componentOrigens,
     justificativas: withTsec.justificativas,
+    circulations: parseCirculations(
+      raw.circulations,
+      new Set(migrated.registry.map((entry) => entry.id)),
+    ),
   };
 }
 
@@ -537,6 +548,7 @@ function parseV2(raw: Record<string, unknown>): PersistedAirportState | null {
     components: applyLegacySharedDhp(migrated.components, raw.shared),
     componentOrigens: overlaid.componentOrigens,
     justificativas: emptyJustificativas(),
+    circulations: [],
   };
 }
 
@@ -580,12 +592,15 @@ function parseLegacyCheckin(raw: unknown): PersistedAirportState | null {
       ),
     },
     justificativas: emptyJustificativas(),
+    circulations: [],
   };
 }
 
 export function parsePersistedState(raw: unknown): PersistedAirportState | null {
   if (!isRecord(raw)) return null;
   if (
+    raw.version === 15 ||
+    raw.version === 14 ||
     raw.version === 13 ||
     raw.version === 12 ||
     raw.version === 11 ||
@@ -627,6 +642,7 @@ export function emptyEditorState(): EditorState {
     components: {},
     componentOrigens: {},
     justificativas: {},
+    circulations: [],
   };
 }
 
@@ -640,5 +656,6 @@ export function exampleEditorState(
     savedAt: null,
     airportName,
     ...defaults,
+    circulations: [],
   };
 }

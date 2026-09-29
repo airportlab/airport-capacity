@@ -20,7 +20,7 @@ export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
   const pattern =
-    /(?<![A-Za-zÀ-ÿ0-9])(\()?(Ad|DHp|Emp|Toi|Pa|Ocup|Tsec|v\.a|Tr|Lmp|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(CHp|PMM|DHp|Emp|Toi|Tsec|Ocup|Lmp|Le|Lt|Eb|Ec|Pa|Tr|Ad|v\.a|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -593,6 +593,70 @@ export function EquipmentFormulaCard({
           ? " Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
           : ""}
       </p>
+    </div>
+  );
+}
+
+const CIRCULATION_NOTATIONS = [
+  { symbol: "Lt", meaning: "Largura total exigida pela demanda", unit: "m" },
+  { symbol: "Le", meaning: "Largura efetiva da circulação", unit: "m" },
+  { symbol: "CHp", meaning: "Capacidade teórica da circulação", unit: "pax/h" },
+  { symbol: "DHp", meaning: "Demanda da hora-pico de projeto da circulação", unit: "pax/h" },
+  { symbol: "PMM", meaning: "Passageiros por metro por minuto", unit: "pax/(m·min)" },
+  { symbol: "Eb", meaning: "Efeito de borda, o mesmo nos dois lados", unit: "m" },
+  { symbol: "Ec", meaning: "Efeito de contrafluxo da circulação", unit: "m" },
+] as const;
+
+export function CirculationFormulas() {
+  return (
+    <div className="formula-card">
+      <p className="formula-kicker">Largura total</p>
+      <div className="tex" role="img" aria-label="Lt = Le + 2 × Eb + Ec">
+        <span className="tex-lhs">
+          <TexText text="Lt" />
+        </span>
+        <span className="tex-eq">=</span>
+        <TexText text="Le + 2 × Eb + Ec" />
+      </div>
+      <p className="formula-kicker">Largura efetiva</p>
+      <div className="tex" role="img" aria-label="Le = DHp / (PMM × 60)">
+        <span className="tex-lhs">
+          <TexText text="Le" />
+        </span>
+        <span className="tex-eq">=</span>
+        <span className="tex-frac">
+          <span className="tex-num">
+            <TexText text="DHp" />
+          </span>
+          <span className="tex-den">
+            <TexText text="PMM × 60" />
+          </span>
+        </span>
+      </div>
+      <p className="formula-kicker">Capacidade teórica</p>
+      <div
+        className="tex"
+        role="img"
+        aria-label="CHp = (Lt medido − 2 × Eb − Ec) × PMM × 60"
+      >
+        <span className="tex-lhs">
+          <TexText text="CHp" />
+        </span>
+        <span className="tex-eq">=</span>
+        <TexText text="(Lt medido − 2 × Eb − Ec) × PMM × 60" />
+      </div>
+      <dl className="formula-legend">
+        {CIRCULATION_NOTATIONS.map((item) => (
+          <div key={item.symbol}>
+            <dt>
+              <TexText text={item.symbol} />
+            </dt>
+            <dd>
+              {item.meaning} <span className="unit">{item.unit}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

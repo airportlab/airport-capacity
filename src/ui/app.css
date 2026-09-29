@@ -552,6 +552,25 @@ button.pmd-card.empty {
   vertical-align: middle;
 }
 
+.circulation-table th,
+.circulation-table td {
+  text-align: center;
+  padding: 10px 8px;
+}
+
+.circulation-table tr.circ-has-note > td {
+  border-bottom: 0;
+}
+
+.circulation-table tr.circ-note-row > td {
+  text-align: left;
+  color: var(--quiet);
+  font-size: 0.82rem;
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .summary-table td.ok,
 .summary-card .status-label.ok {
   color: var(--ok);
@@ -709,6 +728,25 @@ button.pmd-card.empty {
   column-gap: 12px;
 }
 
+.effect-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.field .effect-mark input {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .field-copy {
   display: grid;
   row-gap: 2px;
@@ -721,13 +759,14 @@ button.pmd-card.empty {
   gap: 8px;
 }
 
-.field.field-inline input {
-  width: calc(5ch + 24px);
+.field.field-inline input:not([type="checkbox"]) {
+  width: calc(5ch + 20px);
   max-width: 100%;
   box-sizing: border-box;
   justify-self: end;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  padding: 8px 10px;
 }
 
 .field.field-inline .origem-edit {
@@ -762,6 +801,12 @@ button.pmd-card.empty {
   border-radius: 10px;
   padding: 10px 12px;
   color: inherit;
+}
+
+.field select {
+  border-color: var(--field);
+  border-right-width: 8px;
+  box-shadow: 0 0 0 1px var(--border-strong);
 }
 
 .field select optgroup {
@@ -1048,6 +1093,61 @@ fieldset.field {
   width: min(36rem, 100%);
 }
 
+.modal-circulacao {
+  width: min(48rem, calc(100vw - 32px));
+}
+
+.circ-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.circ-assoc {
+  margin-bottom: 16px;
+}
+
+.circ-notes {
+  margin-top: 16px;
+}
+
+.circ-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.circ-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.circ-summary-label {
+  color: var(--quiet);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.circ-summary strong {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.circ-summary .ok strong {
+  color: var(--ok);
+}
+
+.circ-summary .fail strong {
+  color: var(--no);
+}
+
 .nature-fieldset {
   display: block;
   border: 0;
@@ -1257,6 +1357,10 @@ button:disabled {
 
 @media (max-width: 700px) {
   .field.field-inline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .circ-pair {
     grid-template-columns: minmax(0, 1fr);
   }
 

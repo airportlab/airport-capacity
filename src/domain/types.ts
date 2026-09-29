@@ -313,4 +313,4 @@ export type PdfKind = "simplificado" | "completo";
 
 export type ExcelKind = "component" | "nature" | "modelo";
 
-export type EditorTab = "summary" | "params" | "about" | ComponentId;
+export type EditorTab = "summary" | "params" | "about" | "circulations" | ComponentId;
