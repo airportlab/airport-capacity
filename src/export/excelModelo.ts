@@ -7,6 +7,7 @@ import {
   type HorizontalCirculation,
 } from "../domain/circulation";
 import { isSizingParam, pickFields } from "../domain/contracts/fields";
+import { pmdValueFor, resolvedSources } from "../domain/pmd";
 import {
   identityParamIds,
   MIXED_FLOW_SPECS,
@@ -438,6 +439,55 @@ function blankNote(sheet: ExcelJS.Worksheet, rowNumber: number): number {
   return rowNumber + 1;
 }
 
+function formatQuantity(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function pmdDeviationText(
+  lines: ParamLine[],
+  indexed: { contract: ComponentContract; entry?: RegistryEntry }[],
+  model: ModeloExcelModel,
+): string {
+  const airport = model.airport ?? defaultAirport();
+  const byId = new Map(indexed.map((item) => [item.contract.id, item.entry]));
+  const sentences: string[] = [];
+  for (const line of lines) {
+    if (!isSizingParam(line.paramId)) continue;
+    const entry = byId.get(line.componentId);
+    const ref = entry ? resolvedSources(entry)[line.paramId] : undefined;
+    if (!ref) continue;
+    const absorbed = pmdValueFor(ref, line.paramId, airport);
+    if (absorbed == null || Math.abs(line.value - absorbed) < 1e-9) continue;
+    const field = pickFields([line.paramId])[0];
+    const just =
+      model.justificativas?.[line.componentId]?.[line.paramId]?.trim() ?? "";
+    const sentence = `${line.refId}. ${field.label}: ${formatQuantity(line.value)} ${field.unit} (PMD ${formatQuantity(absorbed)}).`;
+    sentences.push(just ? `${sentence} ${just}` : sentence);
+  }
+  return sentences.join("\n");
+}
+
+function pmdObservationNote(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  text: string,
+): number {
+  if (!text) return blankNote(sheet, rowNumber);
+  const row = sheet.getRow(rowNumber);
+  row.getCell(PAGE_START).value = text;
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
+  band(row, PAGE_START, PAGE_END, "data", false);
+  row.getCell(PAGE_START).alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true,
+  };
+  row.height = fittedRowHeight(text, MODELO_BOX_WIDTH);
+  return rowNumber + 1;
+}
+
 function flowGrid(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
@@ -526,31 +576,31 @@ function fittedRowHeight(text: string, columnWidth: number): number {
   return Math.max(MIN_ROW_HEIGHT, lines * LINE_HEIGHT);
 }
 
-function formatMeters(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function effectSentence(marked: boolean, name: string, meters: number): string {
-  if (!marked) return `Não visualizou-se efeito ${name}.`;
-  return `Considerou-se efeito ${name} de ${formatMeters(meters)} m.`;
+function markedRefs(
+  rows: CirculationExportRow[],
+  marked: (item: HorizontalCirculation) => boolean,
+): string {
+  return rows
+    .filter((line) => marked(line.item))
+    .map((line) => String(line.ref))
+    .join(", ");
 }
 
 function circulationObservationsText(rows: CirculationExportRow[]): string {
-  return rows
-    .map((line) => {
-      const contrafluxo = effectSentence(
-        line.item.efeitoContrafluxo,
-        "contra fluxo",
-        line.item.ec,
-      );
-      const borda = effectSentence(line.item.efeitoBorda, "borda", line.item.eb);
-      const note = line.item.observacoes.trim();
-      const sentence = `${line.ref}. ${contrafluxo} ${borda}`;
-      return note ? `${sentence} ${note}` : sentence;
-    })
-    .join("\n");
+  const lines: string[] = [];
+  const borda = markedRefs(rows, (item) => item.efeitoBorda);
+  const contrafluxo = markedRefs(rows, (item) => item.efeitoContrafluxo);
+  if (borda) lines.push(`Observou-se efeito borda nos itens: ${borda}`);
+  if (contrafluxo) {
+    lines.push(`Observou-se efeito contrafluxo nos itens: ${contrafluxo}`);
+  }
+  const notes = rows.flatMap((line) => {
+    const note = line.item.observacoes.trim();
+    return note ? [`${line.ref}. ${note}`] : [];
+  });
+  if (notes.length === 0) return lines.join("\n");
+  if (lines.length === 0) return notes.join("\n");
+  return `${lines.join("\n")}\n\n${notes.join("\n")}`;
 }
 
 function appliedEb(item: HorizontalCirculation): number {
@@ -657,9 +707,9 @@ function writeCirculationSection(
   const first = rows[0]?.row ?? 0;
   const last = rows.at(-1)?.row ?? 0;
   paintMeets(sheet, first, last, 5);
-  if (rows.length > 0) {
+  const text = circulationObservationsText(rows);
+  if (text) {
     rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
-    const text = circulationObservationsText(rows);
     const row = sheet.getRow(rowNumber);
     row.getCell(PAGE_START).value = text;
     sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
@@ -1038,8 +1088,13 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     rowNumber += 1;
   }
 
+  const paramLines = collectParamLines(indexed, model.evaluations);
   rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
-  rowNumber = blankNote(sheet, rowNumber);
+  rowNumber = pmdObservationNote(
+    sheet,
+    rowNumber,
+    pmdDeviationText(paramLines.pmd, indexed, model),
+  );
   rowNumber += 1;
 
   const pmdTitle = sheet.getRow(rowNumber);
@@ -1254,15 +1309,20 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     model.circulations,
     model.registry,
   );
-  const { pmd, other } = collectParamLines(indexed, model.evaluations);
   let paramRow = sectionTitle(
     sheet,
     unmodeled.endRow + 2,
     "9. PARÂMETROS UTILIZADOS",
   );
-  paramRow = writeParamBlock(sheet, paramRow, "PMD", pmd, addresses);
+  paramRow = writeParamBlock(sheet, paramRow, "PMD", paramLines.pmd, addresses);
   paramRow += 1;
-  paramRow = writeParamBlock(sheet, paramRow, "OUTROS (MANUAIS)", other, addresses);
+  paramRow = writeParamBlock(
+    sheet,
+    paramRow,
+    "OUTROS (MANUAIS)",
+    paramLines.other,
+    addresses,
+  );
   if (unmodeled.circulationRows.length > 0) {
     paramRow += 1;
     paramRow = writeCirculationParams(
