@@ -125,34 +125,36 @@ export function SummaryPage({
         <h2>Identificação</h2>
         <p className="panel-lead">{UNOFFICIAL_NOTICE}</p>
         <div className="fields">
-          <label className="field">
-            <span className="field-label">Aeroporto</span>
-            <select
-              value={airportId}
-              onChange={(event) =>
-                onAirportChange(event.target.value as AirportId)
-              }
-            >
-              {airportsByGroup().map((group) => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.airports.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {airportOptionLabel(item)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+          <div className="summary-identity-pair">
+            <label className="field">
+              <span className="field-label">Aeroporto</span>
+              <select
+                value={airportId}
+                onChange={(event) =>
+                  onAirportChange(event.target.value as AirportId)
+                }
+              >
+                {airportsByGroup().map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.airports.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {airportOptionLabel(item)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field-label">Nome do relatório</span>
+              <input
+                value={airportName}
+                onChange={(event) => onAirportNameChange(event.target.value)}
+                placeholder="Aeroporto"
+              />
+            </label>
+          </div>
           <p className="summary-date">{sourceNote}</p>
-          <label className="field">
-            <span className="field-label">Nome do relatório</span>
-            <input
-              value={airportName}
-              onChange={(event) => onAirportNameChange(event.target.value)}
-              placeholder="Aeroporto"
-            />
-          </label>
         </div>
         <p className="summary-date">
           Data do relatório: <strong>{today}</strong>

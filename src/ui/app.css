@@ -395,6 +395,13 @@
   margin-top: 8px;
 }
 
+.summary-identity-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .summary-identity .summary-date,
 .summary-identity .summary-tally {
   margin: 12px 0 0;
@@ -1356,6 +1363,7 @@ button:disabled {
 }
 
 @media (max-width: 700px) {
+  .summary-identity-pair,
   .field.field-inline {
     grid-template-columns: minmax(0, 1fr);
   }
