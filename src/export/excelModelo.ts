@@ -24,6 +24,7 @@ import {
   type ExcelCellMap,
   type RegistryEntry,
 } from "../domain/types";
+import { journeyRank } from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
 
 const INK = "FF1C2430";
@@ -50,6 +51,9 @@ const BOX: Partial<ExcelJS.Borders> = {
 const PAGE_START = 2;
 const PAGE_END = 7;
 const MODELO_SHEET_NAME = "Modelo";
+const POR_COMPONENTE_SHEET_NAME = "Por componente";
+const MEMORY_END = 9;
+const MEMORY_COLUMN_WIDTHS = [3, 42, 14, 28, 12, 16, 14, 14, 12];
 const MODELO_COLUMN_WIDTHS = [3, 6, 38, 26, 14, 13, 8];
 const MODELO_NAME_WIDTH = MODELO_COLUMN_WIDTHS[2];
 const MODELO_PARAM_WIDTH = MODELO_COLUMN_WIDTHS[3];
@@ -57,8 +61,8 @@ const MODELO_BOX_WIDTH = MODELO_COLUMN_WIDTHS.slice(PAGE_START - 1, PAGE_END).re
   (sum, width) => sum + width,
   0,
 );
-const MIN_ROW_HEIGHT = 30;
 const LINE_HEIGHT = 16;
+const MIN_ROW_HEIGHT = LINE_HEIGHT;
 
 export interface ModeloExcelModel {
   airport?: AirportSource;
@@ -119,6 +123,9 @@ type PendingAccount = {
   inputs: Evaluation["inputs"];
   result: number;
   saturacao: number | null;
+  resultColumn?: number;
+  saturationColumn?: number;
+  verifiedAddress?: string;
 };
 
 function collectParamLines(
@@ -175,6 +182,13 @@ function writeParamBlock(
   head.getCell(6).value = "UNIDADE";
   sheet.mergeCells(rowNumber, 6, rowNumber, 7);
   band(head, PAGE_START, PAGE_END, "header");
+  head.height = fittedHeaderHeight([
+    ["REF", MODELO_COLUMN_WIDTHS[1]],
+    ["COMPONENTE OPERACIONAL", MODELO_NAME_WIDTH],
+    ["PARÂMETRO", MODELO_PARAM_WIDTH],
+    ["VALOR", MODELO_COLUMN_WIDTHS[4]],
+    ["UNIDADE", MODELO_COLUMN_WIDTHS[5] + MODELO_COLUMN_WIDTHS[6]],
+  ]);
   rowNumber += 1;
   for (const [index, line] of lines.entries()) {
     const row = sheet.getRow(rowNumber);
@@ -198,7 +212,10 @@ function writeParamBlock(
       vertical: "middle",
       wrapText: true,
     };
-    row.height = 30;
+    row.height = Math.max(
+      fittedRowHeight(line.title, MODELO_NAME_WIDTH),
+      fittedRowHeight(field.label, MODELO_PARAM_WIDTH),
+    );
     addresses.set(`${line.componentId}|${line.paramId}`, `E${rowNumber}`);
     rowNumber += 1;
   }
@@ -223,7 +240,7 @@ function applyAccounts(
     });
     const excel = item.formula.toExcel(cells);
     writeFormula(
-      sheet.getRow(item.row).getCell(5),
+      sheet.getRow(item.row).getCell(item.resultColumn ?? 5),
       excel,
       item.result,
       item.formula.id === "numeroMinimoEquipamentos" ? "#,##0" : "#,##0.00",
@@ -234,8 +251,8 @@ function applyAccounts(
     const load = equipmentLoad(excel);
     if (!load) continue;
     writeFormula(
-      sheet.getRow(item.row).getCell(6),
-      `(${load})/D${item.row}`,
+      sheet.getRow(item.row).getCell(item.saturationColumn ?? 6),
+      `(${load})/${item.verifiedAddress ?? `D${item.row}`}`,
       item.saturacao / 100,
       "0%",
     );
@@ -247,11 +264,12 @@ function paintMeets(
   firstRow: number,
   lastRow: number,
   priority: number,
+  column = "G",
 ): void {
   if (firstRow === 0) return;
-  const first = `G${firstRow}`;
+  const first = `${column}${firstRow}`;
   sheet.addConditionalFormatting({
-    ref: `${first}:G${lastRow}`,
+    ref: `${first}:${column}${lastRow}`,
     rules: [
       {
         type: "expression",
@@ -393,6 +411,7 @@ function sectionTitle(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
   text: string,
+  end = PAGE_END,
 ): number {
   const row = sheet.getRow(rowNumber);
   row.getCell(2).value = text;
@@ -402,8 +421,8 @@ function sectionTitle(
     vertical: "middle",
     wrapText: true,
   };
-  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
-  band(row, PAGE_START, PAGE_END, "section");
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, end);
+  band(row, PAGE_START, end, "section");
   row.getCell(PAGE_START).alignment = {
     horizontal: "left",
     vertical: "middle",
@@ -431,12 +450,16 @@ function blankValue(
   return rowNumber + 1;
 }
 
-function blankNote(sheet: ExcelJS.Worksheet, rowNumber: number): number {
+function blankNote(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  end = PAGE_END,
+): number {
   const row = sheet.getRow(rowNumber);
   row.getCell(2).value = null;
-  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, end);
   row.height = 36;
-  band(row, PAGE_START, PAGE_END, "data", false);
+  band(row, PAGE_START, end, "data", false);
   return rowNumber + 1;
 }
 
@@ -527,12 +550,13 @@ function pmdObservationNote(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
   text: string,
+  end = PAGE_END,
 ): number {
-  if (!text) return blankNote(sheet, rowNumber);
+  if (!text) return blankNote(sheet, rowNumber, end);
   const row = sheet.getRow(rowNumber);
   row.getCell(PAGE_START).value = text;
-  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
-  band(row, PAGE_START, PAGE_END, "data", false);
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, end);
+  band(row, PAGE_START, end, "data", false);
   row.getCell(PAGE_START).alignment = {
     horizontal: "left",
     vertical: "top",
@@ -628,6 +652,36 @@ function fittedRowHeight(text: string, columnWidth: number): number {
     return sum + Math.ceil(length / width);
   }, 0);
   return Math.max(MIN_ROW_HEIGHT, lines * LINE_HEIGHT);
+}
+
+function fittedHeaderHeight(cells: [string, number][]): number {
+  return cells.reduce(
+    (height, [text, width]) => Math.max(height, fittedRowHeight(text, width)),
+    MIN_ROW_HEIGHT,
+  );
+}
+
+function circulationColumns(wideName: boolean): {
+  refColumn: number;
+  nameColumn: number;
+  refWidth: number;
+  nameWidth: number;
+  paramWidth: number;
+  valueWidth: number;
+  unitWidth: number;
+  later: number[];
+} {
+  const widths = wideName ? MEMORY_COLUMN_WIDTHS : MODELO_COLUMN_WIDTHS;
+  return {
+    refColumn: wideName ? 3 : 2,
+    nameColumn: wideName ? 2 : 3,
+    refWidth: widths[wideName ? 2 : 1],
+    nameWidth: widths[wideName ? 1 : 2],
+    paramWidth: widths[3],
+    valueWidth: widths[4],
+    unitWidth: widths[5] + widths[6],
+    later: [widths[3], widths[4], widths[5], widths[6]],
+  };
 }
 
 function observationRowHeight(text: string): number {
@@ -727,13 +781,14 @@ function writeObservationsBox(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
   text: string,
+  end = PAGE_END,
 ): number {
   if (!text) return rowNumber;
-  rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
+  rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES", end);
   const row = sheet.getRow(rowNumber);
   row.getCell(PAGE_START).value = text;
-  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
-  band(row, PAGE_START, PAGE_END, "data", false);
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, end);
+  band(row, PAGE_START, end, "data", false);
   row.getCell(PAGE_START).alignment = {
     horizontal: "left",
     vertical: "top",
@@ -748,35 +803,45 @@ function writeCirculationSection(
   rowNumber: number,
   items: HorizontalCirculation[],
   registry: RegistryEntry[],
+  meetsPriority = 5,
+  wideName = false,
 ): { nextRow: number; rows: CirculationExportRow[] } {
+  const columns = circulationColumns(wideName);
   rowNumber = sectionTitle(sheet, rowNumber, "5. CIRCULAÇÃO HORIZONTAL");
   const head = sheet.getRow(rowNumber);
-  head.getCell(2).value = "REF";
-  head.getCell(3).value = "CIRCULAÇÃO";
+  head.getCell(columns.refColumn).value = "REF";
+  head.getCell(columns.nameColumn).value = "CIRCULAÇÃO";
   head.getCell(4).value = "LARGURA TOTAL (m)";
   head.getCell(5).value = "CHp (pax/h)";
   head.getCell(6).value = "DHp (pax/h)";
   head.getCell(7).value = "ATENDE";
   band(head, PAGE_START, PAGE_END, "header");
-  head.height = 32;
+  head.height = fittedHeaderHeight([
+    ["REF", columns.refWidth],
+    ["CIRCULAÇÃO", columns.nameWidth],
+    ["LARGURA TOTAL (m)", columns.later[0]],
+    ["CHp (pax/h)", columns.later[1]],
+    ["DHp (pax/h)", columns.later[2]],
+    ["ATENDE", columns.later[3]],
+  ]);
   rowNumber += 1;
 
   const rows: CirculationExportRow[] = [];
   items.forEach((item, index) => {
     const label = circulationLabel(item, registry);
     const row = sheet.getRow(rowNumber);
-    row.getCell(2).value = index + 1;
-    row.getCell(3).value = label;
+    row.getCell(columns.refColumn).value = index + 1;
+    row.getCell(columns.nameColumn).value = label;
     const demand = row.getCell(6);
     demand.value = item.dhp;
     demand.numFmt = "#,##0";
     band(row, PAGE_START, PAGE_END, "data", index % 2 === 0);
-    row.getCell(3).alignment = {
+    row.getCell(columns.nameColumn).alignment = {
       horizontal: "left",
       vertical: "middle",
       wrapText: true,
     };
-    row.height = fittedRowHeight(label, MODELO_NAME_WIDTH);
+    row.height = fittedRowHeight(label, columns.nameWidth);
     rows.push({
       id: item.id,
       ref: index + 1,
@@ -789,7 +854,7 @@ function writeCirculationSection(
   });
   const first = rows[0]?.row ?? 0;
   const last = rows.at(-1)?.row ?? 0;
-  paintMeets(sheet, first, last, 5);
+  paintMeets(sheet, first, last, meetsPriority);
   rowNumber = writeObservationsBox(
     sheet,
     rowNumber,
@@ -803,23 +868,32 @@ function writeCirculationParams(
   rowNumber: number,
   rows: CirculationExportRow[],
   addresses: Map<string, string>,
+  wideName = false,
 ): number {
+  const columns = circulationColumns(wideName);
   rowNumber = sectionTitle(sheet, rowNumber, "CIRCULAÇÃO HORIZONTAL");
   const head = sheet.getRow(rowNumber);
-  head.getCell(2).value = "REF";
-  head.getCell(3).value = "CIRCULAÇÃO";
+  head.getCell(columns.refColumn).value = "REF";
+  head.getCell(columns.nameColumn).value = "CIRCULAÇÃO";
   head.getCell(4).value = "PARÂMETRO";
   head.getCell(5).value = "VALOR";
   head.getCell(6).value = "UNIDADE";
   sheet.mergeCells(rowNumber, 6, rowNumber, 7);
   band(head, PAGE_START, PAGE_END, "header");
+  head.height = fittedHeaderHeight([
+    ["REF", columns.refWidth],
+    ["CIRCULAÇÃO", columns.nameWidth],
+    ["PARÂMETRO", columns.paramWidth],
+    ["VALOR", columns.valueWidth],
+    ["UNIDADE", columns.unitWidth],
+  ]);
   rowNumber += 1;
   let index = 0;
   for (const line of rows) {
     for (const param of CIRCULATION_PARAM_LINES) {
       const row = sheet.getRow(rowNumber);
-      row.getCell(2).value = line.ref;
-      row.getCell(3).value = line.label;
+      row.getCell(columns.refColumn).value = line.ref;
+      row.getCell(columns.nameColumn).value = line.label;
       row.getCell(4).value = param.label;
       const value = row.getCell(5);
       const raw = circulationParamValue(line.item, param.key);
@@ -832,7 +906,7 @@ function writeCirculationParams(
       row.getCell(6).value = param.unit;
       sheet.mergeCells(rowNumber, 6, rowNumber, 7);
       band(row, PAGE_START, PAGE_END, "data", index % 2 === 0);
-      row.getCell(3).alignment = {
+      row.getCell(columns.nameColumn).alignment = {
         horizontal: "left",
         vertical: "middle",
         wrapText: true,
@@ -843,8 +917,8 @@ function writeCirculationParams(
         wrapText: true,
       };
       row.height = Math.max(
-        fittedRowHeight(line.label, MODELO_NAME_WIDTH),
-        fittedRowHeight(param.label, MODELO_PARAM_WIDTH),
+        fittedRowHeight(line.label, columns.nameWidth),
+        fittedRowHeight(param.label, columns.paramWidth),
       );
       addresses.set(`${line.id}|${param.key}`, `E${rowNumber}`);
       rowNumber += 1;
@@ -897,6 +971,8 @@ function appendUnmodeled(
   rowNumber: number,
   circulations: HorizontalCirculation[],
   registry: RegistryEntry[],
+  meetsPriority = 5,
+  wideName = false,
 ): { endRow: number; circulationRows: CirculationExportRow[] } {
   let hatched = true;
   const line = (text: string) => {
@@ -941,6 +1017,8 @@ function appendUnmodeled(
     rowNumber,
     circulations,
     registry,
+    meetsPriority,
+    wideName,
   );
   rowNumber = circulation.nextRow;
 
@@ -972,10 +1050,16 @@ function appendUnmodeled(
   return { endRow: rowNumber, circulationRows: circulation.rows };
 }
 
+function quoteSheet(name: string): string {
+  if (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)) return name;
+  return `'${name.replace(/'/g, "''")}'`;
+}
+
 function writePainel(
   workbook: ExcelJS.Workbook,
   model: ModeloExcelModel,
   atendeLinks: Map<string, CirculationAtendeLink[]>,
+  sourceSheet = MODELO_SHEET_NAME,
 ): void {
   const airport = model.airport ?? defaultAirport();
   const sheet = workbook.addWorksheet("Painel", {
@@ -1043,7 +1127,7 @@ function writePainel(
       writeFormula(
         row.getCell(9),
         circulationStatusFormula(
-          links.map((link) => `${MODELO_SHEET_NAME}!${link.cell}`),
+          links.map((link) => `${quoteSheet(sourceSheet)}!${link.cell}`),
         ),
         circulationStatus(links.map((link) => link.atende)),
       );
@@ -1429,12 +1513,527 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
   applyCirculationFormulas(sheet, unmodeled.circulationRows, addresses);
   fitReportPage(sheet, "G", paramRow - 1);
   writePainel(workbook, model, atendeByComponent(unmodeled.circulationRows));
+  await downloadModeloWorkbook(workbook, "aeroporto-modelo");
+}
 
+type ModeloIndexed = {
+  contract: ComponentContract;
+  entry?: RegistryEntry;
+  id: number;
+};
+
+function columnName(column: number): string {
+  return String.fromCharCode(64 + column);
+}
+
+function writeModeloHeader(
+  sheet: ExcelJS.Worksheet,
+  airport: AirportSource,
+  generatedAt: Date,
+  end = PAGE_END,
+): void {
+  const endName = columnName(end);
+  label(sheet.getCell("B3"), "AEROPORTO");
+  sheet.mergeCells("B3:C3");
+  label(sheet.getCell("D3"), "PERÍODO DE AVALIAÇÃO");
+  sheet.mergeCells(`D3:${endName}3`);
+  const airportCell = sheet.getCell("B4");
+  airportCell.value = `${airport.place} - ${airport.icao}`;
+  airportCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  airportCell.font = { bold: true };
+  sheet.mergeCells("B4:C4");
+  const periodCell = sheet.getCell("D4");
+  periodCell.value = formatReportDate(generatedAt);
+  periodCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  sheet.mergeCells(`D4:${endName}4`);
+  band(sheet.getRow(3), PAGE_START, end, "blue");
+  band(sheet.getRow(4), PAGE_START, end, "blue");
+}
+
+const COL_PARAM = 2;
+const COL_VALUE = 3;
+const COL_FLOW = 4;
+const COL_DHP = 5;
+const COL_MINIMUM = 6;
+const COL_VERIFIED = 7;
+const COL_SATURATION = 8;
+const COL_MEETS = 9;
+
+type MemoryLine = {
+  paramId: ComponentParamId | null;
+  demandId: ComponentParamId | null;
+  flowLabel: string;
+  group: string | null;
+};
+
+function memoryParamIds(
+  formula: ComponentContract["formulas"][number],
+): ComponentParamId[] {
+  return paramsTouched(formula).filter(
+    (id) =>
+      !id.startsWith("demanda") &&
+      id !== "areaMedida" &&
+      id !== "quantidadeEquipamentos",
+  );
+}
+
+const FLOW_SUFFIXES: { suffix: string; demand: ComponentParamId }[] = [
+  { suffix: "EmbarqueDomestico", demand: "demandaPicoEmbarqueDomestico" },
+  { suffix: "EmbarqueInternacional", demand: "demandaPicoEmbarqueInternacional" },
+  { suffix: "DesembarqueDomestico", demand: "demandaPicoDesembarqueDomestico" },
+  { suffix: "DesembarqueInternacional", demand: "demandaPicoDesembarqueInternacional" },
+  { suffix: "Embarque", demand: "demandaPicoEmbarque" },
+  { suffix: "Desembarque", demand: "demandaPicoDesembarque" },
+  { suffix: "Domestico", demand: "demandaPicoDomestico" },
+  { suffix: "Internacional", demand: "demandaPicoInternacional" },
+];
+
+const CONNECTION_DEMANDS = new Set<ComponentParamId>([
+  "demandaPicoConexao",
+  "demandaPicoConexaoDesembarqueDomestico",
+  "demandaPicoConexaoDesembarqueInternacional",
+]);
+
+function isFlowBody(id: ComponentParamId): boolean {
+  return (
+    id.startsWith("espacoMinimo") ||
+    id.startsWith("tempoDeOcupacao") ||
+    id.startsWith("va") ||
+    id.startsWith("tsec")
+  );
+}
+
+function demandForParam(
+  id: ComponentParamId,
+  touched: Set<string>,
+): ComponentParamId | null {
+  for (const item of FLOW_SUFFIXES) {
+    if (id.endsWith(item.suffix) && touched.has(item.demand)) return item.demand;
+  }
+  return null;
+}
+
+function memoryFlowLabel(
+  id: ComponentParamId,
+  entry: RegistryEntry | undefined,
+): string {
+  if (id !== "demandaPico") return flowLabel(id);
+  if (entry?.pmd?.nature === "internacional") return "internacional";
+  if (entry?.pmd?.nature === "domestico") return "doméstico";
+  return "demanda";
+}
+
+function buildMemoryLines(
+  entry: RegistryEntry | undefined,
+  formula: ComponentContract["formulas"][number],
+): MemoryLine[] {
+  const touched = new Set(paramsTouched(formula));
+  const params = new Set(memoryParamIds(formula));
+  const primary = COMPONENT_PARAM_IDS.filter(
+    (id) => id.startsWith("demanda") && touched.has(id) && !CONNECTION_DEMANDS.has(id),
+  );
+  const lone = primary.length === 1 ? primary[0] : null;
+  const grouped = new Map<ComponentParamId, ComponentParamId[]>();
+  const loose: ComponentParamId[] = [];
+  for (const id of COMPONENT_PARAM_IDS) {
+    if (!params.has(id)) continue;
+    const demand = isFlowBody(id) ? (demandForParam(id, touched) ?? lone) : null;
+    if (!demand) {
+      loose.push(id);
+      continue;
+    }
+    const list = grouped.get(demand) ?? [];
+    list.push(id);
+    grouped.set(demand, list);
+  }
+
+  const lines: MemoryLine[] = [];
+  for (const demand of primary) {
+    const ids = grouped.get(demand) ?? [];
+    if (ids.length === 0) {
+      lines.push({
+        paramId: null,
+        demandId: demand,
+        flowLabel: memoryFlowLabel(demand, entry),
+        group: demand,
+      });
+      continue;
+    }
+    for (const id of ids) {
+      lines.push({
+        paramId: id,
+        demandId: demand,
+        flowLabel: memoryFlowLabel(demand, entry),
+        group: demand,
+      });
+    }
+  }
+  for (const id of loose) {
+    lines.push({ paramId: id, demandId: null, flowLabel: "", group: null });
+  }
+  for (const id of COMPONENT_PARAM_IDS) {
+    if (!CONNECTION_DEMANDS.has(id) || !touched.has(id)) continue;
+    lines.push({
+      paramId: null,
+      demandId: id,
+      flowLabel: flowLabel(id),
+      group: `demand:${id}`,
+    });
+  }
+  return lines;
+}
+
+function writeMemoryAccount(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  item: ModeloIndexed,
+  model: ModeloExcelModel,
+  addresses: Map<string, string>,
+  kind: "area" | "equipment",
+): { nextRow: number; meetsRow: number } {
+  const formulaId = kind === "area" ? "areaMinima" : "numeroMinimoEquipamentos";
+  const formula = item.contract.formulas.find((entry) => entry.id === formulaId);
+  const evaluation = model.evaluations[item.contract.id];
+  if (!formula || !evaluation) return { nextRow: rowNumber, meetsRow: 0 };
+  const lines = buildMemoryLines(item.entry, formula);
+  if (lines.length === 0) return { nextRow: rowNumber, meetsRow: 0 };
+
+  const title =
+    kind === "area" ? "ÁREA DISPONIBILIZADA" : "EQUIPAMENTOS DISPONIBILIZADOS";
+  rowNumber = sectionTitle(sheet, rowNumber, title, MEMORY_END);
+  const header = sheet.getRow(rowNumber);
+  header.getCell(COL_PARAM).value = "PARÂMETRO";
+  header.getCell(COL_VALUE).value = "VALOR";
+  header.getCell(COL_FLOW).value = "FLUXO";
+  header.getCell(COL_DHP).value = "DHp";
+  header.getCell(COL_MINIMUM).value = kind === "area" ? "MÍNIMA" : "N";
+  header.getCell(COL_VERIFIED).value = kind === "area" ? "VERIFICADA" : "VERIFICADOS";
+  header.getCell(COL_SATURATION).value = "SATURAÇÃO";
+  header.getCell(COL_MEETS).value = "ATENDE";
+  band(header, PAGE_START, MEMORY_END, "header");
+  header.height = fittedHeaderHeight([
+    ["PARÂMETRO", MEMORY_COLUMN_WIDTHS[COL_PARAM - 1]],
+    ["VALOR", MEMORY_COLUMN_WIDTHS[COL_VALUE - 1]],
+    ["FLUXO", MEMORY_COLUMN_WIDTHS[COL_FLOW - 1]],
+    ["DHp", MEMORY_COLUMN_WIDTHS[COL_DHP - 1]],
+    [
+      kind === "area" ? "MÍNIMA" : "N",
+      MEMORY_COLUMN_WIDTHS[COL_MINIMUM - 1],
+    ],
+    [
+      kind === "area" ? "VERIFICADA" : "VERIFICADOS",
+      MEMORY_COLUMN_WIDTHS[COL_VERIFIED - 1],
+    ],
+    ["SATURAÇÃO", MEMORY_COLUMN_WIDTHS[COL_SATURATION - 1]],
+    ["ATENDE", MEMORY_COLUMN_WIDTHS[COL_MEETS - 1]],
+  ]);
+  rowNumber += 1;
+
+  const first = rowNumber;
+  for (const [index, line] of lines.entries()) {
+    const row = sheet.getRow(rowNumber);
+    const previous = lines[index - 1];
+    const groupStart =
+      line.group == null || previous == null || previous.group !== line.group;
+    let label = line.flowLabel;
+    if (line.paramId) {
+      const field = pickFields([line.paramId])[0];
+      label = field.label;
+      row.getCell(COL_PARAM).value = field.label;
+      const raw = evaluation.inputs[line.paramId];
+      const value = row.getCell(COL_VALUE);
+      value.value = Number.isFinite(raw) ? raw : null;
+      value.numFmt = isTsecParam(line.paramId) ? "#,##0" : "#,##0.00";
+      addresses.set(
+        `${item.contract.id}|${line.paramId}`,
+        `${columnName(COL_VALUE)}${rowNumber}`,
+      );
+    } else {
+      row.getCell(COL_PARAM).value = line.flowLabel;
+    }
+    if (groupStart) {
+      row.getCell(COL_FLOW).value = line.flowLabel || null;
+      if (line.demandId) {
+        const raw = evaluation.inputs[line.demandId];
+        const demand = row.getCell(COL_DHP);
+        demand.value = Number.isFinite(raw) ? raw : null;
+        demand.numFmt = "#,##0";
+        addresses.set(
+          `${item.contract.id}|${line.demandId}`,
+          `${columnName(COL_DHP)}${rowNumber}`,
+        );
+      }
+    }
+    band(row, PAGE_START, MEMORY_END, "data", index % 2 === 0);
+    row.getCell(COL_PARAM).alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    row.getCell(COL_FLOW).alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    row.height = Math.max(
+      fittedRowHeight(label, MEMORY_COLUMN_WIDTHS[COL_PARAM - 1]),
+      fittedRowHeight(line.flowLabel, MEMORY_COLUMN_WIDTHS[COL_FLOW - 1]),
+    );
+    rowNumber += 1;
+  }
+
+  const last = rowNumber - 1;
+  let index = 0;
+  while (index < lines.length) {
+    const group = lines[index].group;
+    let end = index;
+    if (group) {
+      while (end + 1 < lines.length && lines[end + 1].group === group) end += 1;
+    }
+    if (group && end > index) {
+      sheet.mergeCells(first + index, COL_FLOW, first + end, COL_FLOW);
+      sheet.mergeCells(first + index, COL_DHP, first + end, COL_DHP);
+    }
+    index = end + 1;
+  }
+  if (last > first) {
+    for (const column of [COL_MINIMUM, COL_VERIFIED, COL_SATURATION, COL_MEETS]) {
+      sheet.mergeCells(first, column, last, column);
+    }
+  }
+
+  const result =
+    kind === "area"
+      ? evaluation.results.areaMinima
+      : evaluation.results.numeroMinimoEquipamentos;
+  const measured =
+    kind === "area"
+      ? evaluation.inputs.areaMedida
+      : evaluation.inputs.quantidadeEquipamentos;
+  const verified = sheet.getRow(first).getCell(COL_VERIFIED);
+  verified.value = Number.isFinite(measured) ? measured : null;
+  verified.numFmt = kind === "area" ? "#,##0.00" : "#,##0";
+  const minimumCell = `${columnName(COL_MINIMUM)}${first}`;
+  const verifiedCell = `${columnName(COL_VERIFIED)}${first}`;
+  const check = kind === "area" ? evaluation.areaCheck : evaluation.equipmentCheck;
+  if (result !== undefined && Number.isFinite(result)) {
+    applyAccounts(sheet, [
+      {
+        componentId: item.contract.id,
+        row: first,
+        formula,
+        inputs: evaluation.inputs,
+        result,
+        saturacao:
+          kind === "equipment" && check && Number.isFinite(check.saturacao)
+            ? check.saturacao
+            : null,
+        resultColumn: COL_MINIMUM,
+        saturationColumn: COL_SATURATION,
+        verifiedAddress: verifiedCell,
+      },
+    ], addresses);
+    if (kind === "area" && check && Number.isFinite(check.saturacao)) {
+      writeFormula(
+        sheet.getRow(first).getCell(COL_SATURATION),
+        `${minimumCell}/${verifiedCell}`,
+        check.saturacao / 100,
+        "0%",
+      );
+    }
+    if (check && Number.isFinite(result)) {
+      writeFormula(
+        sheet.getRow(first).getCell(COL_MEETS),
+        `IF(${verifiedCell}>=${minimumCell},"SIM","NÃO")`,
+        check.atende ? "SIM" : "NÃO",
+      );
+    }
+  }
+
+  return { nextRow: rowNumber, meetsRow: first };
+}
+
+function writeComponentModeloBlock(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  item: ModeloIndexed,
+  model: ModeloExcelModel,
+  addresses: Map<string, string>,
+): { nextRow: number; areaRow: number; equipmentRow: number } {
+  const titleRow = rowNumber;
+  rowNumber = sectionTitle(sheet, rowNumber, item.contract.title, MEMORY_END);
+  sheet.getRow(titleRow).height = fittedRowHeight(
+    item.contract.title,
+    MEMORY_COLUMN_WIDTHS.slice(PAGE_START - 1, MEMORY_END).reduce(
+      (sum, width) => sum + width,
+      0,
+    ),
+  );
+  rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES", MEMORY_END);
+  rowNumber = pmdObservationNote(
+    sheet,
+    rowNumber,
+    identificationObservationsText([item]),
+    MEMORY_END,
+  );
+
+  let areaRow = 0;
+  if (item.entry?.requirements.area) {
+    const area = writeMemoryAccount(
+      sheet,
+      rowNumber,
+      item,
+      model,
+      addresses,
+      "area",
+    );
+    rowNumber = area.nextRow;
+    areaRow = area.meetsRow;
+    if (area.meetsRow > 0) {
+      rowNumber = writeObservationsBox(
+        sheet,
+        rowNumber,
+        requirementObservationsText(
+          [item],
+          ["areaMinima", "assentosMinimos"],
+          model,
+          false,
+        ),
+        MEMORY_END,
+      );
+    }
+  }
+
+  let equipmentRow = 0;
+  if (item.entry?.requirements.equipment) {
+    const equipment = writeMemoryAccount(
+      sheet,
+      rowNumber,
+      item,
+      model,
+      addresses,
+      "equipment",
+    );
+    rowNumber = equipment.nextRow;
+    equipmentRow = equipment.meetsRow;
+    if (equipment.meetsRow > 0) {
+      rowNumber = writeObservationsBox(
+        sheet,
+        rowNumber,
+        requirementObservationsText(
+          [item],
+          ["numeroMinimoEquipamentos"],
+          model,
+          true,
+        ),
+        MEMORY_END,
+      );
+    }
+  }
+
+  return { nextRow: rowNumber, areaRow, equipmentRow };
+}
+
+
+async function downloadModeloWorkbook(
+  workbook: ExcelJS.Workbook,
+  stem: string,
+): Promise<void> {
   const buffer = await workbook.xlsx.writeBuffer();
   downloadBlob(
     new Blob([new Uint8Array(buffer)], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
-    stampFilename("aeroporto-modelo", "xlsx"),
+    stampFilename(stem, "xlsx"),
   );
+}
+
+function journeyOrderedContracts(model: ModeloExcelModel): ComponentContract[] {
+  const kindById = new Map(model.registry.map((entry) => [entry.id, entry.kind]));
+  return [...model.contracts].sort(
+    (left, right) =>
+      journeyRank(kindById.get(left.id)) - journeyRank(kindById.get(right.id)),
+  );
+}
+
+export async function exportModeloPorComponente(
+  model: ModeloExcelModel,
+): Promise<void> {
+  const airport = model.airport ?? defaultAirport();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Airport Capacity";
+  workbook.created = model.generatedAt;
+  const sheet = workbook.addWorksheet(POR_COMPONENTE_SHEET_NAME, {
+    views: [{ showGridLines: false, showRowColHeaders: true }],
+  });
+  sheet.columns = MEMORY_COLUMN_WIDTHS.map((width) => ({ width }));
+  writeModeloHeader(sheet, airport, model.generatedAt, MEMORY_END);
+
+  const registryById = new Map(model.registry.map((entry) => [entry.id, entry]));
+  const ordered = journeyOrderedContracts(model);
+  const indexed: ModeloIndexed[] = ordered.map((contract, index) => ({
+    contract,
+    entry: registryById.get(contract.id),
+    id: index + 1,
+  }));
+  const addresses = new Map<string, string>();
+  const areaMeets: number[] = [];
+  const equipmentMeets: number[] = [];
+  let rowNumber = 6;
+  for (const item of indexed) {
+    const block = writeComponentModeloBlock(
+      sheet,
+      rowNumber,
+      item,
+      model,
+      addresses,
+    );
+    if (block.areaRow > 0) areaMeets.push(block.areaRow);
+    if (block.equipmentRow > 0) equipmentMeets.push(block.equipmentRow);
+    rowNumber = block.nextRow + 1;
+  }
+
+  let priority = 1;
+  for (const row of areaMeets) {
+    paintMeets(sheet, row, row, priority, columnName(COL_MEETS));
+    priority += 2;
+  }
+  for (const row of equipmentMeets) {
+    paintMeets(sheet, row, row, priority, columnName(COL_MEETS));
+    priority += 2;
+  }
+
+  const unmodeled = appendUnmodeled(
+    sheet,
+    rowNumber - 1,
+    model.circulations,
+    model.registry,
+    priority,
+    true,
+  );
+  let endRow = unmodeled.endRow;
+  if (unmodeled.circulationRows.length > 0) {
+    let paramRow = sectionTitle(
+      sheet,
+      unmodeled.endRow + 2,
+      "9. PARÂMETROS UTILIZADOS",
+    );
+    paramRow = writeCirculationParams(
+      sheet,
+      paramRow,
+      unmodeled.circulationRows,
+      addresses,
+      true,
+    );
+    endRow = paramRow;
+  }
+  applyCirculationFormulas(sheet, unmodeled.circulationRows, addresses);
+  fitReportPage(sheet, columnName(MEMORY_END), Math.max(endRow - 1, 1));
+  writePainel(
+    workbook,
+    { ...model, contracts: ordered },
+    atendeByComponent(unmodeled.circulationRows),
+    POR_COMPONENTE_SHEET_NAME,
+  );
+  await downloadModeloWorkbook(workbook, "aeroporto-modelo-por-componente");
 }

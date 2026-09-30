@@ -54,7 +54,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           do tipo. No SBMO a sala de embarque é uma só: área ponderada entre
           passageiro sentado e em pé, dividida pela ocupação máxima. Se o
           estudo mudar para um contrato com outra conta, essa sala fica
-          inválida e o Excel e o PDF não saem. Nas entradas
+          inválida e o Excel não sai. Nas entradas
           do componente a natureza (doméstico, internacional ou, nos saguões
           de embarque e no check-in, misto) pode ser alterada depois. Meio-fio e sala de
           embarque e desembarque combinada não entram na criação.
@@ -135,9 +135,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Não há backend, API, conta, telemetria nem cookies de rastreio.
         </p>
         <p>
-          Os cálculos rodam no navegador. Você pode gerar <strong>Excel</strong>{" "}
-          (por componente ou por natureza) e <strong>PDF</strong> (simplificado
-          ou completo). Dá para{" "}
+          Os cálculos rodam no navegador. Você pode gerar <strong>Excel modelo</strong>{" "}
+          e <strong>Excel modelo por componente</strong>. Dá para{" "}
           <strong>guardar</strong> o estudo num arquivo{" "}
           <code>.airport</code> para <strong>carregar</strong> depois.
           Recarregar a página sem esse arquivo perde o estado da sessão. Os

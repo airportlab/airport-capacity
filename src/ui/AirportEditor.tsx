@@ -51,11 +51,9 @@ import type {
   JustificativaId,
   ComponentParams,
   EditorTab,
-  ExcelKind,
-  PdfKind,
   RegistryEntry,
 } from "../domain/types";
-import { downloadBlob, stampFilename, waitForPaint } from "../export/download";
+import { downloadBlob, stampFilename } from "../export/download";
 import {
   createPersistedState,
   emptyEditorState,
@@ -80,7 +78,6 @@ import {
 } from "./format";
 import { ParametersTab } from "./ParametersTab";
 import { RegisterComponent } from "./RegisterComponent";
-import { ReportView } from "./ReportView";
 import { SummaryPage } from "./SummaryPage";
 
 function draftsFromRecord<K extends string>(
@@ -131,16 +128,8 @@ export function AirportEditor() {
   const [savedAt, setSavedAt] = useState<string | null>(initial.savedAt);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<
-    | "excel-component"
-    | "excel-nature"
-    | "excel-modelo"
-    | PdfKind
-    | "save"
-    | "load"
-    | null
+    "excel-modelo" | "excel-modelo-componente" | "save" | "load" | null
   >(null);
-  const [pdfKind, setPdfKind] = useState<PdfKind>("simplificado");
-  const reportRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const evaluations = useMemo(
@@ -774,14 +763,8 @@ export function AirportEditor() {
     });
   }
 
-  async function handleExcel(kind: ExcelKind) {
-    setBusy(
-      kind === "nature"
-        ? "excel-nature"
-        : kind === "modelo"
-          ? "excel-modelo"
-          : "excel-component",
-    );
+  async function handleModelo(kind: "agregado" | "componente") {
+    setBusy(kind === "agregado" ? "excel-modelo" : "excel-modelo-componente");
     try {
       const payload = {
         airportName: formatAirportName(airportName),
@@ -792,49 +775,22 @@ export function AirportEditor() {
         evaluations,
         componentOrigens,
         justificativas,
+        circulations,
       };
-      if (kind === "modelo") {
+      if (kind === "componente") {
+        const { exportModeloPorComponente } = await import("../export/excelModelo");
+        await exportModeloPorComponente(payload);
+        setMessage("Planilha modelo por componente exportada.");
+      } else {
         const { exportModeloExcel } = await import("../export/excelModelo");
-        await exportModeloExcel({ ...payload, circulations });
+        await exportModeloExcel(payload);
         setMessage(
           "Planilha modelo exportada. Blocos ainda sem conta ficam em branco.",
-        );
-      } else {
-        const { exportAirportExcel } = await import("../export/excel");
-        await exportAirportExcel(payload, kind);
-        setMessage(
-          kind === "nature"
-            ? "Planilha por natureza exportada: requisitos de área e de equipamentos."
-            : "Planilha por componente exportada com resumo, parâmetros e fórmulas.",
         );
       }
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Falha ao exportar Excel.",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handlePdf(kind: PdfKind) {
-    setBusy(kind);
-    setPdfKind(kind);
-    await waitForPaint();
-    try {
-      if (!reportRef.current) {
-        throw new Error("Relatório não está pronto para captura.");
-      }
-      const { exportReportPdf } = await import("../export/pdf");
-      await exportReportPdf(reportRef.current, kind, "aeroporto-relatorio");
-      setMessage(
-        kind === "completo"
-          ? "PDF completo exportado."
-          : "PDF simplificado exportado.",
-      );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Falha ao exportar PDF.",
       );
     } finally {
       setBusy(null);
@@ -883,7 +839,7 @@ export function AirportEditor() {
             <h1>{formatAirportName(airportName)}</h1>
             <p className="lede">
               Cadastre componentes operacionais a partir da lista do PMD. O
-              Excel e o PDF usam o aeroporto de estudo atual.
+              Excel usa o aeroporto de estudo atual.
             </p>
             <p className="lede">{UNOFFICIAL_NOTICE}</p>
             <p className="save-meta">Último estado: {formatSavedAt(savedAt)}</p>
@@ -1089,25 +1045,7 @@ export function AirportEditor() {
         <button
           type="button"
           className="accent"
-          onClick={() => void handleExcel("component")}
-          disabled={busy !== null || contracts.length === 0 || exportBlocked}
-        >
-          {busy === "excel-component"
-            ? "A exportar…"
-            : "Excel por componente"}
-        </button>
-        <button
-          type="button"
-          className="accent"
-          onClick={() => void handleExcel("nature")}
-          disabled={busy !== null || contracts.length === 0 || exportBlocked}
-        >
-          {busy === "excel-nature" ? "A exportar…" : "Excel por natureza"}
-        </button>
-        <button
-          type="button"
-          className="accent"
-          onClick={() => void handleExcel("modelo")}
+          onClick={() => void handleModelo("agregado")}
           disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
           {busy === "excel-modelo" ? "A exportar…" : "Excel modelo"}
@@ -1115,25 +1053,19 @@ export function AirportEditor() {
         <button
           type="button"
           className="accent"
-          onClick={() => void handlePdf("simplificado")}
+          onClick={() => void handleModelo("componente")}
           disabled={busy !== null || contracts.length === 0 || exportBlocked}
         >
-          {busy === "simplificado" ? "A exportar…" : "PDF simplificado"}
-        </button>
-        <button
-          type="button"
-          className="accent"
-          onClick={() => void handlePdf("completo")}
-          disabled={busy !== null || contracts.length === 0 || exportBlocked}
-        >
-          {busy === "completo" ? "A exportar…" : "PDF completo"}
+          {busy === "excel-modelo-componente"
+            ? "A exportar…"
+            : "Excel modelo por componente"}
         </button>
       </section>
 
       {exportBlocked ? (
         <p className="justificativa-warn">
-          Há sala de embarque que não vale para este contrato. Excel e PDF ficam
-          indisponíveis até ela ser apagada ou o aeroporto voltar à conta em que
+          Há sala de embarque que não vale para este contrato. O Excel fica
+          indisponível até ela ser apagada ou o aeroporto voltar à conta em que
           ela nasceu.
         </p>
       ) : null}
@@ -1150,20 +1082,6 @@ export function AirportEditor() {
         </>
       )}
 
-      <div className="report-capture" aria-hidden="true">
-        <div ref={reportRef}>
-          <ReportView
-            kind={pdfKind}
-            airportName={airportName}
-            airport={airport}
-            capturedAt={new Date()}
-            registry={registry}
-            contracts={contracts}
-            evaluations={evaluations}
-            componentOrigens={componentOrigens}
-          />
-        </div>
-      </div>
     </div>
   );
 }
