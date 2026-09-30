@@ -8,6 +8,7 @@ import {
 } from "../domain/contracts/flowParams";
 import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
 import { beltManualStandard, isBeltManualParam } from "../domain/contracts/formulas";
+import { tsecDeviationNote } from "./tsecNote";
 import {
   areaCheckContract,
   beltCheckContract,
@@ -634,9 +635,7 @@ function exportByComponent(model: ExcelModel): ExcelJS.Workbook {
         const just = model.justificativas[contract.id]?.[field.id] ?? "";
         const value = evaluation.inputs[field.id];
         if (standard != null && value !== standard) {
-          row.getCell(5).value = just.trim()
-            ? `Fora do Manual de Anteprojeto (${TSEC_EXCEL_NAME}, ${standard} s). ${just.trim()}`
-            : `Fora do Manual de Anteprojeto (${TSEC_EXCEL_NAME}, ${standard} s).`;
+          row.getCell(5).value = tsecDeviationNote(standard, value, just);
         } else if (standard != null) {
           row.getCell(5).value = TSEC_EXCEL_CITATION;
         } else {

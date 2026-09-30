@@ -6,8 +6,9 @@ import {
   type CirculationWidths,
   type HorizontalCirculation,
 } from "../domain/circulation";
-import { isSizingParam, pickFields } from "../domain/contracts/fields";
-import { pmdValueFor, resolvedSources } from "../domain/pmd";
+import { isSizingParam, isTsecParam, pickFields } from "../domain/contracts/fields";
+import { pmdValueFor, resolvedSources, standardTsecForParam } from "../domain/pmd";
+import { tsecDeviationNote } from "./tsecNote";
 import {
   identityParamIds,
   MIXED_FLOW_SPECS,
@@ -445,28 +446,81 @@ function formatQuantity(value: number): string {
   }).format(value);
 }
 
-function pmdDeviationText(
-  lines: ParamLine[],
-  indexed: { contract: ComponentContract; entry?: RegistryEntry }[],
+function identificationObservationsText(
+  items: { entry?: RegistryEntry; id: number }[],
+): string {
+  return items
+    .flatMap((item) => {
+      const note = item.entry?.observacoes?.trim() ?? "";
+      return note ? [`${item.id}. ${note}`] : [];
+    })
+    .join("\n");
+}
+
+function sectionDeviationSentence(
+  refId: number,
+  componentId: ComponentId,
+  entry: RegistryEntry,
+  paramId: ComponentParamId,
+  value: number,
+  airport: AirportSource,
   model: ModeloExcelModel,
+  manual: boolean,
+): string | null {
+  const field = pickFields([paramId])[0];
+  if (isSizingParam(paramId)) {
+    const ref = resolvedSources(entry)[paramId];
+    if (!ref) return null;
+    const absorbed = pmdValueFor(ref, paramId, airport);
+    if (absorbed == null || Math.abs(value - absorbed) < 1e-9) return null;
+    const just = model.justificativas?.[componentId]?.[paramId]?.trim() ?? "";
+    const sentence = `${refId}. ${field.label}: ${formatQuantity(value)} ${field.unit} (PMD ${formatQuantity(absorbed)}).`;
+    return just ? `${sentence} ${just}` : sentence;
+  }
+  if (!manual || !isTsecParam(paramId)) return null;
+  const standard = standardTsecForParam(entry, paramId);
+  if (standard == null || Math.abs(value - standard) < 1e-9) return null;
+  const just = model.justificativas?.[componentId]?.[paramId]?.trim() ?? "";
+  return `${refId}. ${tsecDeviationNote(standard, value, just)}`;
+}
+
+function requirementObservationsText(
+  items: {
+    contract: ComponentContract;
+    entry?: RegistryEntry;
+    id: number;
+  }[],
+  formulaIds: readonly ("areaMinima" | "assentosMinimos" | "numeroMinimoEquipamentos")[],
+  model: ModeloExcelModel,
+  manual: boolean,
 ): string {
   const airport = model.airport ?? defaultAirport();
-  const byId = new Map(indexed.map((item) => [item.contract.id, item.entry]));
-  const sentences: string[] = [];
-  for (const line of lines) {
-    if (!isSizingParam(line.paramId)) continue;
-    const entry = byId.get(line.componentId);
-    const ref = entry ? resolvedSources(entry)[line.paramId] : undefined;
-    if (!ref) continue;
-    const absorbed = pmdValueFor(ref, line.paramId, airport);
-    if (absorbed == null || Math.abs(line.value - absorbed) < 1e-9) continue;
-    const field = pickFields([line.paramId])[0];
-    const just =
-      model.justificativas?.[line.componentId]?.[line.paramId]?.trim() ?? "";
-    const sentence = `${line.refId}. ${field.label}: ${formatQuantity(line.value)} ${field.unit} (PMD ${formatQuantity(absorbed)}).`;
-    sentences.push(just ? `${sentence} ${just}` : sentence);
+  const wanted = new Set<string>(formulaIds);
+  const generated: string[] = [];
+  for (const item of items) {
+    const formulas = item.contract.formulas.filter((entry) => wanted.has(entry.id));
+    const evaluation = model.evaluations[item.contract.id];
+    if (formulas.length > 0 && evaluation && item.entry) {
+      const touched = new Set(formulas.flatMap((formula) => paramsTouched(formula)));
+      for (const paramId of COMPONENT_PARAM_IDS) {
+        if (!touched.has(paramId) || paramId.startsWith("demanda")) continue;
+        const value = evaluation.inputs[paramId];
+        if (!Number.isFinite(value)) continue;
+        const sentence = sectionDeviationSentence(
+          item.id,
+          item.contract.id,
+          item.entry,
+          paramId,
+          value,
+          airport,
+          model,
+          manual,
+        );
+        if (sentence) generated.push(sentence);
+      }
+    }
   }
-  return sentences.join("\n");
+  return generated.join("\n");
 }
 
 function pmdObservationNote(
@@ -481,10 +535,10 @@ function pmdObservationNote(
   band(row, PAGE_START, PAGE_END, "data", false);
   row.getCell(PAGE_START).alignment = {
     horizontal: "left",
-    vertical: "middle",
+    vertical: "top",
     wrapText: true,
   };
-  row.height = fittedRowHeight(text, MODELO_BOX_WIDTH);
+  row.height = observationRowHeight(text);
   return rowNumber + 1;
 }
 
@@ -576,6 +630,15 @@ function fittedRowHeight(text: string, columnWidth: number): number {
   return Math.max(MIN_ROW_HEIGHT, lines * LINE_HEIGHT);
 }
 
+function observationRowHeight(text: string): number {
+  const width = Math.max(8, Math.floor(MODELO_BOX_WIDTH * 0.95));
+  const lines = text.split(/\r?\n/).reduce((sum, line) => {
+    const length = Math.max(1, [...line].length);
+    return sum + Math.ceil(length / width);
+  }, 0);
+  return Math.max(18, lines * 15);
+}
+
 function markedRefs(
   rows: CirculationExportRow[],
   marked: (item: HorizontalCirculation) => boolean,
@@ -660,6 +723,26 @@ function circulationStatusFormula(cells: string[]): string {
   return `IF(OR(${nao}),"NÃO",IF(AND(${sim}),"SIM",""))`;
 }
 
+function writeObservationsBox(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  text: string,
+): number {
+  if (!text) return rowNumber;
+  rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
+  const row = sheet.getRow(rowNumber);
+  row.getCell(PAGE_START).value = text;
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
+  band(row, PAGE_START, PAGE_END, "data", false);
+  row.getCell(PAGE_START).alignment = {
+    horizontal: "left",
+    vertical: "top",
+    wrapText: true,
+  };
+  row.height = observationRowHeight(text);
+  return rowNumber + 1;
+}
+
 function writeCirculationSection(
   sheet: ExcelJS.Worksheet,
   rowNumber: number,
@@ -707,21 +790,11 @@ function writeCirculationSection(
   const first = rows[0]?.row ?? 0;
   const last = rows.at(-1)?.row ?? 0;
   paintMeets(sheet, first, last, 5);
-  const text = circulationObservationsText(rows);
-  if (text) {
-    rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
-    const row = sheet.getRow(rowNumber);
-    row.getCell(PAGE_START).value = text;
-    sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END);
-    band(row, PAGE_START, PAGE_END, "data", false);
-    row.getCell(PAGE_START).alignment = {
-      horizontal: "left",
-      vertical: "middle",
-      wrapText: true,
-    };
-    row.height = fittedRowHeight(text, MODELO_BOX_WIDTH);
-    rowNumber += 1;
-  }
+  rowNumber = writeObservationsBox(
+    sheet,
+    rowNumber,
+    circulationObservationsText(rows),
+  );
   return { nextRow: rowNumber, rows };
 }
 
@@ -1088,12 +1161,11 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     rowNumber += 1;
   }
 
-  const paramLines = collectParamLines(indexed, model.evaluations);
   rowNumber = sectionTitle(sheet, rowNumber, "OBSERVAÇÕES");
   rowNumber = pmdObservationNote(
     sheet,
     rowNumber,
-    pmdDeviationText(paramLines.pmd, indexed, model),
+    identificationObservationsText(indexed),
   );
   rowNumber += 1;
 
@@ -1212,6 +1284,16 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     rowNumber += 1;
   }
   paintMeets(sheet, areaMeetsFirst, areaMeetsLast, 1);
+  rowNumber = writeObservationsBox(
+    sheet,
+    rowNumber,
+    requirementObservationsText(
+      indexed.filter((item) => item.entry?.requirements.area),
+      ["areaMinima", "assentosMinimos"],
+      model,
+      false,
+    ),
+  );
 
   rowNumber += 1;
   const equipment = sheet.getRow(rowNumber);
@@ -1302,6 +1384,16 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     rowNumber += 1;
   }
   paintMeets(sheet, equipmentMeetsFirst, equipmentMeetsLast, 3);
+  rowNumber = writeObservationsBox(
+    sheet,
+    rowNumber,
+    requirementObservationsText(
+      indexed.filter((item) => item.entry?.requirements.equipment),
+      ["numeroMinimoEquipamentos"],
+      model,
+      true,
+    ),
+  );
 
   const unmodeled = appendUnmodeled(
     sheet,
@@ -1314,6 +1406,7 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     unmodeled.endRow + 2,
     "9. PARÂMETROS UTILIZADOS",
   );
+  const paramLines = collectParamLines(indexed, model.evaluations);
   paramRow = writeParamBlock(sheet, paramRow, "PMD", paramLines.pmd, addresses);
   paramRow += 1;
   paramRow = writeParamBlock(

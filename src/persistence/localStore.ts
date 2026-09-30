@@ -17,6 +17,7 @@ import {
   paramsFromRegistry,
   seedRegistry,
 } from "../domain/contracts/catalog";
+import { exampleStudy } from "../domain/exampleStudy";
 import { isTsecParam } from "../domain/contracts/fields";
 import { equipmentTerms } from "../domain/contracts/flowParams";
 import { makeContract, requirementsFromLegacyTemplate } from "../domain/contracts/factory";
@@ -650,12 +651,14 @@ export function exampleEditorState(
   airportName = "",
   airportId: AirportId = defaultAirport().id,
 ): EditorState {
-  const defaults = emptyAirportDefaults(airportById(airportId));
+  const airport = airportById(airportId);
+  const study = exampleStudy(airport);
   return {
     version: STATE_VERSION,
     savedAt: null,
-    airportName,
-    ...defaults,
-    circulations: [],
+    airportId: airport.id,
+    airportName: airportName.trim() ? airportName : "Exemplo fictício",
+    roundId: airport.roundId,
+    ...study,
   };
 }

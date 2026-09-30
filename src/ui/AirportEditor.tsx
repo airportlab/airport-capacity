@@ -266,20 +266,17 @@ export function AirportEditor() {
 
   function handleLoadExample() {
     if (
-      registry.length > 0 &&
+      (registry.length > 0 || circulations.length > 0) &&
       !window.confirm(
-        "Substituir os componentes operacionais atuais pelo exemplo fictício?",
+        "Substituir os componentes operacionais e as circulações atuais pelo exemplo fictício?",
       )
     ) {
       return;
     }
-    applyState({
-      ...exampleEditorState(airportName, airport.id),
-      circulations: clearCirculationLinks(circulations),
-    });
+    applyState(exampleEditorState(airportName, airport.id));
     setTab("summary");
     setMessage(
-      "Exemplo fictício carregado: um componente operacional de cada tipo do PMD.",
+      "Exemplo fictício carregado: componentes, variantes e circulações ilustrativos.",
     );
   }
 

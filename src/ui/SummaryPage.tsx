@@ -185,9 +185,9 @@ export function SummaryPage({
         {contracts.length === 0 ? (
           <p className="panel-lead">
             Nenhum componente operacional cadastrado. Cadastre um tipo da
-            lista do PMD ou carregue o exemplo fictício (um tipo de cada
-            linha). Os números são ilustrativos — não são DHp nem áreas
-            medidas do aeroporto selecionado.
+            lista do PMD ou carregue o exemplo fictício (componentes,
+            variantes e circulações ilustrativos). Os números não são DHp nem
+            áreas medidas do aeroporto selecionado.
           </p>
         ) : (
           <>

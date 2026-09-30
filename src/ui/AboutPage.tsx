@@ -39,9 +39,12 @@ export function AboutPage({ onBack }: AboutPageProps) {
           do contrato), dá nome ao relatório e vê Atende / Não atende por
           natureza, em área e em equipamentos. Sem requisito cadastrado, o
           status é “—”. O único botão <strong>Carregar exemplo fictício</strong>{" "}
-          fica nesta aba e preenche um componente de cada tipo do PMD com
-          números ilustrativos — não são valores operacionais do aeroporto
-          selecionado. O saguão combinado não entra nesse exemplo.
+          fica nesta aba e preenche um estudo ilustrativo — não são valores
+          operacionais do aeroporto selecionado. Entram um componente de cada
+          tipo do PMD, o saguão combinado, as naturezas mistas, conexão, taxa
+          de utilização diferente de 100%, esteira, equipamentos nos
+          processadores e quatro circulações horizontais, com comentários nos
+          campos de texto.
         </p>
         <p>
           Em <strong>+ Componente</strong> o cadastro usa a lista exaustiva do
@@ -86,9 +89,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
           são marcações separadas: sem a marcação, o termo vale zero. Cada um
           nasce em 0,5 m; outro valor pede justificativa. O PMM nasce em 20. Lt
           não fica abaixo de 1,5 m. Atende se a largura medida for maior ou
-          igual a Lt. Essa lista não
-          entra no exemplo fictício, e a circulação vertical não é cadastrada
-          aqui.
+          igual a Lt. O exemplo fictício inclui quatro circulações. A
+          circulação vertical não é cadastrada aqui.
         </p>
       </section>
 
