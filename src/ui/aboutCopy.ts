@@ -1,6 +1,9 @@
 export const CC0_DEED_URL =
   "https://creativecommons.org/publicdomain/zero/1.0/deed.pt_BR";
 
+export const OFL_LICENSE_URL =
+  "https://github.com/IBM/plex/blob/master/LICENSE.txt";
+
 export const ABOUT_UNOFFICIAL_EXTRA =
   "Esta página não é produto da ANAC, de concessionária, de aeroporto nem de qualquer órgão. Não substitui o PEA, a regulação nem um estudo assinado.";
 

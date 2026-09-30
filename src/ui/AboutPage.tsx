@@ -4,6 +4,7 @@ import {
   ABOUT_AS_IS,
   ABOUT_UNOFFICIAL_EXTRA,
   CC0_DEED_URL,
+  OFL_LICENSE_URL,
 } from "./aboutCopy";
 
 interface AboutPageProps {
@@ -22,12 +23,15 @@ export function AboutPage({ onBack }: AboutPageProps) {
       <section className="panel">
         <h2>O que é e o que faz</h2>
         <p>
-          A interface está em <strong>português do Brasil</strong> (pt-BR). A
-          implementação é uma página estática em <strong>TypeScript</strong> e{" "}
-          <strong>React</strong>, empacotada com <strong>Vite</strong> em HTML,
-          CSS e JavaScript — o tipo de site que um hospedeiro de páginas
-          estáticas (por exemplo GitHub Pages) serve sem servidor de aplicação.
-          Não há backend, API, conta, telemetria nem cookies de rastreio.
+          A ferramenta dimensiona <strong>componentes operacionais</strong> de
+          terminal a partir da tabela de parâmetros mínimos de dimensionamento
+          (PMD) do aeroporto de estudo. A interface está em{" "}
+          <strong>português do Brasil</strong> (pt-BR). A implementação é uma
+          página estática em <strong>TypeScript</strong> e <strong>React</strong>,
+          empacotada com <strong>Vite</strong> em HTML, CSS e JavaScript — o
+          tipo de site que um hospedeiro de páginas estáticas (por exemplo
+          GitHub Pages) serve sem servidor de aplicação. Não há backend, API,
+          conta, telemetria nem cookies de rastreio.
         </p>
         <p>
           Os cálculos rodam no navegador. Você pode gerar{" "}
@@ -39,41 +43,54 @@ export function AboutPage({ onBack }: AboutPageProps) {
           exportar, copiar ou enviar o arquivo por conta própria.
         </p>
         <p>
-          A ferramenta dimensiona <strong>componentes operacionais</strong> de
-          terminal a partir da tabela de parâmetros mínimos de dimensionamento
-          (PMD) do aeroporto de estudo. Cada componente é uma instância
-          independente, com o próprio DHp. A criação escolhe um tipo da lista do
-          PMD — ou o saguão de embarque e desembarque — e a natureza (doméstico,
+          Cada componente é uma instância independente, com o próprio DHp. A
+          criação escolhe um tipo da lista do PMD do aeroporto selecionado — ou
+          o saguão de embarque e desembarque — e a natureza (doméstico,
           internacional ou, nos saguões de embarque, de desembarque e de
           embarque e desembarque, no check-in e na sala de desembarque, misto).
           Área é requisito opcional em todos os tipos. Equipamentos são
           opcionais só nos processadores (check-in, inspeção, emigração,
           imigração e aduana). Saguões e salas não têm equipamentos. A sala de
-          desembarque tem comprimento mínimo de esteira opcional. As salas de
-          embarque contam assentos. O aplicativo começa sem componentes.
+          desembarque tem comprimento mínimo de esteira opcional. Na tabela
+          padrão as salas de embarque contam o percentual de assentos. Na 5ª
+          rodada e da 2ª à 4ª a conta é de passageiro sentado e em pé, sem
+          contagem separada de assentos. O aplicativo começa sem componentes.
         </p>
         <p>
           No <strong>Resumo</strong> você escolhe o aeroporto de estudo (a fonte
-          do contrato), dá nome ao relatório e vê Atende / Não atende por
-          natureza, em área, em equipamentos e, na sala de desembarque, na
-          esteira, quando esse requisito está cadastrado. Sem requisito
-          cadastrado, o status é “—”. O único botão{" "}
-          <strong>Carregar exemplo fictício</strong> fica nesta aba e preenche
-          um estudo ilustrativo — não são valores operacionais do aeroporto
-          selecionado. Entram um componente de cada tipo do PMD, o saguão
-          combinado, as naturezas mistas, conexão, taxa de utilização diferente
-          de 100%, esteira, equipamentos nos processadores e quatro circulações
-          horizontais, com comentários nos campos de texto.
+          do contrato) e dá nome ao relatório. A data do relatório é a data de
+          hoje. A lista segue a jornada — Embarque, Desembarque e Outros — com
+          um cartão por componente. O cartão mostra Atende / Não atende em área
+          e, quando o requisito existe, em equipamentos ou, na sala de
+          desembarque, na esteira. Sem requisito, o cartão diz “Sem requisitos”
+          e a tabela mostra “—”. Sala de embarque de outra conta aparece como
+          “Não vale para este contrato”; os dois Excel ficam desligados até ela
+          ser apagada ou o aeroporto voltar à conta em que ela nasceu. O único
+          botão <strong>Carregar exemplo fictício</strong> fica nesta aba e
+          preenche um estudo ilustrativo — não são valores operacionais do
+          aeroporto selecionado. Entram um componente de cada tipo da tabela
+          desse aeroporto, o saguão combinado, as naturezas mistas, conexão,
+          taxa de utilização diferente de 100%, esteira, equipamentos nos
+          processadores e quatro circulações horizontais, com comentários nos
+          campos de texto.
         </p>
         <p>
           Em <strong>+ Componente</strong> o cadastro usa a lista exaustiva do
-          PMD. Várias instâncias do mesmo tipo são permitidas. O componente
-          absorve Emp, Toi, v.a. e os critérios da sala de embarque da fonte
-          escolhida; o valor pode diferir com justificativa, sem mudar a fonte
-          do tipo. No SBMO a sala de embarque é uma só: área ponderada entre
-          passageiro sentado e em pé, dividida pela ocupação máxima. Se o
-          estudo mudar para um contrato com outra conta, essa sala fica
-          inválida e o Excel não sai. Nas entradas do componente a natureza
+          PMD do aeroporto selecionado. Várias instâncias do mesmo tipo são
+          permitidas. O componente absorve Emp, Toi, v.a. e os critérios da sala
+          de embarque da fonte escolhida; o valor pode diferir com justificativa,
+          sem mudar a fonte do tipo. Na tabela padrão (relicitação do SBSG, 6ª e
+          7ª rodadas), pontes e remotas usam Emp e o percentual de assentos, e a
+          sala de desembarque nasce com Toi 20/45 min. Na 5ª rodada a sala de
+          embarque é uma só: área ponderada entre passageiro sentado e em pé,
+          dividida pela ocupação máxima, sem contagem separada de assentos; a
+          sala de desembarque nasce com Toi 30/45 min. Da 2ª à 4ª, pontes e
+          remotas ficam em linhas separadas, na mesma conta de sentado e em pé,
+          também sem assentos separados, e a sala de desembarque nasce com Toi
+          30/45 min. Se o estudo mudar para um aeroporto com outra conta de sala
+          de embarque, essa sala fica inválida e o Excel não sai. A sala de
+          desembarque já aberta conserva o Toi absorvido. Nas entradas do
+          componente a natureza
           (doméstico, internacional ou, nos saguões de embarque, de desembarque
           e de embarque e desembarque, no check-in e na sala de desembarque,
           misto) pode ser alterada depois. Meio-fio e sala de embarque e
@@ -84,10 +101,12 @@ export function AboutPage({ onBack }: AboutPageProps) {
           processadores, também equipamentos. A demanda de área (Ad) usa DHp,
           Emp e Toi (e v.a., nos saguões, se o requisito marcar acompanhante, ou
           taxa de utilização Tu, se estiver marcada). Equipamentos usam o teto
-          da conta de N. O Tsec nasce no padrão do Manual de Anteprojeto de cada
-          fluxo; valor diferente pede justificativa. Com vários fluxos, cada um
-          usa o seu Toi e o seu Tsec. Saguões e salas não têm N. Na sala de
-          desembarque o requisito opcional é o tamanho mínimo de esteira, com Tr
+          da conta de N. O Tsec nasce no padrão do Manual de Anteprojeto quando o
+          fluxo tem esse padrão; valor diferente pede justificativa. Sem padrão
+          (aduana; emigração e imigração no doméstico), o campo nasce em 0 e
+          fica livre. Com vários fluxos, cada um usa o seu Toi e o seu Tsec.
+          Saguões e salas não têm N. Na sala de desembarque o requisito opcional
+          é o comprimento mínimo de esteira, com Tr
           mínimo de 30% e Lmp mínimo de 0,9 m. Valor diferente desse mínimo pede
           justificativa. Com vários DHp no mesmo recinto, as contas somam.
           Saguão de embarque misto soma o doméstico e o internacional. Embarque
@@ -149,7 +168,16 @@ export function AboutPage({ onBack }: AboutPageProps) {
             CC0 1.0
           </a>
           . A tabela PMD é transcrição de atos oficiais da ANAC e{" "}
-          <strong>não</strong> é licenciada por esta ferramenta. {ABOUT_AS_IS}
+          <strong>não</strong> é licenciada por esta ferramenta. As fontes da
+          interface (IBM Plex Sans e IBM Plex Serif) permanecem sob{" "}
+          <a
+            href={OFL_LICENSE_URL}
+            rel="license noopener noreferrer"
+            target="_blank"
+          >
+            SIL Open Font License 1.1
+          </a>
+          ; não são CC0. {ABOUT_AS_IS}
         </p>
       </section>
 
