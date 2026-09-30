@@ -99,32 +99,16 @@ export function AboutPage({ onBack }: AboutPageProps) {
         <p>
           Na aba do componente você informa DHp e área medida. Nos
           processadores, também equipamentos. A demanda de área (Ad) usa DHp,
-          Emp e Toi (e v.a., nos saguões, se o requisito marcar acompanhante, ou
-          taxa de utilização Tu, se estiver marcada). Equipamentos usam o teto
-          da conta de N. O Tsec nasce no padrão do Manual de Anteprojeto quando o
-          fluxo tem esse padrão; valor diferente pede justificativa. Sem padrão
-          (aduana; emigração e imigração no doméstico), o campo nasce em 0 e
-          fica livre. Com vários fluxos, cada um usa o seu Toi e o seu Tsec.
-          Saguões e salas não têm N. Na sala de desembarque o requisito opcional
-          é o comprimento mínimo de esteira, com Tr
-          mínimo de 30% e Lmp mínimo de 0,9 m. Valor diferente desse mínimo pede
-          justificativa. Com vários DHp no mesmo recinto, as contas somam.
-          Saguão de embarque misto soma o doméstico e o internacional. Embarque
-          via conexão, se marcado, soma a conta da conexão, sem acompanhante; no
-          misto, essa demanda é agregada. Saguão de desembarque misto soma
-          Ad_d,dom e Ad_d,int, com acompanhante. A conexão desse saguão existe
-          só no misto e só se marcada: soma DOM/INT e INT/DOM + INT/INT, sem
-          acompanhante. Sala de desembarque mista soma Ad_d,dom e Ad_d,int, sem
-          acompanhante e sem conexão, e a esteira soma C_d,dom e C_d,int. Check-in misto soma
-          Ad_dom e Ad_int; cada fluxo usa o próprio Toi e o próprio Tsec, e N é
-          o teto da soma. Saguão de embarque e desembarque soma as funções e, se
-          misto, as quatro contas; a conexão, se marcada, entra só no embarque,
-          agregada no misto e sem acompanhante. A saturação compara a demanda
-          com o que a área ou os equipamentos podem atender. A aba{" "}
-          <strong>Parâmetros</strong> consulta a tabela PMD da fonte selecionada
-          e o Tsec do Manual de Anteprojeto, padrão do requisito de equipamentos
-          quando o tipo tem valor; as fórmulas aparecem no próprio componente,
-          junto do requisito.
+          Emp e Toi — e v.a. ou taxa de utilização, se o requisito marcar.
+          Equipamentos usam o teto da conta de N. O Tsec nasce no padrão do
+          Manual de Anteprojeto quando o fluxo tem esse padrão; valor diferente
+          pede justificativa. Sem padrão, o campo nasce em 0. Saguões e salas
+          não têm N. Na sala de desembarque o requisito opcional é o comprimento
+          mínimo de esteira. Com vários DHp no mesmo recinto, as contas somam; a
+          fórmula fica no próprio componente, junto do requisito. A saturação
+          compara a demanda com o que a área ou os equipamentos podem atender. A
+          aba <strong>Parâmetros</strong> consulta a tabela PMD da fonte
+          selecionada e o Tsec do Manual de Anteprojeto.
         </p>
         <p>
           A aba <strong>Circulações</strong> cadastra circulações horizontais.
