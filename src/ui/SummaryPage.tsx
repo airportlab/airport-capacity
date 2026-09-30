@@ -183,7 +183,7 @@ export function SummaryPage({
       </section>
 
       <section className="panel" aria-labelledby="resumo-status">
-        <h2 id="resumo-status">Requisitos do PMD</h2>
+        <h2 id="resumo-status">Componentes Operacionais</h2>
         {contracts.length === 0 ? (
           <p className="panel-lead">
             Nenhum componente operacional cadastrado. Cadastre um tipo da
