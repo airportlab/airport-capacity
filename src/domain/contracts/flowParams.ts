@@ -249,6 +249,9 @@ function singleFlowRole(entry: RegistryEntry): OrganFunctionRole {
     case "saguao-embarque":
     case "sala-embarque-pontes":
     case "sala-embarque-remotas":
+    case "sala-embarque-pontes-sentado":
+    case "sala-embarque-remotas-sentado":
+    case "salas-embarque":
       return "embarque";
     case "saguao-desembarque":
     case "sala-desembarque":

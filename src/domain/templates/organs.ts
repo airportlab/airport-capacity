@@ -36,6 +36,8 @@ export type OrganKind =
   | "aduana"
   | "sala-embarque-pontes"
   | "sala-embarque-remotas"
+  | "sala-embarque-pontes-sentado"
+  | "sala-embarque-remotas-sentado"
   | "salas-embarque"
   | "sala-desembarque"
   | "sala-embarque-desembarque";
@@ -151,6 +153,25 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     detail: "Espera em posições remotas. Mesmos números de pontes nesta rodada.",
   },
   {
+    kind: "sala-embarque-pontes-sentado",
+    title:
+      "Sala de embarque de atendimento em posições próximas (pontes de embarque)",
+    natures: ["domestico", "internacional"],
+    preset: "areaSeats",
+    flows: [{ role: "embarque", rowId: "sala-embarque-pontes-sentado" }],
+    detail:
+      "Espera em pontes. Ocup_max, Pa, sentado e em pé. Sem contagem separada de assentos.",
+  },
+  {
+    kind: "sala-embarque-remotas-sentado",
+    title: "Sala de embarque de atendimento em posições remotas",
+    natures: ["domestico", "internacional"],
+    preset: "areaSeats",
+    flows: [{ role: "embarque", rowId: "sala-embarque-remotas-sentado" }],
+    detail:
+      "Espera em posições remotas. Mesmos números de sentado e em pé das pontes.",
+  },
+  {
     kind: "salas-embarque",
     title: "Salas de embarque",
     natures: ["domestico", "internacional"],
@@ -220,6 +241,8 @@ export const JOURNEY_ORDER: readonly {
   { kind: "emigracao", leg: "embarque" },
   { kind: "sala-embarque-pontes", leg: "embarque" },
   { kind: "sala-embarque-remotas", leg: "embarque" },
+  { kind: "sala-embarque-pontes-sentado", leg: "embarque" },
+  { kind: "sala-embarque-remotas-sentado", leg: "embarque" },
   { kind: "salas-embarque", leg: "embarque" },
   { kind: "sala-desembarque", leg: "desembarque" },
   { kind: "imigracao", leg: "desembarque" },
@@ -543,8 +566,10 @@ export function exampleOperatingValues(
         tsec: 45,
       };
     case "sala-embarque-pontes":
+    case "sala-embarque-pontes-sentado":
       return { demandaPico: 350, areaMedida: 380 };
     case "sala-embarque-remotas":
+    case "sala-embarque-remotas-sentado":
       return { demandaPico: 200, areaMedida: 280 };
     case "salas-embarque":
       return { demandaPico: 350, areaMedida: 380 };

@@ -204,7 +204,7 @@ function withArrivalsToi(row: PmdRow, domestico: number, internacional: number):
   };
 }
 
-/** Bloco Nordeste, Termo Aditivo n. 002/2023. Sala de embarque única, sentado e em pé. */
+/** Bloco Nordeste, Termo Aditivo n. 002/2023. Sala de embarque única, sentado e em pé. A 5ª rodada inteira usa esta tabela. */
 export const NORDESTE_PMD: PmdRow[] = STANDARD_PMD.flatMap((row) => {
   if (row.id === "sala-embarque-pontes" || row.id === "sala-embarque-remotas") {
     return row.id === "sala-embarque-pontes" ? [SALAS_EMBARQUE_NORDESTE] : [];
@@ -213,9 +213,29 @@ export const NORDESTE_PMD: PmdRow[] = STANDARD_PMD.flatMap((row) => {
   return [row];
 });
 
+function sentadoLounge(id: string, title: string): PmdRow {
+  return {
+    ...SALAS_EMBARQUE_NORDESTE,
+    id,
+    title,
+    detail:
+      "Pontes e remotas com os mesmos números. Ocup_max, Pa, área e tempo do passageiro sentado e do passageiro em pé. Ad pondera os dois e divide por Ocup_max.",
+  };
+}
+
+/** 2ª, 3ª e 4ª rodadas. Pontes e remotas separadas, na conta de sentado e em pé. Sala de desembarque com Toi 30/45. */
+export const SENTADO_PMD: PmdRow[] = STANDARD_PMD.flatMap((row) => {
+  if (row.id === "sala-embarque-pontes" || row.id === "sala-embarque-remotas") {
+    return [sentadoLounge(`${row.id}-sentado`, row.title)];
+  }
+  if (row.id === "sala-desembarque") return [withArrivalsToi(row, 30, 45)];
+  return [row];
+});
+
 const PMD_TABLES: Record<PmdTableId, PmdRow[]> = {
   standard: STANDARD_PMD,
   nordeste: NORDESTE_PMD,
+  sentado: SENTADO_PMD,
 };
 
 const PMD_BY_ID: Record<string, PmdRow> = {};
@@ -370,6 +390,8 @@ export function pmdRowFor(
 const LOUNGE_ROW_IDS = new Set([
   "sala-embarque-pontes",
   "sala-embarque-remotas",
+  "sala-embarque-pontes-sentado",
+  "sala-embarque-remotas-sentado",
   "salas-embarque",
 ]);
 

@@ -1,7 +1,48 @@
 export type AirportId =
   | "sbsg"
+  | "sbkp"
+  | "sbgr"
+  | "sbbr"
+  | "sbgl"
+  | "sbcf"
+  | "sbpa"
+  | "sbsv"
+  | "sbfl"
+  | "sbfz"
+  | "sbrf"
   | "sbmo"
+  | "sbjp"
+  | "sbar"
+  | "sbkg"
+  | "sbju"
+  | "sbcy"
+  | "sbsi"
+  | "sbrd"
+  | "sbat"
+  | "sbvt"
+  | "sbme"
+  | "sbeg"
+  | "sbpv"
+  | "sbrb"
+  | "sbcz"
+  | "sbtt"
+  | "sbtf"
+  | "sbbv"
   | "sbgo"
+  | "sbsl"
+  | "sbte"
+  | "sbpj"
+  | "sbpl"
+  | "sbiz"
+  | "sbct"
+  | "sbfi"
+  | "sbnf"
+  | "sblo"
+  | "sbjv"
+  | "sbbi"
+  | "sbpk"
+  | "sbug"
+  | "sbbg"
   | "sbmt"
   | "sbjr"
   | "sbbe"
@@ -19,11 +60,16 @@ export type AirportId =
   | "sbur";
 
 export type RoundId = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
-export type PmdTableId = "standard" | "nordeste";
+export type PmdTableId = "standard" | "nordeste" | "sentado";
 export type AirportBlock =
   | "Relicitação"
+  | "Individual"
   | "Nordeste"
+  | "Centro-Oeste"
+  | "Sudeste"
+  | "Norte"
   | "Central"
+  | "Sul"
   | "Aviação Geral"
   | "Norte II"
   | "SP/MS/PA/MG";
@@ -71,6 +117,15 @@ function source(
   };
 }
 
+const NORDESTE_CONTRACT =
+  "Contrato de Concessão do Bloco Nordeste, Termo Aditivo n. 002, de 07 de junho de 2023";
+const CENTRO_OESTE_CONTRACT = "Contrato de Concessão nº 002/ANAC/2019-Centro-Oeste";
+const SUDESTE_CONTRACT =
+  "Contrato de Concessão do Bloco Sudeste, Termo Aditivo n. 001, de 15 de setembro de 2021";
+const NORTE_CONTRACT = "Contrato de Concessão do Bloco Norte (6ª rodada)";
+const CENTRAL_CONTRACT = "Contrato de Concessão nº 003/ANAC/2021-Central";
+const SUL_CONTRACT = "Contrato de Concessão nº 002/ANAC/2021-Sul";
+
 export const AIRPORTS: AirportSource[] = [
   source(
     "sbsg",
@@ -81,13 +136,249 @@ export const AIRPORTS: AirportSource[] = [
     "Contrato de Concessão nº 004/ANAC/2023",
   ),
   source(
+    "sbkp",
+    "SBKP",
+    "Viracopos",
+    "2",
+    "Individual",
+    "Contrato de Concessão do Aeroporto de Viracopos (2ª rodada)",
+    "sentado",
+  ),
+  source(
+    "sbgr",
+    "SBGR",
+    "Guarulhos",
+    "2",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Guarulhos, Apêndice B pela Decisão nº 587, de 28 de dezembro de 2022",
+    "sentado",
+  ),
+  source(
+    "sbbr",
+    "SBBR",
+    "Brasília",
+    "2",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Brasília (2ª rodada)",
+    "sentado",
+  ),
+  source(
+    "sbgl",
+    "SBGL",
+    "Galeão",
+    "3",
+    "Individual",
+    "Contrato de Concessão nº 001/ANAC/2014-SBGL",
+    "sentado",
+  ),
+  source(
+    "sbcf",
+    "SBCF",
+    "Confins",
+    "3",
+    "Individual",
+    "Contrato de Concessão nº 002/ANAC/2014-SBCF",
+    "sentado",
+  ),
+  source(
+    "sbpa",
+    "SBPA",
+    "Porto Alegre",
+    "4",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Porto Alegre, Apêndice B pela Decisão nº 589, de 28 de dezembro de 2022",
+    "sentado",
+  ),
+  source(
+    "sbsv",
+    "SBSV",
+    "Salvador",
+    "4",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Salvador, 1ª Revisão dos Parâmetros da Concessão (dezembro de 2022)",
+    "sentado",
+  ),
+  source(
+    "sbfl",
+    "SBFL",
+    "Florianópolis",
+    "4",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Florianópolis, 1ª Revisão dos Parâmetros da Concessão (dezembro de 2022)",
+    "sentado",
+  ),
+  source(
+    "sbfz",
+    "SBFZ",
+    "Fortaleza",
+    "4",
+    "Individual",
+    "Contrato de Concessão do Aeroporto Internacional de Fortaleza, Apêndice B pela Decisão nº 590, de 28 de dezembro de 2022",
+    "sentado",
+  ),
+  source(
+    "sbrf",
+    "SBRF",
+    "Recife",
+    "5",
+    "Nordeste",
+    NORDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
     "sbmo",
     "SBMO",
     "Maceió",
     "5",
     "Nordeste",
-    "Contrato de Concessão do Bloco Nordeste, Termo Aditivo n. 002, de 07 de junho de 2023",
+    NORDESTE_CONTRACT,
     "nordeste",
+  ),
+  source(
+    "sbjp",
+    "SBJP",
+    "João Pessoa",
+    "5",
+    "Nordeste",
+    NORDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbar",
+    "SBAR",
+    "Aracaju",
+    "5",
+    "Nordeste",
+    NORDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbkg",
+    "SBKG",
+    "Campina Grande",
+    "5",
+    "Nordeste",
+    NORDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbju",
+    "SBJU",
+    "Juazeiro do Norte",
+    "5",
+    "Nordeste",
+    NORDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbcy",
+    "SBCY",
+    "Cuiabá",
+    "5",
+    "Centro-Oeste",
+    CENTRO_OESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbsi",
+    "SBSI",
+    "Sinop",
+    "5",
+    "Centro-Oeste",
+    CENTRO_OESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbrd",
+    "SBRD",
+    "Rondonópolis",
+    "5",
+    "Centro-Oeste",
+    CENTRO_OESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbat",
+    "SBAT",
+    "Alta Floresta",
+    "5",
+    "Centro-Oeste",
+    CENTRO_OESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbvt",
+    "SBVT",
+    "Vitória",
+    "5",
+    "Sudeste",
+    SUDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbme",
+    "SBME",
+    "Macaé",
+    "5",
+    "Sudeste",
+    SUDESTE_CONTRACT,
+    "nordeste",
+  ),
+  source(
+    "sbeg",
+    "SBEG",
+    "Manaus",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbpv",
+    "SBPV",
+    "Porto Velho",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbrb",
+    "SBRB",
+    "Rio Branco",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbcz",
+    "SBCZ",
+    "Cruzeiro do Sul",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbtt",
+    "SBTT",
+    "Tabatinga",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbtf",
+    "SBTF",
+    "Tefé",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
+  ),
+  source(
+    "sbbv",
+    "SBBV",
+    "Boa Vista",
+    "6",
+    "Norte",
+    NORTE_CONTRACT,
   ),
   source(
     "sbgo",
@@ -95,7 +386,119 @@ export const AIRPORTS: AirportSource[] = [
     "Santa Genoveva",
     "6",
     "Central",
-    "Contrato de Concessão nº 003/ANAC/2021-Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbsl",
+    "SBSL",
+    "São Luís",
+    "6",
+    "Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbte",
+    "SBTE",
+    "Teresina",
+    "6",
+    "Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbpj",
+    "SBPJ",
+    "Palmas",
+    "6",
+    "Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbpl",
+    "SBPL",
+    "Petrolina",
+    "6",
+    "Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbiz",
+    "SBIZ",
+    "Imperatriz",
+    "6",
+    "Central",
+    CENTRAL_CONTRACT,
+  ),
+  source(
+    "sbct",
+    "SBCT",
+    "Curitiba",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbfi",
+    "SBFI",
+    "Foz do Iguaçu",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbnf",
+    "SBNF",
+    "Navegantes",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sblo",
+    "SBLO",
+    "Londrina",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbjv",
+    "SBJV",
+    "Joinville",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbbi",
+    "SBBI",
+    "Bacacheri",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbpk",
+    "SBPK",
+    "Pelotas",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbug",
+    "SBUG",
+    "Uruguaiana",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
+  ),
+  source(
+    "sbbg",
+    "SBBG",
+    "Bagé",
+    "6",
+    "Sul",
+    SUL_CONTRACT,
   ),
   source(
     "sbmt",

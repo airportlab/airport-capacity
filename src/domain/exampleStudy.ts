@@ -78,6 +78,8 @@ const PROCESS_CODE: Record<string, string> = {
   "aduana:internacional": "EX-025",
   "sala-embarque-pontes:domestico": "EX-026",
   "sala-embarque-remotas:domestico": "EX-027",
+  "sala-embarque-pontes-sentado:domestico": "EX-026",
+  "sala-embarque-remotas-sentado:domestico": "EX-027",
   "salas-embarque:domestico": "EX-028",
   "sala-desembarque:domestico": "EX-029",
   "sala-desembarque:misto": "EX-030",
@@ -185,6 +187,7 @@ const COMPONENT_NOTES: Record<string, string> = {
   "emigracao:internacional": "Foi considerado sem conexão",
   "aduana:internacional": "Visualizado fora do horário pico",
   "sala-embarque-pontes:domestico": "Apenas piso superior",
+  "sala-embarque-pontes-sentado:domestico": "Apenas piso superior",
   "salas-embarque:domestico": "Foi considerado sem conexão",
   "sala-desembarque:misto": "Visualizado fora do horário pico",
   "saguao-embarque-desembarque:domestico": "Apenas piso superior",
@@ -251,7 +254,13 @@ function equipmentQuantity(entry: RegistryEntry): number {
 }
 
 function preference(kind: string | undefined): SizingParamId[] {
-  if (kind === "sala-embarque-pontes") return ["percentualMinimoAssentos"];
+  if (
+    kind === "sala-embarque-pontes" ||
+    kind === "sala-embarque-pontes-sentado" ||
+    kind === "sala-embarque-remotas-sentado"
+  ) {
+    return ["percentualMinimoAssentos"];
+  }
   return [];
 }
 
