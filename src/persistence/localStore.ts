@@ -106,17 +106,6 @@ function asPercent(value: number): number {
   return value;
 }
 
-function normalizeTaxaFields(params: ComponentParams): ComponentParams {
-  const next = { ...params };
-  if (next.taxaDeUsoArea > 0 && next.taxaDeUsoArea <= 1) {
-    next.taxaDeUsoArea = next.taxaDeUsoArea * 100;
-  }
-  if (next.taxaDeUsoEquipamento > 0 && next.taxaDeUsoEquipamento <= 1) {
-    next.taxaDeUsoEquipamento = next.taxaDeUsoEquipamento * 100;
-  }
-  return next;
-}
-
 function pickStrings<K extends string>(
   source: Record<string, unknown>,
   keys: readonly K[],
@@ -297,12 +286,10 @@ function overlayComponents(
   if (isRecord(rawComponents)) {
     for (const entry of registry) {
       if (isRecord(rawComponents[entry.id])) {
-        components[entry.id] = normalizeTaxaFields(
-          pickNumbers(
-            rawComponents[entry.id] as Record<string, unknown>,
-            COMPONENT_PARAM_IDS,
-            defaults.components[entry.id] ?? defaultComponentParams(makeContract(entry)),
-          ),
+        components[entry.id] = pickNumbers(
+          rawComponents[entry.id] as Record<string, unknown>,
+          COMPONENT_PARAM_IDS,
+          defaults.components[entry.id] ?? defaultComponentParams(makeContract(entry)),
         );
       }
     }
