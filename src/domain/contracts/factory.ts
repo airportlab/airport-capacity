@@ -53,15 +53,6 @@ export function emptyRequirements(): ComponentRequirements {
   return {};
 }
 
-export function requirementsFromLegacyTemplate(
-  template: "area" | "areaAndEquipment",
-): ComponentRequirements {
-  return {
-    area: { companions: false },
-    ...(template === "areaAndEquipment" ? { equipment: {} } : {}),
-  };
-}
-
 export function slugify(title: string, existing: ComponentId[]): ComponentId {
   const base =
     title

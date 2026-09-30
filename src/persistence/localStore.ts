@@ -11,27 +11,19 @@ import {
 import {
   defaultComponentOrigens,
   defaultComponentParams,
-  emptyAirportDefaults,
   emptyJustificativas,
   origensFromRegistry,
   paramsFromRegistry,
-  seedRegistry,
 } from "../domain/contracts/catalog";
 import { exampleStudy } from "../domain/exampleStudy";
-import { isTsecParam } from "../domain/contracts/fields";
-import { equipmentTerms } from "../domain/contracts/flowParams";
-import { makeContract, requirementsFromLegacyTemplate } from "../domain/contracts/factory";
+import { makeContract } from "../domain/contracts/factory";
 import {
   organAllowsCompanions,
   organAllowsEquipment,
 } from "../domain/templates/organs";
 import {
   applyPmdRequirements,
-  DEFAULT_PEAK_NATURE,
-  migrateLegacyPmd,
   normalizePmdBinding,
-  standardTsecForParam,
-  type PeakNature,
   type RoundId,
 } from "../domain/pmd";
 import type {
@@ -56,10 +48,7 @@ import {
   type JustificativaId,
 } from "../domain/types";
 
-export const STATE_VERSION = 15 as const;
-
 export interface PersistedAirportState {
-  version: typeof STATE_VERSION;
   savedAt: string;
   airportId: AirportId;
   airportName: string;
@@ -74,10 +63,6 @@ export interface PersistedAirportState {
 export type EditorState = Omit<PersistedAirportState, "savedAt"> & {
   savedAt: string | null;
 };
-
-function parsePeakNature(raw: unknown): PeakNature {
-  return raw === "internacional" ? "internacional" : DEFAULT_PEAK_NATURE;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -99,11 +84,6 @@ function pickNumbers<K extends string>(
     }
   }
   return next;
-}
-
-function asPercent(value: number): number {
-  if (value > 0 && value <= 1) return value * 100;
-  return value;
 }
 
 function pickStrings<K extends string>(
@@ -236,36 +216,22 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
       return null;
     }
     if (isCurbEntry(item)) continue;
-    const observacoes = parseOptionalText(item.observacoes);
     const fromRequirements = parseRequirements(item.requirements);
-    if (fromRequirements) {
-      entries.push(
-        clampArrivalsRequirements(clampAreaCompanions({
-          id: item.id,
-          title: item.title,
-          kind: typeof item.kind === "string" ? item.kind : undefined,
-          requirements: fromRequirements,
-          pmd: parsePmd(item.pmd),
-          flows: parseFlows(item.flows),
-          sizingSources: parseSizingSources(item.sizingSources),
-          observacoes,
-          ...(item.hasConnection === true ? { hasConnection: true } : {}),
-        })),
-      );
-      continue;
-    }
-    if (item.template === "area" || item.template === "areaAndEquipment") {
-      entries.push(
-        clampArrivalsRequirements(clampAreaCompanions({
-          id: item.id,
-          title: item.title,
-          requirements: requirementsFromLegacyTemplate(item.template),
-          observacoes,
-        })),
-      );
-      continue;
-    }
-    return null;
+    if (!fromRequirements) return null;
+    const observacoes = parseOptionalText(item.observacoes);
+    entries.push(
+      clampArrivalsRequirements(clampAreaCompanions({
+        id: item.id,
+        title: item.title,
+        kind: typeof item.kind === "string" ? item.kind : undefined,
+        requirements: fromRequirements,
+        pmd: parsePmd(item.pmd),
+        flows: parseFlows(item.flows),
+        sizingSources: parseSizingSources(item.sizingSources),
+        observacoes,
+        ...(item.hasConnection === true ? { hasConnection: true } : {}),
+      })),
+    );
   }
   return entries;
 }
@@ -311,68 +277,6 @@ function overlayComponents(
   return { components, componentOrigens };
 }
 
-function migrateTaxaPorRequisito(
-  registry: RegistryEntry[],
-  components: Record<ComponentId, ComponentParams>,
-  rawComponents: unknown,
-): {
-  registry: RegistryEntry[];
-  components: Record<ComponentId, ComponentParams>;
-} {
-  const nextComponents = { ...components };
-  const nextRegistry = registry.map((entry) => {
-    const params = { ...(nextComponents[entry.id] ?? ({} as ComponentParams)) };
-    const raw =
-      isRecord(rawComponents) && isRecord(rawComponents[entry.id])
-        ? (rawComponents[entry.id] as Record<string, unknown>)
-        : null;
-    const hasNewTaxa =
-      (raw && isFiniteNumber(raw.taxaDeUsoArea)) ||
-      (raw && isFiniteNumber(raw.taxaDeUsoEquipamento)) ||
-      entry.requirements.area?.taxaDiferente === true ||
-      entry.requirements.equipment?.taxaDiferente === true;
-    const legacy =
-      raw && isFiniteNumber(raw.taxaDeUso)
-        ? asPercent(raw.taxaDeUso)
-        : undefined;
-    if (hasNewTaxa || legacy == null || legacy === 100) {
-      nextComponents[entry.id] = params;
-      return entry;
-    }
-    const requirements = { ...entry.requirements };
-    if (requirements.area) {
-      requirements.area = { ...requirements.area, taxaDiferente: true };
-      params.taxaDeUsoArea = legacy;
-    }
-    if (requirements.equipment) {
-      requirements.equipment = {
-        ...requirements.equipment,
-        taxaDiferente: true,
-      };
-      params.taxaDeUsoEquipamento = legacy;
-    }
-    nextComponents[entry.id] = params;
-    return { ...entry, requirements };
-  });
-  return { registry: nextRegistry, components: nextComponents };
-}
-
-function applyLegacySharedDhp(
-  components: Record<ComponentId, ComponentParams>,
-  rawShared: unknown,
-): Record<ComponentId, ComponentParams> {
-  if (!isRecord(rawShared) || !isFiniteNumber(rawShared.demandaPico)) {
-    return components;
-  }
-  const dhp = rawShared.demandaPico;
-  return Object.fromEntries(
-    Object.entries(components).map(([id, params]) => [
-      id,
-      { ...params, demandaPico: dhp },
-    ]),
-  ) as Record<ComponentId, ComponentParams>;
-}
-
 function emptyJustificativaStrings(): Record<JustificativaId, string> {
   return Object.fromEntries(JUSTIFICATIVA_IDS.map((id) => [id, ""])) as Record<
     JustificativaId,
@@ -402,67 +306,11 @@ function parseJustificativas(
   return next;
 }
 
-function migrateSharedTsec(
-  registry: RegistryEntry[],
-  components: Record<ComponentId, ComponentParams>,
-  justificativas: Record<ComponentId, ComponentJustificativas>,
-  rawComponents: unknown,
-  rawJustificativas: unknown,
-): {
-  components: Record<ComponentId, ComponentParams>;
-  justificativas: Record<ComponentId, ComponentJustificativas>;
-} {
-  if (!isRecord(rawComponents)) return { components, justificativas };
-  const nextComponents = { ...components };
-  const nextJust = { ...justificativas };
-  for (const entry of registry) {
-    const raw = rawComponents[entry.id];
-    if (!isRecord(raw) || !isFiniteNumber(raw.tsec) || raw.tsec === 0) continue;
-    const terms = equipmentTerms(entry);
-    if (terms.length <= 1) continue;
-    const params = { ...(nextComponents[entry.id] ?? ({} as ComponentParams)) };
-    const rawJust =
-      isRecord(rawJustificativas) && isRecord(rawJustificativas[entry.id])
-        ? (rawJustificativas[entry.id] as Record<string, unknown>)
-        : null;
-    const sharedJust = rawJust && typeof rawJust.tsec === "string" ? rawJust.tsec : "";
-    const just = { ...(nextJust[entry.id] ?? {}) };
-    let changed = false;
-    for (const term of terms) {
-      if (!isTsecParam(term.tsec) || term.tsec === "tsec" || isFiniteNumber(raw[term.tsec])) {
-        continue;
-      }
-      params[term.tsec] = raw.tsec;
-      changed = true;
-      const standard = standardTsecForParam(entry, term.tsec);
-      if (sharedJust.trim() !== "" && standard != null && raw.tsec !== standard) {
-        just[term.tsec] = sharedJust;
-      }
-    }
-    if (changed) {
-      nextComponents[entry.id] = params;
-      nextJust[entry.id] = just;
-    }
-  }
-  return { components: nextComponents, justificativas: nextJust };
-}
-
-function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | null {
+export function parsePersistedState(raw: unknown): PersistedAirportState | null {
+  if (!isRecord(raw) || typeof raw.savedAt !== "string") return null;
   const parsed = parseRegistry(raw.registry);
-  if (parsed === null || typeof raw.savedAt !== "string") return null;
-  const nature = parsePeakNature(raw.peakNature);
-  const registry =
-    raw.version === 15 ||
-    raw.version === 14 ||
-    raw.version === 13 ||
-    raw.version === 12 ||
-    raw.version === 11 ||
-    raw.version === 10 ||
-    raw.version === 9 ||
-    raw.version === 8 ||
-    raw.version === 7
-      ? parsed.map((entry) => applyPmdRequirements(entry))
-      : parsed.map((entry) => migrateLegacyPmd(entry, nature));
+  if (parsed === null) return null;
+  const registry = parsed.map((entry) => applyPmdRequirements(entry));
   const airport = airportById(parseAirportId(raw.airportId));
   const overlaid = overlayComponents(
     registry,
@@ -470,149 +318,27 @@ function parseCurrent(raw: Record<string, unknown>): PersistedAirportState | nul
     raw.componentOrigens,
     airport,
   );
-  const migrated = migrateTaxaPorRequisito(
-    registry,
-    overlaid.components,
-    raw.components,
-  );
-  const justificativas = parseJustificativas(
-    raw.justificativas,
-    migrated.registry,
-  );
-  const withTsec =
-    typeof raw.version === "number" && raw.version < 11
-      ? migrateSharedTsec(
-          migrated.registry,
-          migrated.components,
-          justificativas,
-          raw.components,
-          raw.justificativas,
-        )
-      : { components: migrated.components, justificativas };
 
   return {
-    version: STATE_VERSION,
     savedAt: raw.savedAt,
     airportId: airport.id,
     airportName: typeof raw.airportName === "string" ? raw.airportName : "",
     roundId: airport.roundId,
-    registry: migrated.registry,
-    components: applyLegacySharedDhp(withTsec.components, raw.shared),
+    registry,
+    components: overlaid.components,
     componentOrigens: overlaid.componentOrigens,
-    justificativas: withTsec.justificativas,
+    justificativas: parseJustificativas(raw.justificativas, registry),
     circulations: parseCirculations(
       raw.circulations,
-      new Set(migrated.registry.map((entry) => entry.id)),
+      new Set(registry.map((entry) => entry.id)),
     ),
   };
 }
 
-function parseV2(raw: Record<string, unknown>): PersistedAirportState | null {
-  if (!isRecord(raw.shared) || !isRecord(raw.components) || typeof raw.savedAt !== "string") {
-    return null;
-  }
-
-  const airport = defaultAirport();
-  const registry = seedRegistry();
-  const overlaid = overlayComponents(
-    registry,
-    raw.components,
-    raw.componentOrigens,
-    airport,
-  );
-  const migrated = migrateTaxaPorRequisito(
-    registry,
-    overlaid.components,
-    raw.components,
-  );
-
-  return {
-    version: STATE_VERSION,
-    savedAt: raw.savedAt,
-    airportId: airport.id,
-    airportName: typeof raw.airportName === "string" ? raw.airportName : "",
-    roundId: airport.roundId,
-    registry: migrated.registry,
-    components: applyLegacySharedDhp(migrated.components, raw.shared),
-    componentOrigens: overlaid.componentOrigens,
-    justificativas: emptyJustificativas(),
-    circulations: [],
-  };
-}
-
-function parseLegacyCheckin(raw: unknown): PersistedAirportState | null {
-  if (!isRecord(raw) || raw.version !== 1 || !isRecord(raw.inputs)) {
-    return null;
-  }
-  if (typeof raw.savedAt !== "string") return null;
-
-  const airport = defaultAirport();
-  const defaults = emptyAirportDefaults(airport);
-  const inputs = raw.inputs;
-  const origens = isRecord(raw.origens) ? raw.origens : {};
-  const registry = seedRegistry();
-  const checkinParams = pickNumbers(
-    inputs,
-    COMPONENT_PARAM_IDS,
-    defaults.components.checkin,
-  );
-  if (isFiniteNumber(inputs.demandaPico)) {
-    checkinParams.demandaPico = inputs.demandaPico;
-  }
-
-  return {
-    version: STATE_VERSION,
-    savedAt: raw.savedAt,
-    airportId: airport.id,
-    airportName: "",
-    roundId: airport.roundId,
-    registry,
-    components: {
-      ...defaults.components,
-      checkin: checkinParams,
-    },
-    componentOrigens: {
-      ...defaults.componentOrigens,
-      checkin: pickStrings(
-        origens,
-        COMPONENT_PARAM_IDS,
-        defaults.componentOrigens.checkin,
-      ),
-    },
-    justificativas: emptyJustificativas(),
-    circulations: [],
-  };
-}
-
-export function parsePersistedState(raw: unknown): PersistedAirportState | null {
-  if (!isRecord(raw)) return null;
-  if (
-    raw.version === 15 ||
-    raw.version === 14 ||
-    raw.version === 13 ||
-    raw.version === 12 ||
-    raw.version === 11 ||
-    raw.version === 10 ||
-    raw.version === 9 ||
-    raw.version === 8 ||
-    raw.version === 7 ||
-    raw.version === 6 ||
-    raw.version === 5 ||
-    raw.version === 4 ||
-    raw.version === 3
-  ) {
-    return parseCurrent(raw);
-  }
-  if (raw.version === 2) return parseV2(raw);
-  if (raw.version === 1) return parseLegacyCheckin(raw);
-  return null;
-}
-
 export function createPersistedState(
-  state: Omit<PersistedAirportState, "version" | "savedAt">,
+  state: Omit<PersistedAirportState, "savedAt">,
 ): PersistedAirportState {
   return {
-    version: STATE_VERSION,
     savedAt: new Date().toISOString(),
     ...state,
   };
@@ -621,7 +347,6 @@ export function createPersistedState(
 export function emptyEditorState(): EditorState {
   const airport = defaultAirport();
   return {
-    version: STATE_VERSION,
     savedAt: null,
     airportId: airport.id,
     airportName: "",
@@ -641,7 +366,6 @@ export function exampleEditorState(
   const airport = airportById(airportId);
   const study = exampleStudy(airport);
   return {
-    version: STATE_VERSION,
     savedAt: null,
     airportId: airport.id,
     airportName: airportName.trim() ? airportName : "Exemplo fictício",

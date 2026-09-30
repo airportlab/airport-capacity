@@ -355,20 +355,6 @@ export function pmdRows(source: AirportSource = defaultAirport()): PmdRow[] {
   return PMD_TABLES[source.pmdTableId];
 }
 
-/** Ids antigos de semente → linha de PMD. */
-export const LEGACY_COMPONENT_TO_PMD: Record<string, string> = {
-  hall: "saguao-embarque",
-  hallArrivals: "saguao-desembarque",
-  checkin: "checkin-bagagens",
-  security: "inspecao",
-  emigration: "emigracao",
-  immigration: "imigracao",
-  customs: "aduana",
-  boarding: "sala-embarque-pontes",
-  boardingRemote: "sala-embarque-remotas",
-  arrivals: "sala-desembarque",
-};
-
 export function pmdById(id: string, tableId?: PmdTableId): PmdRow | undefined {
   if (tableId) return PMD_TABLES[tableId].find((row) => row.id === id);
   return PMD_BY_ID[id];
@@ -1075,20 +1061,3 @@ export function naturesUsedOnRow(
   return [...natures];
 }
 
-export function migrateLegacyPmd(
-  entry: RegistryEntry,
-  peakNature: PeakNature = DEFAULT_PEAK_NATURE,
-): RegistryEntry {
-  if (entry.pmd) {
-    return applyPmdRequirements({
-      ...entry,
-      pmd: normalizePmdBinding(entry.pmd),
-    });
-  }
-  const rowId = LEGACY_COMPONENT_TO_PMD[entry.id];
-  if (!rowId) return entry;
-  return applyPmdRequirements({
-    ...entry,
-    pmd: { rowId, nature: peakNature },
-  });
-}

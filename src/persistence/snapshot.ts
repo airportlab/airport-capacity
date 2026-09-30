@@ -1,6 +1,5 @@
 import {
   parsePersistedState,
-  STATE_VERSION,
   type PersistedAirportState,
 } from "./localStore";
 
@@ -18,7 +17,6 @@ export class SnapshotError extends Error {
 
 interface SnapshotEnvelope {
   format: typeof SNAPSHOT_FORMAT;
-  schemaVersion: number;
   payload: PersistedAirportState;
   integrity: { alg: "SHA-256"; hash: string };
 }
@@ -79,7 +77,6 @@ export async function packSnapshot(
   const payloadJson = JSON.stringify(payload);
   const envelope: SnapshotEnvelope = {
     format: SNAPSHOT_FORMAT,
-    schemaVersion: STATE_VERSION,
     payload,
     integrity: { alg: "SHA-256", hash: await sha256Hex(payloadJson) },
   };

@@ -52,6 +52,11 @@ const PAGE_START = 2;
 const PAGE_END = 7;
 const MODELO_SHEET_NAME = "Modelo";
 const POR_COMPONENTE_SHEET_NAME = "Por componente";
+const MARK_OK = "✓";
+const MARK_FAIL = "X";
+const MARK_NA = "—";
+const PAINEL_NAME_WIDTH = 28;
+const PAINEL_DHP_WIDTH = 32;
 const MEMORY_END = 9;
 const MEMORY_COLUMN_WIDTHS = [3, 42, 14, 28, 12, 16, 14, 14, 12];
 const MODELO_COLUMN_WIDTHS = [3, 6, 38, 26, 14, 13, 8];
@@ -765,16 +770,16 @@ function atendeByComponent(
   return map;
 }
 
-function circulationStatus(values: (boolean | null)[]): "SIM" | "NÃO" | "" {
-  if (values.some((value) => value === false)) return "NÃO";
-  if (values.length > 0 && values.every((value) => value === true)) return "SIM";
+function circulationStatus(values: (boolean | null)[]): string {
+  if (values.some((value) => value === false)) return MARK_FAIL;
+  if (values.length > 0 && values.every((value) => value === true)) return MARK_OK;
   return "";
 }
 
 function circulationStatusFormula(cells: string[]): string {
   const nao = cells.map((cell) => `${cell}="NÃO"`).join(",");
   const sim = cells.map((cell) => `${cell}="SIM"`).join(",");
-  return `IF(OR(${nao}),"NÃO",IF(AND(${sim}),"SIM",""))`;
+  return `IF(OR(${nao}),"${MARK_FAIL}",IF(AND(${sim}),"${MARK_OK}",""))`;
 }
 
 function writeObservationsBox(
@@ -1055,10 +1060,190 @@ function quoteSheet(name: string): string {
   return `'${name.replace(/'/g, "''")}'`;
 }
 
+function sheetRef(sheetName: string, cell: string): string {
+  return `${quoteSheet(sheetName)}!${cell}`;
+}
+
+function excelQuoted(text: string): string {
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+type PainelMeets = "SIM" | "NÃO" | "";
+
+interface PainelDemandLine {
+  label: string;
+  cell: string | null;
+  value: number | null;
+}
+
+interface PainelComponentSource {
+  demandCell: string | null;
+  demandResult: number | string | null;
+  demandNumeric: boolean;
+  demandLines: PainelDemandLine[] | null;
+  areaCell: string | null;
+  areaMeets: PainelMeets | null;
+  equipmentCell: string | null;
+  equipmentMeets: PainelMeets | null;
+}
+
+function emptyPainelSource(): PainelComponentSource {
+  return {
+    demandCell: null,
+    demandResult: null,
+    demandNumeric: false,
+    demandLines: null,
+    areaCell: null,
+    areaMeets: null,
+    equipmentCell: null,
+    equipmentMeets: null,
+  };
+}
+
+function painelSource(
+  map: Map<string, PainelComponentSource>,
+  id: string,
+): PainelComponentSource {
+  let source = map.get(id);
+  if (!source) {
+    source = emptyPainelSource();
+    map.set(id, source);
+  }
+  return source;
+}
+
+function meetsText(
+  check: { atende: boolean } | null | undefined,
+): PainelMeets {
+  if (!check) return "";
+  return check.atende ? "SIM" : "NÃO";
+}
+
+function meetsSymbol(meets: PainelMeets): string {
+  if (meets === "SIM") return MARK_OK;
+  if (meets === "NÃO") return MARK_FAIL;
+  return "";
+}
+
+function demandLineFormula(line: PainelDemandLine, sheetName: string): string {
+  if (line.cell) {
+    return `${excelQuoted(`${line.label}: `)}&TEXT(${sheetRef(sheetName, line.cell)},"#,##0")`;
+  }
+  const shown = line.value == null ? "" : formatCount(line.value);
+  return excelQuoted(`${line.label}: ${shown}`);
+}
+
+function demandLineText(lines: PainelDemandLine[]): string {
+  return lines
+    .map((line) => `${line.label}: ${line.value == null ? "" : formatCount(line.value)}`)
+    .join("\n");
+}
+
+function writePainelDemand(
+  cell: ExcelJS.Cell,
+  source: PainelComponentSource | undefined,
+  sheetName: string,
+): string {
+  if (!source) return "";
+  if (source.demandLines && source.demandLines.length > 1) {
+    const result = demandLineText(source.demandLines);
+    writeFormula(
+      cell,
+      source.demandLines
+        .map((line) => demandLineFormula(line, sheetName))
+        .join("&CHAR(10)&"),
+      result,
+    );
+    return result;
+  }
+  if (source.demandCell) {
+    writeFormula(
+      cell,
+      sheetRef(sheetName, source.demandCell),
+      source.demandResult ?? "",
+    );
+    if (source.demandNumeric) cell.numFmt = "#,##0";
+    return typeof source.demandResult === "string"
+      ? source.demandResult
+      : source.demandResult == null
+        ? ""
+        : formatCount(source.demandResult);
+  }
+  if (typeof source.demandResult === "number") {
+    cell.value = source.demandResult;
+    cell.numFmt = "#,##0";
+    return formatCount(source.demandResult);
+  }
+  if (typeof source.demandResult === "string" && source.demandResult) {
+    cell.value = source.demandResult;
+    return source.demandResult;
+  }
+  return "";
+}
+
+function writePainelStatus(
+  cell: ExcelJS.Cell,
+  sourceCell: string | null,
+  meets: PainelMeets | null,
+  sheetName: string,
+): void {
+  if (!sourceCell || meets == null) {
+    cell.value = MARK_NA;
+    return;
+  }
+  const ref = sheetRef(sheetName, sourceCell);
+  writeFormula(
+    cell,
+    `IF(${ref}="SIM","${MARK_OK}",IF(${ref}="NÃO","${MARK_FAIL}",""))`,
+    meetsSymbol(meets),
+  );
+}
+
+function paintSymbols(
+  sheet: ExcelJS.Worksheet,
+  firstRow: number,
+  lastRow: number,
+  column: string,
+  priority: number,
+): void {
+  if (firstRow === 0 || lastRow < firstRow) return;
+  const first = `${column}${firstRow}`;
+  sheet.addConditionalFormatting({
+    ref: `${first}:${column}${lastRow}`,
+    rules: [
+      {
+        type: "expression",
+        priority,
+        formulae: [`${first}="${MARK_OK}"`],
+        style: {
+          fill: {
+            type: "pattern",
+            pattern: "solid",
+            bgColor: { argb: MEETS_GREEN },
+          },
+        },
+      },
+      {
+        type: "expression",
+        priority: priority + 1,
+        formulae: [`${first}="${MARK_FAIL}"`],
+        style: {
+          fill: {
+            type: "pattern",
+            pattern: "solid",
+            bgColor: { argb: MEETS_RED },
+          },
+        },
+      },
+    ],
+  });
+}
+
 function writePainel(
   workbook: ExcelJS.Workbook,
   model: ModeloExcelModel,
   atendeLinks: Map<string, CirculationAtendeLink[]>,
+  sources: Map<string, PainelComponentSource>,
   sourceSheet = MODELO_SHEET_NAME,
 ): void {
   const airport = model.airport ?? defaultAirport();
@@ -1068,13 +1253,13 @@ function writePainel(
   sheet.columns = [
     { width: 2 },
     { width: 6 },
-    { width: 28 },
-    { width: 8 },
+    { width: PAINEL_NAME_WIDTH },
+    { width: PAINEL_DHP_WIDTH },
     { width: 11 },
-    { width: 13 },
+    { width: 14 },
     { width: 12 },
     { width: 12 },
-    { width: 13 },
+    { width: 14 },
     { width: 13 },
     { width: 14 },
   ];
@@ -1122,22 +1307,51 @@ function writePainel(
       vertical: "middle",
       wrapText: true,
     };
+    const source = sources.get(contract.id);
+    const demandText = writePainelDemand(row.getCell(4), source, sourceSheet);
+    writePainelStatus(
+      row.getCell(5),
+      source?.areaCell ?? null,
+      source?.areaMeets ?? null,
+      sourceSheet,
+    );
+    writePainelStatus(
+      row.getCell(6),
+      source?.equipmentCell ?? null,
+      source?.equipmentMeets ?? null,
+      sourceSheet,
+    );
+    for (const column of [7, 8, 10, 11]) {
+      row.getCell(column).value = MARK_NA;
+    }
     const links = atendeLinks.get(contract.id) ?? [];
     if (links.length > 0) {
       writeFormula(
         row.getCell(9),
         circulationStatusFormula(
-          links.map((link) => `${quoteSheet(sourceSheet)}!${link.cell}`),
+          links.map((link) => sheetRef(sourceSheet, link.cell)),
         ),
         circulationStatus(links.map((link) => link.atende)),
       );
+    } else {
+      row.getCell(9).value = MARK_NA;
     }
+    row.height = Math.max(
+      fittedRowHeight(contract.title, PAINEL_NAME_WIDTH),
+      fittedRowHeight(demandText, PAINEL_DHP_WIDTH),
+    );
     rowNumber += 1;
   });
 
+  if (model.contracts.length > 0) {
+    paintSymbols(sheet, 6, rowNumber - 1, "E", 1);
+    paintSymbols(sheet, 6, rowNumber - 1, "F", 3);
+    paintSymbols(sheet, 6, rowNumber - 1, "I", 5);
+  }
+
   const legend = sheet.getRow(rowNumber);
   legend.getCell(2).value =
-    "Adequado ✓    Alerta !    Gatilho de investimento ↑    Saturado ø    N/A ─";
+    `${MARK_OK} atende    ${MARK_FAIL} não atende    ${MARK_NA} não se aplica`;
   legend.getCell(2).alignment = {
     horizontal: "left",
     vertical: "middle",
@@ -1213,6 +1427,7 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     return { contract, entry, id: index + 1 };
   });
   const addresses = new Map<string, string>();
+  const painelSources = new Map<string, PainelComponentSource>();
 
   for (const [index, item] of indexed.entries()) {
     const row = sheet.getRow(rowNumber);
@@ -1232,7 +1447,10 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
       addresses.set(`${item.contract.id}|${demandId}`, `G${rowNumber}`);
     } else if (evaluation) {
       demand.value = ids
-        .map((id) => `${flowLabel(id)}: ${formatCount(evaluation.inputs[id])}`)
+        .map(
+          (id) =>
+            `${memoryFlowLabel(id, item.entry)}: ${formatCount(evaluation.inputs[id])}`,
+        )
         .join("\n");
       row.height = Math.max(18, ids.length * 16);
     }
@@ -1242,6 +1460,23 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
       vertical: "middle",
       wrapText: true,
     };
+    const painel = painelSource(painelSources, item.contract.id);
+    painel.demandCell = `G${rowNumber}`;
+    if (ids.length <= 1) {
+      const raw = evaluation?.inputs[ids[0] ?? "demandaPico"];
+      painel.demandNumeric = Number.isFinite(raw);
+      painel.demandResult = painel.demandNumeric ? raw : null;
+    } else {
+      painel.demandNumeric = false;
+      painel.demandResult = evaluation
+        ? ids
+            .map(
+              (id) =>
+                `${memoryFlowLabel(id, item.entry)}: ${formatCount(evaluation.inputs[id])}`,
+            )
+            .join("\n")
+        : null;
+    }
     rowNumber += 1;
   }
 
@@ -1358,6 +1593,9 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     }
     if (areaMeetsFirst === 0) areaMeetsFirst = rowNumber;
     areaMeetsLast = rowNumber;
+    const areaPainel = painelSource(painelSources, item.contract.id);
+    areaPainel.areaCell = `G${rowNumber}`;
+    areaPainel.areaMeets = meetsText(check);
     band(row, PAGE_START, PAGE_END, "data", areaRow % 2 === 0);
     areaRow += 1;
     row.getCell(3).alignment = {
@@ -1458,6 +1696,9 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     }
     if (equipmentMeetsFirst === 0) equipmentMeetsFirst = rowNumber;
     equipmentMeetsLast = rowNumber;
+    const equipmentPainel = painelSource(painelSources, item.contract.id);
+    equipmentPainel.equipmentCell = `G${rowNumber}`;
+    equipmentPainel.equipmentMeets = meetsText(check);
     band(row, PAGE_START, PAGE_END, "data", equipmentRow % 2 === 0);
     equipmentRow += 1;
     row.getCell(3).alignment = {
@@ -1512,7 +1753,12 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
   applyAccounts(sheet, pending, addresses);
   applyCirculationFormulas(sheet, unmodeled.circulationRows, addresses);
   fitReportPage(sheet, "G", paramRow - 1);
-  writePainel(workbook, model, atendeByComponent(unmodeled.circulationRows));
+  writePainel(
+    workbook,
+    model,
+    atendeByComponent(unmodeled.circulationRows),
+    painelSources,
+  );
   await downloadModeloWorkbook(workbook, "aeroporto-modelo");
 }
 
@@ -1956,6 +2202,59 @@ function journeyOrderedContracts(model: ModeloExcelModel): ComponentContract[] {
   );
 }
 
+function blockPainelSources(
+  indexed: ModeloIndexed[],
+  model: ModeloExcelModel,
+  addresses: Map<string, string>,
+  areaRows: Map<string, number>,
+  equipmentRows: Map<string, number>,
+): Map<string, PainelComponentSource> {
+  const map = new Map<string, PainelComponentSource>();
+  for (const item of indexed) {
+    const source = emptyPainelSource();
+    const evaluation = model.evaluations[item.contract.id];
+    const ids: ComponentParamId[] = item.entry
+      ? identityParamIds(item.entry)
+      : ["demandaPico"];
+    const lines: PainelDemandLine[] = ids.map((id) => {
+      const raw = evaluation?.inputs[id];
+      return {
+        label: memoryFlowLabel(id, item.entry),
+        cell: addresses.get(`${item.contract.id}|${id}`) ?? null,
+        value: Number.isFinite(raw) ? raw : null,
+      };
+    });
+    const linked = lines.some((line) => line.cell);
+    if (lines.length <= 1) {
+      const line = lines[0];
+      if (line?.cell) {
+        source.demandCell = line.cell;
+        source.demandNumeric = line.value != null;
+        source.demandResult = line.value;
+      } else if (line?.value != null) {
+        source.demandNumeric = true;
+        source.demandResult = line.value;
+      }
+    } else if (linked) {
+      source.demandLines = lines;
+    } else {
+      source.demandResult = demandLineText(lines);
+    }
+    const areaRow = areaRows.get(item.contract.id);
+    if (areaRow) {
+      source.areaCell = `${columnName(COL_MEETS)}${areaRow}`;
+      source.areaMeets = meetsText(evaluation?.areaCheck);
+    }
+    const equipmentRow = equipmentRows.get(item.contract.id);
+    if (equipmentRow) {
+      source.equipmentCell = `${columnName(COL_MEETS)}${equipmentRow}`;
+      source.equipmentMeets = meetsText(evaluation?.equipmentCheck);
+    }
+    map.set(item.contract.id, source);
+  }
+  return map;
+}
+
 export async function exportModeloPorComponente(
   model: ModeloExcelModel,
 ): Promise<void> {
@@ -1979,6 +2278,8 @@ export async function exportModeloPorComponente(
   const addresses = new Map<string, string>();
   const areaMeets: number[] = [];
   const equipmentMeets: number[] = [];
+  const areaRows = new Map<string, number>();
+  const equipmentRows = new Map<string, number>();
   let rowNumber = 6;
   for (const item of indexed) {
     const block = writeComponentModeloBlock(
@@ -1988,8 +2289,14 @@ export async function exportModeloPorComponente(
       model,
       addresses,
     );
-    if (block.areaRow > 0) areaMeets.push(block.areaRow);
-    if (block.equipmentRow > 0) equipmentMeets.push(block.equipmentRow);
+    if (block.areaRow > 0) {
+      areaMeets.push(block.areaRow);
+      areaRows.set(item.contract.id, block.areaRow);
+    }
+    if (block.equipmentRow > 0) {
+      equipmentMeets.push(block.equipmentRow);
+      equipmentRows.set(item.contract.id, block.equipmentRow);
+    }
     rowNumber = block.nextRow + 1;
   }
 
@@ -2033,6 +2340,7 @@ export async function exportModeloPorComponente(
     workbook,
     { ...model, contracts: ordered },
     atendeByComponent(unmodeled.circulationRows),
+    blockPainelSources(indexed, model, addresses, areaRows, equipmentRows),
     POR_COMPONENTE_SHEET_NAME,
   );
   await downloadModeloWorkbook(workbook, "aeroporto-modelo-por-componente");
