@@ -338,13 +338,23 @@ export function MixedNatureAreaFormulaCard({
           companions={companions}
           includeTaxa={includeTaxa}
           lhs="Ad_dom"
-          numerator={areaNumerator(companions, includeTaxa, "_dom")}
+          numerator={areaNumerator(
+            companions,
+            includeTaxa,
+            "_dom",
+            includeTaxa ? "Tu_dom" : "Tu",
+          )}
         />
         <AreaEquation
           companions={companions}
           includeTaxa={includeTaxa}
           lhs="Ad_int"
-          numerator={areaNumerator(companions, includeTaxa, "_int")}
+          numerator={areaNumerator(
+            companions,
+            includeTaxa,
+            "_int",
+            includeTaxa ? "Tu_int" : "Tu",
+          )}
         />
         <div className="tex" role="img" aria-label={sum}>
           <span className="tex-lhs">Ad</span>

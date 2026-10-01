@@ -73,6 +73,8 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoConexaoDesembarqueDomestico",
   "demandaPicoConexaoDesembarqueInternacional",
   "taxaDeUsoArea",
+  "taxaDeUsoAreaDomestico",
+  "taxaDeUsoAreaInternacional",
   "taxaDeUsoEquipamento",
   "taxaDeUsoEquipamentoDomestico",
   "taxaDeUsoEquipamentoInternacional",

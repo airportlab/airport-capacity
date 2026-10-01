@@ -14,16 +14,17 @@ export const AREA_NOTATIONS = [
   { symbol: "v.a", meaning: "Acompanhantes", unit: "adimensional" },
 ] as const;
 
-function withTu(head: string, includeTaxa: boolean): string {
-  return includeTaxa ? `${head} × Tu` : head;
+function withTu(head: string, includeTaxa: boolean, tu = "Tu"): string {
+  return includeTaxa ? `${head} × ${tu}` : head;
 }
 
 export function areaNumerator(
   companions: boolean,
   includeTaxa = false,
   suffix = "",
+  tu = "Tu",
 ): string {
-  const demand = withTu(`DHp${suffix}`, includeTaxa);
+  const demand = withTu(`DHp${suffix}`, includeTaxa, tu);
   const body = `${demand} × Emp${suffix} × Toi${suffix}`;
   return companions ? `${body} × (1 + v.a${suffix})` : body;
 }
@@ -84,9 +85,9 @@ export function singleFunctionMixedFormulaDisplay(
   companions: boolean,
   includeTaxa = false,
 ): string {
-  const rhs = (suffix: string) =>
-    `(${areaNumerator(companions, includeTaxa, suffix)}) / 60`;
-  return `Ad_dom = ${rhs("_dom")}; Ad_int = ${rhs("_int")}; ${singleFunctionMixedSumDisplay()}`;
+  const rhs = (suffix: string, tu: string) =>
+    `(${areaNumerator(companions, includeTaxa, suffix, tu)}) / 60`;
+  return `Ad_dom = ${rhs("_dom", "Tu_dom")}; Ad_int = ${rhs("_int", "Tu_int")}; ${singleFunctionMixedSumDisplay()}`;
 }
 
 export function mixedAreaSumDisplay(

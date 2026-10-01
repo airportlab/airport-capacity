@@ -364,10 +364,17 @@ export function ComponentEditor({
     (field) => !field.id.startsWith("demandaPicoConexao"),
   );
   const areaTaxaFields = contract.params.filter(
-    (field) => field.id === "taxaDeUsoArea",
+    (field) =>
+      field.id === "taxaDeUsoArea" ||
+      field.id === "taxaDeUsoAreaDomestico" ||
+      field.id === "taxaDeUsoAreaInternacional",
   );
   const equipmentTaxaFields = contract.params.filter(
-    (field) => isTaxaParam(field.id) && field.id !== "taxaDeUsoArea",
+    (field) =>
+      isTaxaParam(field.id) &&
+      field.id !== "taxaDeUsoArea" &&
+      field.id !== "taxaDeUsoAreaDomestico" &&
+      field.id !== "taxaDeUsoAreaInternacional",
   );
   const areaMeasureFields = contract.params.filter(
     (field) => field.id === "areaMedida",

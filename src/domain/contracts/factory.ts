@@ -203,7 +203,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     ...demandIds,
     ...(area
       ? [
-          ...(includeAreaTaxa ? (["taxaDeUsoArea"] as const) : []),
+          ...(includeAreaTaxa
+            ? splitCheckin
+              ? ([
+                  "taxaDeUsoAreaDomestico",
+                  "taxaDeUsoAreaInternacional",
+                ] as const)
+              : (["taxaDeUsoArea"] as const)
+            : []),
           ...areaIds,
         ]
       : []),

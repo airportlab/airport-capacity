@@ -239,13 +239,38 @@ function flowNotationSuffix(area: FlowParamIds["area"]): string {
   }
 }
 
+function checkinFlowTaxaId(
+  area: FlowParamIds["area"],
+  singleFunctionMixed: boolean,
+  includeAreaTaxa: boolean,
+): ComponentParamId | null {
+  if (!includeAreaTaxa) return null;
+  if (singleFunctionMixed && area === "areaMinimaDomestico") {
+    return "taxaDeUsoAreaDomestico";
+  }
+  if (singleFunctionMixed && area === "areaMinimaInternacional") {
+    return "taxaDeUsoAreaInternacional";
+  }
+  return "taxaDeUsoArea";
+}
+
+function checkinFlowTuSymbol(
+  area: FlowParamIds["area"],
+  singleFunctionMixed: boolean,
+): string {
+  if (singleFunctionMixed && area === "areaMinimaDomestico") return "Tu_dom";
+  if (singleFunctionMixed && area === "areaMinimaInternacional") return "Tu_int";
+  return "Tu";
+}
+
 function flowAreaExpression(
   flow: FlowParamIds,
   companions: boolean,
   includeTaxa: boolean,
+  tu = "Tu",
 ): string {
   const suffix = flowNotationSuffix(flow.area);
-  const dhp = withDemandTu(`DHp${suffix}`, includeTaxa);
+  const dhp = withDemandTu(`DHp${suffix}`, includeTaxa, tu);
   const emp = `Emp${suffix}`;
   const toi = `Toi${suffix}`;
   return companions
@@ -253,8 +278,8 @@ function flowAreaExpression(
     : `Ad${suffix} = (${dhp} × ${emp} × ${toi}) / 60`;
 }
 
-function withDemandTu(demand: string, includeTaxa: boolean): string {
-  return includeTaxa ? `${demand} × Tu` : demand;
+function withDemandTu(demand: string, includeTaxa: boolean, tu = "Tu"): string {
+  return includeTaxa ? `${demand} × ${tu}` : demand;
 }
 
 function connectionExpression(
@@ -417,7 +442,17 @@ export function capacityFormulas(copy: {
   if (includeArea && flows.length > 0) {
     for (const flow of flows) {
       const va = companions ? flow.va : undefined;
-      const expression = flowAreaExpression(flow, companions, includeAreaTaxa);
+      const flowTaxaId = checkinFlowTaxaId(
+        flow.area,
+        singleFunctionMixed,
+        includeAreaTaxa,
+      );
+      const expression = flowAreaExpression(
+        flow,
+        companions,
+        includeAreaTaxa,
+        checkinFlowTuSymbol(flow.area, singleFunctionMixed),
+      );
       formulas.push({
         id: flow.area,
         label: flowAreaLabel(flow, mixedNature),
@@ -425,9 +460,9 @@ export function capacityFormulas(copy: {
         origem: expression,
         expression,
         evaluate: (inputs) =>
-          areaValue(inputs, flow.demanda, flow.emp, flow.toi, va, areaTaxaId),
+          areaValue(inputs, flow.demanda, flow.emp, flow.toi, va, flowTaxaId),
         toExcel: (cells) =>
-          areaExcel(cells, flow.demanda, flow.emp, flow.toi, va, areaTaxaId),
+          areaExcel(cells, flow.demanda, flow.emp, flow.toi, va, flowTaxaId),
       });
     }
     for (const item of connections) {
@@ -480,7 +515,7 @@ export function capacityFormulas(copy: {
               flow.emp,
               flow.toi,
               companions ? flow.va : undefined,
-              areaTaxaId,
+              checkinFlowTaxaId(flow.area, singleFunctionMixed, includeAreaTaxa),
             ),
           0,
         ) +
@@ -505,7 +540,7 @@ export function capacityFormulas(copy: {
             flow.emp,
             flow.toi,
             companions ? flow.va : undefined,
-            areaTaxaId,
+            checkinFlowTaxaId(flow.area, singleFunctionMixed, includeAreaTaxa),
           ),
         );
         for (const item of connections) {

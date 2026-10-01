@@ -87,6 +87,21 @@ function pickNumbers<K extends string>(
   return next;
 }
 
+function copyLegacyAreaTaxa(
+  entry: RegistryEntry,
+  raw: Record<string, unknown>,
+  params: ComponentParams,
+): void {
+  if (entry.kind !== "checkin-bagagens" || natureOfEntry(entry) !== "misto") return;
+  if (!isFiniteNumber(raw.taxaDeUsoArea)) return;
+  if (!isFiniteNumber(raw.taxaDeUsoAreaDomestico)) {
+    params.taxaDeUsoAreaDomestico = raw.taxaDeUsoArea;
+  }
+  if (!isFiniteNumber(raw.taxaDeUsoAreaInternacional)) {
+    params.taxaDeUsoAreaInternacional = raw.taxaDeUsoArea;
+  }
+}
+
 function copyLegacyEquipmentTaxa(
   entry: RegistryEntry,
   raw: Record<string, unknown>,
@@ -272,6 +287,11 @@ function overlayComponents(
           rawComponents[entry.id] as Record<string, unknown>,
           COMPONENT_PARAM_IDS,
           defaults.components[entry.id] ?? defaultComponentParams(makeContract(entry)),
+        );
+        copyLegacyAreaTaxa(
+          entry,
+          rawComponents[entry.id] as Record<string, unknown>,
+          components[entry.id],
         );
         copyLegacyEquipmentTaxa(
           entry,

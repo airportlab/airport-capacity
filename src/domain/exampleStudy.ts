@@ -214,6 +214,12 @@ function fillOperations(entry: RegistryEntry, params: ComponentParams): void {
       params.quantidadeEquipamentos = equipmentQuantity(entry);
     }
     if (field.id === "taxaDeUsoArea") params.taxaDeUsoArea = AREA_TU;
+    if (field.id === "taxaDeUsoAreaDomestico") {
+      params.taxaDeUsoAreaDomestico = AREA_TU;
+    }
+    if (field.id === "taxaDeUsoAreaInternacional") {
+      params.taxaDeUsoAreaInternacional = 75;
+    }
     if (field.id === "taxaDeUsoEquipamento") {
       params.taxaDeUsoEquipamento = EQUIPMENT_TU;
     }

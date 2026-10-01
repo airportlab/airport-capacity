@@ -933,12 +933,19 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           flowRow.getCell(15).value = "—";
           flowRow.getCell(16).value = "—";
           flowRow.getCell(17).value = "—";
+          const flowTaxaId = (
+            [
+              "taxaDeUsoAreaDomestico",
+              "taxaDeUsoAreaInternacional",
+              "taxaDeUsoArea",
+            ] as const
+          ).find((id) => flowBlock.inputs[id]);
           writeDashOrNumber(
             flowRow.getCell(18),
-            evaluation.inputs.taxaDeUsoArea,
-            usesAreaTaxa(contract.requirements),
+            flowTaxaId ? evaluation.inputs[flowTaxaId] : Number.NaN,
+            Boolean(flowTaxaId),
           );
-          if (usesAreaTaxa(contract.requirements)) {
+          if (flowTaxaId) {
             flowRow.getCell(18).numFmt = "0.00";
           }
           fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
@@ -983,13 +990,20 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           row.getCell(col).value = "—";
         }
         row.getCell(17).value = "—";
-        writeDashOrNumber(
-          row.getCell(18),
-          evaluation.inputs.taxaDeUsoArea,
-          usesAreaTaxa(contract.requirements),
+        const splitAreaTaxa = contract.params.some(
+          (field) => field.id === "taxaDeUsoAreaDomestico",
         );
-        if (usesAreaTaxa(contract.requirements)) {
-          row.getCell(18).numFmt = "0.00";
+        if (splitAreaTaxa) {
+          row.getCell(18).value = "—";
+        } else {
+          writeDashOrNumber(
+            row.getCell(18),
+            evaluation.inputs.taxaDeUsoArea,
+            usesAreaTaxa(contract.requirements),
+          );
+          if (usesAreaTaxa(contract.requirements)) {
+            row.getCell(18).numFmt = "0.00";
+          }
         }
         row.getCell(11).value = evaluation.inputs.areaMedida;
         row.getCell(11).numFmt = "#,##0.00";

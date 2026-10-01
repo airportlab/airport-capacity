@@ -466,12 +466,25 @@ export function getNatureSheetLayout(
         const collected: NatureAreaRowLayout[] = [];
         const totalInputs: ExcelCellMap["inputs"] = {};
         const totalResults: ExcelCellMap["results"] = {};
+        const splitAreaTaxa = contract.params.some(
+          (field) => field.id === "taxaDeUsoAreaDomestico",
+        );
         for (const spec of mixedSpecsForParams(contract.params)) {
           const r = row;
+          const flowTaxaId = splitAreaTaxa
+            ? spec.area === "areaMinimaDomestico"
+              ? "taxaDeUsoAreaDomestico"
+              : spec.area === "areaMinimaInternacional"
+                ? "taxaDeUsoAreaInternacional"
+                : null
+            : usesAreaTaxa(contract.requirements)
+              ? "taxaDeUsoArea"
+              : null;
           totalInputs[spec.demanda] = `B${r}`;
           totalInputs[spec.emp] = `D${r}`;
           totalInputs[spec.toi] = `F${r}`;
           totalInputs[spec.va] = `G${r}`;
+          if (flowTaxaId) totalInputs[flowTaxaId] = `R${r}`;
           totalResults[spec.area] = `N${r}`;
           collected.push({
             row: r,
@@ -480,9 +493,7 @@ export function getNatureSheetLayout(
               [spec.emp]: `D${r}`,
               [spec.toi]: `F${r}`,
               [spec.va]: `G${r}`,
-              ...(usesAreaTaxa(contract.requirements)
-                ? { taxaDeUsoArea: `R${r}` }
-                : {}),
+              ...(flowTaxaId ? { [flowTaxaId]: `R${r}` } : {}),
             },
             results: {
               [spec.area]: `N${r}`,
@@ -540,7 +551,7 @@ export function getNatureSheetLayout(
         }
         const totalRow = row;
         totalInputs.areaMedida = `K${totalRow}`;
-        if (usesAreaTaxa(contract.requirements)) {
+        if (usesAreaTaxa(contract.requirements) && !splitAreaTaxa) {
           totalInputs.taxaDeUsoArea = `R${totalRow}`;
         }
         totalResults.areaMinima = `N${totalRow}`;

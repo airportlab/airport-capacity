@@ -157,17 +157,34 @@ export function evaluateComponent(
   };
 }
 
+function areaPeopleDemand(
+  contract: ComponentContract,
+  inputs: ResolvedInputs,
+): number {
+  const split = contract.params.some(
+    (field) => field.id === "taxaDeUsoAreaDomestico",
+  );
+  if (split) {
+    return (
+      inputs.demandaPicoDomestico * taxaFactor(inputs, "taxaDeUsoAreaDomestico") +
+      inputs.demandaPicoInternacional *
+        taxaFactor(inputs, "taxaDeUsoAreaInternacional")
+    );
+  }
+  return peopleDemand(
+    contract,
+    inputs,
+    usesAreaTaxa(contract.requirements) ? "taxaDeUsoArea" : null,
+  );
+}
+
 export function evaluateAreaCheck(
   contract: ComponentContract,
   inputs: ResolvedInputs,
   results: ComponentResults,
 ): RequirementCheckResult {
   const areaMinima = results.areaMinima ?? Number.NaN;
-  const demanda = peopleDemand(
-    contract,
-    inputs,
-    usesAreaTaxa(contract.requirements) ? "taxaDeUsoArea" : null,
-  );
+  const demanda = areaPeopleDemand(contract, inputs);
   const capacidade = areaCapacity(contract, inputs, demanda, areaMinima);
   const atende =
     inputs.areaMedida >= areaMinima && Number.isFinite(areaMinima);
