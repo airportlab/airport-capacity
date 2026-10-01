@@ -6,7 +6,13 @@ import type {
   ResolvedInputs,
 } from "../types";
 import type { FlowParamIds } from "./flowParams";
-import { demandSum, isArrivalsOnlyMixed, tsecIdForToi } from "./flowParams";
+import {
+  demandSum,
+  isArrivalsOnlyMixed,
+  isSplitCheckinEquipment,
+  splitEquipmentResultId,
+  tsecIdForToi,
+} from "./flowParams";
 import {
   areaFormulaDisplay,
   arrivalsConnectionAreaDisplay,
@@ -17,6 +23,8 @@ import {
   connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
+  equipmentTermDisplay,
+  splitEquipmentFormulaDisplay,
   splitLoungeFormulaDisplay,
   mixedAreaSumDisplay,
   simpleConnectionSumDisplay,
@@ -286,22 +294,40 @@ function equipmentDemandExcel(
   return `${sum}*(${requiredCell(cells, taxaId)}/100)`;
 }
 
+export function equipmentTermLoad(
+  inputs: ResolvedInputs,
+  term: EquipmentTerm,
+  taxaId: ComponentParamId | null,
+): number {
+  const factor = utilizationFactor(inputs, term.taxa ?? taxaId);
+  const denom = 60 * (60 + inputs[term.toi]);
+  if (!Number.isFinite(denom) || denom === 0) return Number.NaN;
+  const piece =
+    (demandSum(inputs, term.demandIds) * factor * inputs[term.tsec]) / denom;
+  return Number.isFinite(piece) ? piece : Number.NaN;
+}
+
 export function equipmentProcessingLoad(
   inputs: ResolvedInputs,
   terms: readonly EquipmentTerm[],
   taxaId: ComponentParamId | null,
 ): number {
-  const factor = utilizationFactor(inputs, taxaId);
   let sum = 0;
   for (const term of terms) {
-    const denom = 60 * (60 + inputs[term.toi]);
-    if (!Number.isFinite(denom) || denom === 0) return Number.NaN;
-    const piece =
-      (demandSum(inputs, term.demandIds) * factor * inputs[term.tsec]) / denom;
+    const piece = equipmentTermLoad(inputs, term, taxaId);
     if (!Number.isFinite(piece)) return Number.NaN;
     sum += piece;
   }
   return sum;
+}
+
+function equipmentTermExcel(
+  cells: ExcelCellMap["inputs"],
+  term: EquipmentTerm,
+  taxaId: ComponentParamId | null,
+): string {
+  const demanda = equipmentDemandExcel(cells, term.demandIds, term.taxa ?? taxaId);
+  return `ROUNDUP((${demanda}*${requiredCell(cells, term.tsec)})/(60*(60+${requiredCell(cells, term.toi)})),0)`;
 }
 
 export function capacityFormulas(copy: {
@@ -675,7 +701,42 @@ export function capacityFormulas(copy: {
     });
   }
 
-  if (includeEquipment) {
+  if (includeEquipment && isSplitCheckinEquipment(equipmentTerms)) {
+    const ordered = [...equipmentTerms].sort((left, right) =>
+      left.tsec === "tsecDomestico" ? -1 : right.tsec === "tsecDomestico" ? 1 : 0,
+    );
+    for (const term of ordered) {
+      const id = splitEquipmentResultId(term.tsec);
+      if (!id) continue;
+      const symbol = term.tsec === "tsecDomestico" ? "N_dom" : "N_int";
+      const nature = term.tsec === "tsecDomestico" ? "doméstico" : "internacional";
+      const expression = `${symbol} = ⌈${equipmentTermDisplay(term)}⌉`;
+      formulas.push({
+        id,
+        label: `Número mínimo de equipamentos · ${nature} (${symbol})`,
+        unit: "un",
+        origem: expression,
+        expression,
+        evaluate: (inputs) => ceilCount(equipmentTermLoad(inputs, term, null)),
+        toExcel: (cells) => equipmentTermExcel(cells, term, null),
+      });
+    }
+    formulas.push({
+      id: "numeroMinimoEquipamentos",
+      label: "Número mínimo de equipamentos (N)",
+      unit: "un",
+      origem:
+        "Cada fluxo tem o seu teto. N é a soma, sem novo arredondamento. Tsec em segundos.",
+      expression: splitEquipmentFormulaDisplay(ordered),
+      evaluate: (inputs) =>
+        ordered.reduce((sum, term) => {
+          const piece = equipmentTermLoad(inputs, term, null);
+          return Number.isFinite(piece) ? sum + ceilCount(piece) : Number.NaN;
+        }, 0),
+      toExcel: (cells) =>
+        ordered.map((term) => equipmentTermExcel(cells, term, null)).join("+"),
+    });
+  } else if (includeEquipment) {
     const multi = equipmentTerms.length > 1;
     formulas.push({
       id: "numeroMinimoEquipamentos",

@@ -515,10 +515,38 @@ function writeEquipmentFlowRow(
   } else {
     flowRow.getCell(5).value = "—";
   }
-  flowRow.getCell(6).value = "—";
+  const partialId =
+    tsecId === "tsecDomestico"
+      ? "numeroMinimoEquipamentosDomestico"
+      : tsecId === "tsecInternacional"
+        ? "numeroMinimoEquipamentosInternacional"
+        : null;
+  const partial = partialId
+    ? contract.formulas.find((formula) => formula.id === partialId)
+    : undefined;
+  if (partial && evaluation.results[partial.id] !== undefined) {
+    flowRow.getCell(6).value = {
+      formula: partial.toExcel(flowBlock.inputs),
+      result: evaluation.results[partial.id],
+    };
+    flowRow.getCell(6).numFmt = "#,##0";
+  } else {
+    flowRow.getCell(6).value = "—";
+  }
   flowRow.getCell(7).value = "—";
   flowRow.getCell(8).value = "—";
-  flowRow.getCell(9).value = "—";
+  const taxaId = (
+    [
+      "taxaDeUsoEquipamentoDomestico",
+      "taxaDeUsoEquipamentoInternacional",
+    ] as const
+  ).find((id) => flowBlock.inputs[id]);
+  if (taxaId) {
+    flowRow.getCell(9).value = evaluation.inputs[taxaId];
+    flowRow.getCell(9).numFmt = "0.00";
+  } else {
+    flowRow.getCell(9).value = "—";
+  }
   fillRow(flowRow, COLORS.paper, 1, NATURE_EQUIPMENT_COLUMNS);
 }
 
@@ -1271,15 +1299,45 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           row.getCell(5).value = "—";
         }
       }
-      writeDashOrNumber(
-        row.getCell(9),
-        evaluation.inputs.taxaDeUsoEquipamento,
-        usesEquipmentTaxa(contract.requirements),
+      const splitFlows = flowBlocks.some((flow) =>
+        contract.formulas.some(
+          (item) =>
+            item.id === "numeroMinimoEquipamentosDomestico" ||
+            item.id === "numeroMinimoEquipamentosInternacional",
+        ) &&
+        Object.keys(flow.inputs).some(
+          (id) => id === "tsecDomestico" || id === "tsecInternacional",
+        ),
       );
-      if (usesEquipmentTaxa(contract.requirements)) {
-        row.getCell(9).numFmt = "0.00";
+      if (splitFlows) {
+        row.getCell(9).value = "—";
+      } else {
+        writeDashOrNumber(
+          row.getCell(9),
+          evaluation.inputs.taxaDeUsoEquipamento,
+          usesEquipmentTaxa(contract.requirements),
+        );
+        if (usesEquipmentTaxa(contract.requirements)) {
+          row.getCell(9).numFmt = "0.00";
+        }
       }
-      if (formula) {
+      const partialCells = splitFlows
+        ? flowBlocks
+            .filter((flow) =>
+              Object.keys(flow.inputs).some(
+                (id) => id === "tsecDomestico" || id === "tsecInternacional",
+              ),
+            )
+            .map((flow) => `F${flow.row}`)
+        : [];
+      if (partialCells.length > 1) {
+        row.getCell(6).value = {
+          formula: partialCells.join("+"),
+          result: evaluation.results.numeroMinimoEquipamentos,
+        };
+        row.getCell(6).numFmt = "#,##0";
+        row.getCell(6).font = { bold: true };
+      } else if (formula) {
         row.getCell(6).value = {
           formula: formula.toExcel(block.inputs),
           result: evaluation.results.numeroMinimoEquipamentos,

@@ -382,13 +382,8 @@ export function AirportEditor() {
         continue;
       }
       if (previousEntry && keep.has(field.id)) continue;
-      if (
-        previousEntry &&
-        isTaxaParam(field.id) &&
-        previousParams &&
-        previousParams[field.id] > 0
-      ) {
-        params[field.id] = previousParams[field.id];
+      if (previousEntry && isTaxaParam(field.id) && !keep.has(field.id)) {
+        params[field.id] = field.defaultValue;
         continue;
       }
       params[field.id] = overlaid.params[field.id];

@@ -109,8 +109,41 @@ function writeFormula(
 }
 
 function equipmentLoad(excel: string): string | null {
-  const match = /^ROUNDUP\((.*),0\)$/.exec(excel);
-  return match?.[1] ?? null;
+  const loads: string[] = [];
+  let index = 0;
+  while (index < excel.length) {
+    while (excel[index] === "+") index += 1;
+    if (index >= excel.length) break;
+    const head = "ROUNDUP(";
+    if (!excel.startsWith(head, index)) return null;
+    index += head.length;
+    const start = index;
+    let depth = 1;
+    let exprEnd = -1;
+    while (index < excel.length && depth > 0) {
+      if (excel.startsWith(",0)", index) && depth === 1) {
+        exprEnd = index;
+        index += 3;
+        depth = 0;
+        break;
+      }
+      if (excel[index] === "(") depth += 1;
+      else if (excel[index] === ")") depth -= 1;
+      index += 1;
+    }
+    if (exprEnd < 0) return null;
+    loads.push(excel.slice(start, exprEnd));
+  }
+  if (loads.length === 0) return null;
+  return loads.join("+");
+}
+
+function isEquipmentCountFormula(id: string): boolean {
+  return (
+    id === "numeroMinimoEquipamentos" ||
+    id === "numeroMinimoEquipamentosDomestico" ||
+    id === "numeroMinimoEquipamentosInternacional"
+  );
 }
 
 type ParamLine = {
@@ -248,7 +281,7 @@ function applyAccounts(
       sheet.getRow(item.row).getCell(item.resultColumn ?? 5),
       excel,
       item.result,
-      item.formula.id === "numeroMinimoEquipamentos" ? "#,##0" : "#,##0.00",
+      isEquipmentCountFormula(item.formula.id) ? "#,##0" : "#,##0.00",
     );
     if (item.formula.id !== "numeroMinimoEquipamentos" || item.saturacao === null) {
       continue;
@@ -1845,7 +1878,9 @@ function isFlowBody(id: ComponentParamId): boolean {
     id.startsWith("espacoMinimo") ||
     id.startsWith("tempoDeOcupacao") ||
     id.startsWith("va") ||
-    id.startsWith("tsec")
+    id.startsWith("tsec") ||
+    id === "taxaDeUsoEquipamentoDomestico" ||
+    id === "taxaDeUsoEquipamentoInternacional"
   );
 }
 
@@ -2028,6 +2063,17 @@ function writeMemoryAccount(
     rowNumber += 1;
   }
 
+  const domesticFormula = item.contract.formulas.find(
+    (entry) => entry.id === "numeroMinimoEquipamentosDomestico",
+  );
+  const internationalFormula = item.contract.formulas.find(
+    (entry) => entry.id === "numeroMinimoEquipamentosInternacional",
+  );
+  const splitEquipment = Boolean(
+    kind === "equipment" && domesticFormula && internationalFormula,
+  );
+  const flowMinimums: { demandId: ComponentParamId; row: number }[] = [];
+
   const last = rowNumber - 1;
   let index = 0;
   while (index < lines.length) {
@@ -2039,11 +2085,23 @@ function writeMemoryAccount(
     if (group && end > index) {
       sheet.mergeCells(first + index, COL_FLOW, first + end, COL_FLOW);
       sheet.mergeCells(first + index, COL_DHP, first + end, COL_DHP);
+      if (splitEquipment) {
+        sheet.mergeCells(first + index, COL_MINIMUM, first + end, COL_MINIMUM);
+      }
+    }
+    if (
+      splitEquipment &&
+      (group === "demandaPicoDomestico" || group === "demandaPicoInternacional")
+    ) {
+      flowMinimums.push({ demandId: group, row: first + index });
     }
     index = end + 1;
   }
   if (last > first) {
-    for (const column of [COL_MINIMUM, COL_VERIFIED, COL_SATURATION, COL_MEETS]) {
+    const columns = splitEquipment
+      ? [COL_VERIFIED, COL_SATURATION, COL_MEETS]
+      : [COL_MINIMUM, COL_VERIFIED, COL_SATURATION, COL_MEETS];
+    for (const column of columns) {
       sheet.mergeCells(first, column, last, column);
     }
   }
@@ -2062,7 +2120,70 @@ function writeMemoryAccount(
   const minimumCell = `${columnName(COL_MINIMUM)}${first}`;
   const verifiedCell = `${columnName(COL_VERIFIED)}${first}`;
   const check = kind === "area" ? evaluation.areaCheck : evaluation.equipmentCheck;
-  if (result !== undefined && Number.isFinite(result)) {
+  if (
+    splitEquipment &&
+    domesticFormula &&
+    internationalFormula &&
+    result !== undefined &&
+    Number.isFinite(result)
+  ) {
+    const nCells: string[] = [];
+    for (const flow of flowMinimums) {
+      const partial =
+        flow.demandId === "demandaPicoDomestico"
+          ? domesticFormula
+          : internationalFormula;
+      const partialResult =
+        flow.demandId === "demandaPicoDomestico"
+          ? evaluation.results.numeroMinimoEquipamentosDomestico
+          : evaluation.results.numeroMinimoEquipamentosInternacional;
+      if (partialResult === undefined || !Number.isFinite(partialResult)) continue;
+      applyAccounts(
+        sheet,
+        [
+          {
+            componentId: item.contract.id,
+            row: flow.row,
+            formula: partial,
+            inputs: evaluation.inputs,
+            result: partialResult,
+            saturacao: null,
+            resultColumn: COL_MINIMUM,
+          },
+        ],
+        addresses,
+      );
+      nCells.push(`${columnName(COL_MINIMUM)}${flow.row}`);
+    }
+    const cells = new Proxy({} as ExcelCellMap["inputs"], {
+      get(_target, prop) {
+        if (typeof prop !== "string") return undefined;
+        const address = addresses.get(`${item.contract.id}|${prop}`);
+        if (address) return address;
+        if (!prop.startsWith("demanda")) return undefined;
+        const value = evaluation.inputs[prop as ComponentParamId];
+        return Number.isFinite(value) ? String(value) : "0";
+      },
+    });
+    const loads = [domesticFormula, internationalFormula]
+      .map((partial) => equipmentLoad(partial.toExcel(cells)))
+      .filter((load): load is string => load != null);
+    if (check && Number.isFinite(check.saturacao) && loads.length === 2) {
+      writeFormula(
+        sheet.getRow(first).getCell(COL_SATURATION),
+        `(${loads.join("+")})/${verifiedCell}`,
+        check.saturacao / 100,
+        "0%",
+      );
+    }
+    if (check && nCells.length > 0) {
+      writeFormula(
+        sheet.getRow(first).getCell(COL_MEETS),
+        `IF(${verifiedCell}>=${nCells.join("+")},"SIM","NÃO")`,
+        check.atende ? "SIM" : "NÃO",
+      );
+    }
+  } else if (result !== undefined && Number.isFinite(result)) {
     applyAccounts(sheet, [
       {
         componentId: item.contract.id,

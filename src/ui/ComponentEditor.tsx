@@ -1,5 +1,5 @@
 import type { AirportSource } from "../domain/airports";
-import { isSizingParam, isTsecParam } from "../domain/contracts/fields";
+import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
 import {
   beltManualStandard,
   isBeltManualParam,
@@ -367,14 +367,16 @@ export function ComponentEditor({
     (field) => field.id === "taxaDeUsoArea",
   );
   const equipmentTaxaFields = contract.params.filter(
-    (field) => field.id === "taxaDeUsoEquipamento",
+    (field) => isTaxaParam(field.id) && field.id !== "taxaDeUsoArea",
   );
   const areaMeasureFields = contract.params.filter(
     (field) => field.id === "areaMedida",
   );
-  const equipmentFields = contract.params.filter(
-    (field) =>
-      field.id === "quantidadeEquipamentos" || isTsecParam(field.id),
+  const equipmentQuantityFields = contract.params.filter(
+    (field) => field.id === "quantidadeEquipamentos",
+  );
+  const equipmentTsecFields = contract.params.filter((field) =>
+    isTsecParam(field.id),
   );
   const beltFields = contract.params.filter(
     (field) =>
@@ -804,6 +806,15 @@ export function ComponentEditor({
               onOrigemChange={onOrigemChange}
             />
           ) : null}
+          {equipmentQuantityFields.length > 0 ? (
+            <FieldList
+              fields={equipmentQuantityFields}
+              drafts={drafts}
+              origens={origens}
+              onValueChange={onValueChange}
+              onOrigemChange={onOrigemChange}
+            />
+          ) : null}
           {!area && sizingFields.length > 0 ? (
             mixed ? (
               mixedGroups.map(([label, needle]) => {
@@ -836,37 +847,21 @@ export function ComponentEditor({
             )
           ) : null}
           <div className="fields">
-            {equipmentFields.map((field) => {
-              if (isTsecParam(field.id)) {
-                const id = field.id;
-                return (
-                  <TsecParamControl
-                    key={id}
-                    field={field}
-                    draft={drafts[id] ?? formatEditable(0)}
-                    standard={standardTsecForParam(entry, id)}
-                    origem={origens[id] ?? field.origem}
-                    justification={justificativas[id] ?? ""}
-                    onValueChange={(raw) => onValueChange(id, raw)}
-                    onJustificationChange={(raw) =>
-                      onJustificationChange(id, raw)
-                    }
-                    onRestore={() => onRestoreContract(id)}
-                  />
-                );
-              }
+            {equipmentTsecFields.map((field) => {
+              const id = field.id;
               return (
-                <NumberField
-                  key={field.id}
+                <TsecParamControl
+                  key={id}
                   field={field}
-                  draft={drafts[field.id]}
-                  origem={origens[field.id] ?? field.origem}
-                  onValueChange={(raw) => onValueChange(field.id, raw)}
-                  onOrigemChange={
-                    field.origemEditavel
-                      ? (raw) => onOrigemChange(field.id, raw)
-                      : undefined
+                  draft={drafts[id] ?? formatEditable(0)}
+                  standard={standardTsecForParam(entry, id)}
+                  origem={origens[id] ?? field.origem}
+                  justification={justificativas[id] ?? ""}
+                  onValueChange={(raw) => onValueChange(id, raw)}
+                  onJustificationChange={(raw) =>
+                    onJustificationChange(id, raw)
                   }
+                  onRestore={() => onRestoreContract(id)}
                 />
               );
             })}

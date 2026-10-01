@@ -243,12 +243,29 @@ export function equipmentTsecSymbol(id: ComponentParamId = "tsec"): string {
   }
 }
 
+export function equipmentTuSymbol(id?: ComponentParamId | null): string {
+  if (id === "taxaDeUsoEquipamentoDomestico") return "Tu_dom";
+  if (id === "taxaDeUsoEquipamentoInternacional") return "Tu_int";
+  return "Tu";
+}
+
 export function equipmentNumerator(
   demandIds: readonly ComponentParamId[] = ["demandaPico"],
   includeTaxa = false,
   tsec: ComponentParamId = "tsec",
+  taxa?: ComponentParamId | null,
 ): string {
-  return `${withTu(equipmentDemandDisplay(demandIds), includeTaxa)} × ${equipmentTsecSymbol(tsec)}`;
+  const demand = equipmentDemandDisplay(demandIds);
+  const head = taxa
+    ? `${demand} × ${equipmentTuSymbol(taxa)}`
+    : withTu(demand, includeTaxa);
+  return `${head} × ${equipmentTsecSymbol(tsec)}`;
+}
+
+export function splitEquipmentSymbol(tsec: ComponentParamId): string {
+  if (tsec === "tsecDomestico") return "N_dom";
+  if (tsec === "tsecInternacional") return "N_int";
+  return "N";
 }
 
 export function equipmentToiSymbol(id: ComponentParamId): string {
@@ -278,7 +295,21 @@ export function equipmentTermDisplay(
   term: EquipmentTerm,
   includeTaxa = false,
 ): string {
-  return `(${equipmentNumerator(term.demandIds, includeTaxa, term.tsec)}) / (60 × (60 + ${equipmentToiSymbol(term.toi)}))`;
+  const taxa = term.taxa ?? (includeTaxa ? "taxaDeUsoEquipamento" : null);
+  return `(${equipmentNumerator(term.demandIds, includeTaxa, term.tsec, taxa)}) / (60 × (60 + ${equipmentToiSymbol(term.toi)}))`;
+}
+
+export function splitEquipmentFormulaDisplay(
+  terms: readonly EquipmentTerm[],
+): string {
+  const ordered = [...terms].sort((left, right) =>
+    left.tsec === "tsecDomestico" ? -1 : right.tsec === "tsecDomestico" ? 1 : 0,
+  );
+  const parts = ordered.map(
+    (term) =>
+      `${splitEquipmentSymbol(term.tsec)} = ⌈${equipmentTermDisplay(term)}⌉`,
+  );
+  return `${parts.join("; ")}; N = N_dom + N_int`;
 }
 
 const SINGLE_EQUIPMENT_TERM: EquipmentTerm = {

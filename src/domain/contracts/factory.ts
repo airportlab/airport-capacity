@@ -28,6 +28,8 @@ import {
   equipmentTerms,
   identityParamIds,
   isArrivalsOnlyMixed,
+  isSplitCheckinEquipment,
+  splitEquipmentTaxaId,
 } from "./flowParams";
 import { capacityFormulas } from "./formulas";
 import {
@@ -147,7 +149,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const arrivalsOnly = isArrivalsOnlyMixed(flows);
   const connection = connectionAreaParams(entry);
   const connections = connectionFlows(entry);
-  const terms = equipmentTerms(entry);
+  const rawTerms = equipmentTerms(entry);
+  const splitCheckin = isSplitCheckinEquipment(rawTerms);
+  const terms = splitCheckin && includeEquipmentTaxa
+    ? rawTerms.map((term) => {
+        const taxa = splitEquipmentTaxaId(term.tsec);
+        return taxa ? { ...term, taxa } : term;
+      })
+    : rawTerms;
   const equipmentToiIds = [
     ...new Set(terms.map((term) => term.toi)),
   ];
@@ -201,7 +210,12 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     ...(equipment
       ? [
           ...(includeEquipmentTaxa
-            ? (["taxaDeUsoEquipamento"] as const)
+            ? splitCheckin
+              ? ([
+                  "taxaDeUsoEquipamentoDomestico",
+                  "taxaDeUsoEquipamentoInternacional",
+                ] as const)
+              : (["taxaDeUsoEquipamento"] as const)
             : []),
           "quantidadeEquipamentos" as const,
           ...tsecIds,
@@ -256,8 +270,9 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   } else if (belt) {
     subtitle = "Requisito de tamanho mínimo de esteira.";
   } else if (equipment) {
-    subtitle =
-      terms.length > 1
+    subtitle = splitCheckin
+      ? "Requisito de equipamentos. Cada fluxo tem o seu teto; N é a soma."
+      : terms.length > 1
         ? "Requisito de equipamentos. Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
         : "Requisito de equipamentos de processamento.";
   }

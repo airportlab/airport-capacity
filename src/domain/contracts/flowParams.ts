@@ -284,6 +284,26 @@ export function tsecTargets(entry: RegistryEntry): TsecTarget[] {
   }));
 }
 
+/** Check-in misto: um termo doméstico e um internacional. */
+export function isSplitCheckinEquipment(terms: readonly EquipmentTerm[]): boolean {
+  const ids = new Set(terms.map((term) => term.tsec));
+  return ids.has("tsecDomestico") && ids.has("tsecInternacional");
+}
+
+export function splitEquipmentTaxaId(
+  tsec: ComponentParamId,
+): ComponentParamId | null {
+  if (tsec === "tsecDomestico") return "taxaDeUsoEquipamentoDomestico";
+  if (tsec === "tsecInternacional") return "taxaDeUsoEquipamentoInternacional";
+  return null;
+}
+
+export function splitEquipmentResultId(tsec: ComponentParamId): ResultId | null {
+  if (tsec === "tsecDomestico") return "numeroMinimoEquipamentosDomestico";
+  if (tsec === "tsecInternacional") return "numeroMinimoEquipamentosInternacional";
+  return null;
+}
+
 /** Um termo por fluxo de área. Cada conexão soma na demanda do fluxo com o mesmo Toi. */
 export function equipmentTerms(entry: RegistryEntry): EquipmentTerm[] {
   const flows = entryFlowParams(entry);

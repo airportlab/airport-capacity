@@ -45,6 +45,7 @@ import {
   COMPONENT_PARAM_IDS,
   JUSTIFICATIVA_IDS,
   SIZING_PARAM_IDS,
+  natureOfEntry,
   type JustificativaId,
 } from "../domain/types";
 
@@ -84,6 +85,21 @@ function pickNumbers<K extends string>(
     }
   }
   return next;
+}
+
+function copyLegacyEquipmentTaxa(
+  entry: RegistryEntry,
+  raw: Record<string, unknown>,
+  params: ComponentParams,
+): void {
+  if (entry.kind !== "checkin-bagagens" || natureOfEntry(entry) !== "misto") return;
+  if (!isFiniteNumber(raw.taxaDeUsoEquipamento)) return;
+  if (!isFiniteNumber(raw.taxaDeUsoEquipamentoDomestico)) {
+    params.taxaDeUsoEquipamentoDomestico = raw.taxaDeUsoEquipamento;
+  }
+  if (!isFiniteNumber(raw.taxaDeUsoEquipamentoInternacional)) {
+    params.taxaDeUsoEquipamentoInternacional = raw.taxaDeUsoEquipamento;
+  }
 }
 
 function pickStrings<K extends string>(
@@ -256,6 +272,11 @@ function overlayComponents(
           rawComponents[entry.id] as Record<string, unknown>,
           COMPONENT_PARAM_IDS,
           defaults.components[entry.id] ?? defaultComponentParams(makeContract(entry)),
+        );
+        copyLegacyEquipmentTaxa(
+          entry,
+          rawComponents[entry.id] as Record<string, unknown>,
+          components[entry.id],
         );
       }
     }

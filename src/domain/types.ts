@@ -74,6 +74,8 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoConexaoDesembarqueInternacional",
   "taxaDeUsoArea",
   "taxaDeUsoEquipamento",
+  "taxaDeUsoEquipamentoDomestico",
+  "taxaDeUsoEquipamentoInternacional",
   "areaMedida",
   "espacoMinimoPorPassageiro",
   "espacoMinimoPorPassageiroEmbarque",
@@ -241,6 +243,8 @@ export type ResultId =
   | "areaMinima"
   | "assentosMinimos"
   | "numeroMinimoEquipamentos"
+  | "numeroMinimoEquipamentosDomestico"
+  | "numeroMinimoEquipamentosInternacional"
   | "comprimentoMinimoDesembarqueDomestico"
   | "comprimentoMinimoDesembarqueInternacional"
   | "comprimentoMinimoEsteira";
@@ -279,6 +283,8 @@ export interface EquipmentTerm {
   demandIds: ComponentParamId[];
   toi: ComponentParamId;
   tsec: ComponentParamId;
+  /** Taxa deste fluxo no check-in misto, quando a marcação está ligada. */
+  taxa?: ComponentParamId;
 }
 
 export interface ComponentContract {

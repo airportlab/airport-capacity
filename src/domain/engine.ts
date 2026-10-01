@@ -74,6 +74,26 @@ function areaCapacity(
   return (inputs.areaMedida * 60) / (emp * toi * companions);
 }
 
+function equipmentPeopleDemand(
+  contract: ComponentContract,
+  inputs: ResolvedInputs,
+): number {
+  const terms = contract.equipmentTerms ?? [];
+  if (terms.some((term) => term.taxa)) {
+    return terms.reduce(
+      (sum, term) =>
+        sum +
+        demandSum(inputs, term.demandIds) * taxaFactor(inputs, term.taxa ?? null),
+      0,
+    );
+  }
+  return peopleDemand(
+    contract,
+    inputs,
+    usesEquipmentTaxa(contract.requirements) ? "taxaDeUsoEquipamento" : null,
+  );
+}
+
 function saturacaoPercent(demanda: number, capacidade: number): number {
   if (
     !Number.isFinite(demanda) ||
@@ -101,9 +121,12 @@ function equipmentCapacity(
           },
         ];
   if (terms.some((term) => inputs[term.tsec] === 0)) return Number.NaN;
-  const taxaId = usesEquipmentTaxa(contract.requirements)
-    ? "taxaDeUsoEquipamento"
-    : null;
+  const perFlowTaxa = terms.some((term) => term.taxa);
+  const taxaId = perFlowTaxa
+    ? null
+    : usesEquipmentTaxa(contract.requirements)
+      ? "taxaDeUsoEquipamento"
+      : null;
   const load = equipmentProcessingLoad(inputs, terms, taxaId);
   return scaledCapacity(demanda, inputs.quantidadeEquipamentos, load);
 }
@@ -164,11 +187,7 @@ export function evaluateEquipmentCheck(
   results: ComponentResults,
 ): RequirementCheckResult {
   const minimo = results.numeroMinimoEquipamentos ?? Number.NaN;
-  const demanda = peopleDemand(
-    contract,
-    inputs,
-    usesEquipmentTaxa(contract.requirements) ? "taxaDeUsoEquipamento" : null,
-  );
+  const demanda = equipmentPeopleDemand(contract, inputs);
   const capacidade = equipmentCapacity(contract, inputs, demanda);
   const atende =
     inputs.quantidadeEquipamentos >= minimo && Number.isFinite(minimo);

@@ -6,7 +6,9 @@ import {
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
   equipmentNumerator,
+  equipmentTermDisplay,
   equipmentToiSymbol,
+  splitEquipmentSymbol,
   arrivalsConnectionNumerator,
   beltNumerator,
   beltSumDisplay,
@@ -14,13 +16,14 @@ import {
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
 } from "../domain/contracts/notations";
+import { isSplitCheckinEquipment } from "../domain/contracts/flowParams";
 import type { EquipmentTerm } from "../domain/types";
 
 export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
   const pattern =
-    /(?<![A-Za-zÀ-ÿ0-9])(\()?(CHp|PMM|DHp|Emp|Toi|Tsec|Ocup|Lmp|Le|Lt|Eb|Ec|Pa|Tr|Ad|v\.a|C)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(CHp|PMM|DHp|Emp|Toi|Tsec|Ocup|Lmp|Le|Lt|Eb|Ec|Pa|Tr|Ad|Tu|v\.a|C|N)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -478,11 +481,13 @@ const SINGLE_EQUIPMENT_TERM: EquipmentTerm = {
 interface EquipmentEquationProps {
   terms?: readonly EquipmentTerm[];
   includeTaxa?: boolean;
+  lhs?: string;
 }
 
 export function EquipmentEquation({
   terms = [SINGLE_EQUIPMENT_TERM],
   includeTaxa = false,
+  lhs = "N",
 }: EquipmentEquationProps) {
   const shown = terms.length > 0 ? terms : [SINGLE_EQUIPMENT_TERM];
   const stacked = shown.length > 1;
@@ -494,7 +499,12 @@ export function EquipmentEquation({
       <span className="tex-frac">
         <span className="tex-num">
           <TexText
-            text={equipmentNumerator(term.demandIds, includeTaxa, term.tsec)}
+            text={equipmentNumerator(
+              term.demandIds,
+              includeTaxa,
+              term.tsec,
+              term.taxa,
+            )}
           />
         </span>
         <span className="tex-den">
@@ -503,13 +513,20 @@ export function EquipmentEquation({
       </span>
     </span>
   ));
+  const single = shown[0] ?? SINGLE_EQUIPMENT_TERM;
   return (
     <div
       className={stacked ? "tex tex-ceil tex-ceil-stack" : "tex tex-ceil"}
       role="img"
-      aria-label={equipmentFormulaDisplay(shown, includeTaxa)}
+      aria-label={
+        stacked
+          ? equipmentFormulaDisplay(shown, includeTaxa)
+          : `${lhs} = ⌈${equipmentTermDisplay(single, includeTaxa)}⌉`
+      }
     >
-      <span className="tex-lhs">N</span>
+      <span className="tex-lhs">
+        <TexText text={lhs} />
+      </span>
       <span className="tex-eq">=</span>
       <span className="tex-ceil-brace" aria-hidden="true">
         {stacked ? null : "⌈"}
@@ -575,23 +592,54 @@ export function BeltFormulaCard({
   );
 }
 
+function checkinEquipmentOrder(terms: readonly EquipmentTerm[]): EquipmentTerm[] {
+  return [...terms].sort((left, right) =>
+    left.tsec === "tsecDomestico" ? -1 : right.tsec === "tsecDomestico" ? 1 : 0,
+  );
+}
+
 export function EquipmentFormulaCard({
   terms = [SINGLE_EQUIPMENT_TERM],
   includeTaxa = false,
   afterEquation,
 }: EquipmentEquationProps & { afterEquation?: ReactNode }) {
   const shown = terms.length > 0 ? terms : [SINGLE_EQUIPMENT_TERM];
+  const split = isSplitCheckinEquipment(shown);
   return (
     <div className="formula-card">
       <p className="formula-kicker">Fórmula do requisito de equipamentos</p>
-      <EquipmentEquation terms={shown} includeTaxa={includeTaxa} />
+      {split ? (
+        <>
+          {checkinEquipmentOrder(shown).map((term) => (
+            <EquipmentEquation
+              key={term.tsec}
+              terms={[term]}
+              includeTaxa={includeTaxa}
+              lhs={splitEquipmentSymbol(term.tsec)}
+            />
+          ))}
+          <div className="tex" role="img" aria-label="N = N_dom + N_int">
+            <span className="tex-lhs">
+              <TexText text="N" />
+            </span>
+            <span className="tex-eq">=</span>
+            <span>
+              <TexText text="N_dom + N_int" />
+            </span>
+          </div>
+        </>
+      ) : (
+        <EquipmentEquation terms={shown} includeTaxa={includeTaxa} />
+      )}
       {afterEquation}
       <p className="origem">
         Inteiro mínimo, arredondado para cima. O Toi é o tempo de ocupação do
         requisito de área, em minutos; Tsec em segundos.
-        {shown.length > 1
-          ? " Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
-          : ""}
+        {split
+          ? " Cada fluxo tem o seu teto. N é a soma, sem novo arredondamento."
+          : shown.length > 1
+            ? " Cada fluxo usa o seu Toi e o seu Tsec; N é o teto da soma."
+            : ""}
       </p>
     </div>
   );

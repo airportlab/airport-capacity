@@ -654,6 +654,10 @@ export function getNatureSheetLayout(
             flowInputs[extra] = extraCell;
             inputs[extra] = extraCell;
           }
+          if (term.taxa) {
+            flowInputs[term.taxa] = `I${fr}`;
+            inputs[term.taxa] = `I${fr}`;
+          }
           localFlows.push({
             row: fr,
             inputs: flowInputs,
@@ -667,7 +671,8 @@ export function getNatureSheetLayout(
       if (!multi) {
         inputs[terms[0]?.tsec ?? "tsec"] = `D${r}`;
       }
-      if (usesEquipmentTaxa(contract.requirements)) {
+      const splitTaxa = terms.some((term) => term.taxa);
+      if (usesEquipmentTaxa(contract.requirements) && !splitTaxa) {
         inputs.taxaDeUsoEquipamento = `I${r}`;
       }
       const mixedFlows = area?.flowRows[contract.id];

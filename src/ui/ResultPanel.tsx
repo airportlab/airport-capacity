@@ -12,7 +12,11 @@ function isAreaFormula(id: ResultId): boolean {
 }
 
 function isEquipmentFormula(id: ResultId): boolean {
-  return id === "numeroMinimoEquipamentos";
+  return (
+    id === "numeroMinimoEquipamentos" ||
+    id === "numeroMinimoEquipamentosDomestico" ||
+    id === "numeroMinimoEquipamentosInternacional"
+  );
 }
 
 function isBeltFormula(id: ResultId): boolean {
