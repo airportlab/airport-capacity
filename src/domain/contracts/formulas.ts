@@ -704,35 +704,39 @@ export function capacityFormulas(copy: {
     if (boarding) {
       formulas.push({
         id: "assentosMinimos",
-        label: "Assentos mínimos oferecidos",
+        label: "Assentos mínimos necessários",
         unit: "un",
         origem:
-          `Só no fluxo de embarque: ocupação simultânea (${seatsDemandE} × Toi_e / 60) vezes o percentual mínimo de assentos do contrato.`,
-        expression: `(${seatsDemandE} × Toi_e / 60) × (percentual mínimo / 100)`,
+          `Só no fluxo de embarque: número mínimo inteiro de assentos, arredondado para cima. Ocupação simultânea (${seatsDemandE} × Toi_e / 60) vezes o percentual mínimo de assentos do contrato.`,
+        expression: `⌈(${seatsDemandE} × Toi_e / 60) × (percentual mínimo / 100)⌉`,
         evaluate: (inputs) =>
-          ((usedDemand(inputs, boarding.demanda, areaTaxaId) *
-            inputs[boarding.toi]) /
-            60) *
-          (inputs.percentualMinimoAssentos / 100),
+          ceilCount(
+            ((usedDemand(inputs, boarding.demanda, areaTaxaId) *
+              inputs[boarding.toi]) /
+              60) *
+              (inputs.percentualMinimoAssentos / 100),
+          ),
         toExcel: (cells) =>
-          `(${usedDemandExcel(cells, boarding.demanda, areaTaxaId)}*${requiredCell(cells, boarding.toi)}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100)`,
+          `ROUNDUP((${usedDemandExcel(cells, boarding.demanda, areaTaxaId)}*${requiredCell(cells, boarding.toi)}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
       });
     }
   } else if (includeSeats) {
     formulas.push({
       id: "assentosMinimos",
-      label: "Assentos mínimos oferecidos",
+      label: "Assentos mínimos necessários",
       unit: "un",
       origem:
-        `Ocupação simultânea (${seatsDemand} × Toi / 60) vezes o percentual mínimo de assentos do contrato.`,
-      expression: `(${seatsDemand} × Toi / 60) × (percentual mínimo / 100)`,
+        `Número mínimo inteiro de assentos, arredondado para cima: ocupação simultânea (${seatsDemand} × Toi / 60) vezes o percentual mínimo de assentos do contrato.`,
+      expression: `⌈(${seatsDemand} × Toi / 60) × (percentual mínimo / 100)⌉`,
       evaluate: (inputs) =>
-        ((usedDemand(inputs, "demandaPico", areaTaxaId) *
-          inputs.tempoDeOcupacao) /
-          60) *
-        (inputs.percentualMinimoAssentos / 100),
+        ceilCount(
+          ((usedDemand(inputs, "demandaPico", areaTaxaId) *
+            inputs.tempoDeOcupacao) /
+            60) *
+            (inputs.percentualMinimoAssentos / 100),
+        ),
       toExcel: (cells) =>
-        `(${usedDemandExcel(cells, "demandaPico", areaTaxaId)}*${requiredCell(cells, "tempoDeOcupacao")}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100)`,
+        `ROUNDUP((${usedDemandExcel(cells, "demandaPico", areaTaxaId)}*${requiredCell(cells, "tempoDeOcupacao")}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
     });
   }
 

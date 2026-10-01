@@ -1136,7 +1136,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           formula: seatsFormula.toExcel(block.inputs),
           result: evaluation.results.assentosMinimos,
         };
-        row.getCell(15).numFmt = "#,##0.00";
+        row.getCell(15).numFmt = "#,##0";
       } else {
         row.getCell(15).value = "—";
       }

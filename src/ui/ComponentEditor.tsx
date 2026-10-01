@@ -58,6 +58,7 @@ import {
   DualAreaFormulaCard,
   EquipmentFormulaCard,
   FormulaCard,
+  SeatsFormulaLine,
   SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
@@ -686,7 +687,10 @@ export function ComponentEditor({
               includeTaxa={areaTaxa}
               hasConnection={hasBoardingConnection(entry)}
               afterEquation={
-                <AreaResults contract={contract} evaluation={evaluation} />
+                <>
+                  <SeatsFormulaLine contract={contract} />
+                  <AreaResults contract={contract} evaluation={evaluation} />
+                </>
               }
             />
           ) : contract.params.some(
@@ -704,7 +708,10 @@ export function ComponentEditor({
               includeTaxa={areaTaxa}
               hasConnection={hasBoardingConnection(entry)}
               afterEquation={
-                <AreaResults contract={contract} evaluation={evaluation} />
+                <>
+                  <SeatsFormulaLine contract={contract} />
+                  <AreaResults contract={contract} evaluation={evaluation} />
+                </>
               }
             />
           )}

@@ -17,7 +17,7 @@ import {
   singleFunctionMixedSumDisplay,
 } from "../domain/contracts/notations";
 import { isSplitCheckinEquipment } from "../domain/contracts/flowParams";
-import type { EquipmentTerm } from "../domain/types";
+import type { ComponentContract, EquipmentTerm } from "../domain/types";
 
 export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
@@ -71,6 +71,24 @@ export function AreaEquation({
           <TexText text={num} />
         </span>
         <span className="tex-den">60</span>
+      </span>
+    </div>
+  );
+}
+
+export function SeatsFormulaLine({
+  contract,
+}: {
+  contract: ComponentContract;
+}) {
+  const formula = contract.formulas.find((item) => item.id === "assentosMinimos");
+  if (!formula) return null;
+  return (
+    <div className="tex" role="img" aria-label={`Assentos = ${formula.expression}`}>
+      <span className="tex-lhs">Assentos</span>
+      <span className="tex-eq">=</span>
+      <span>
+        <TexText text={formula.expression} />
       </span>
     </div>
   );
