@@ -12,7 +12,12 @@ import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import { usesAreaTaxa } from "../domain/types";
 import { roundLabel, sourceCitation } from "../domain/pmd";
 import { formatAirportName, formatNumber, formatReportDate, formatSaturacao } from "./format";
-import { AreaEquation, SplitLoungeEquation, TexText } from "./FormulaCard";
+import {
+  AreaEquation,
+  SeatsFormulaLine,
+  SplitLoungeEquation,
+  TexText,
+} from "./FormulaCard";
 import { PmdTable } from "./PmdTable";
 import { complianceClass, complianceLabel, equipmentColumn } from "./SummaryPage";
 
@@ -208,7 +213,9 @@ function ComponentSections({
                           includeTaxa={usesAreaTaxa(contract.requirements)}
                         />
                       )
-                    : (
+                    : formula.id === "assentosMinimos" ? (
+                        <SeatsFormulaLine contract={contract} />
+                      ) : (
                         <TexText text={formula.expression} />
                       )}
                 </td>

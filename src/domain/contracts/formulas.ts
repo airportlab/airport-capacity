@@ -708,7 +708,7 @@ export function capacityFormulas(copy: {
         unit: "un",
         origem:
           `Só no fluxo de embarque: número mínimo inteiro de assentos, arredondado para cima. Ocupação simultânea (${seatsDemandE} × Toi_e / 60) vezes o percentual mínimo de assentos do contrato.`,
-        expression: `⌈(${seatsDemandE} × Toi_e / 60) × (percentual mínimo / 100)⌉`,
+        expression: `⌈(${seatsDemandE} × Toi_e / 60) × P_min⌉`,
         evaluate: (inputs) =>
           ceilCount(
             ((usedDemand(inputs, boarding.demanda, areaTaxaId) *
@@ -727,7 +727,7 @@ export function capacityFormulas(copy: {
       unit: "un",
       origem:
         `Número mínimo inteiro de assentos, arredondado para cima: ocupação simultânea (${seatsDemand} × Toi / 60) vezes o percentual mínimo de assentos do contrato.`,
-      expression: `⌈(${seatsDemand} × Toi / 60) × (percentual mínimo / 100)⌉`,
+      expression: `⌈(${seatsDemand} × Toi / 60) × P_min⌉`,
       evaluate: (inputs) =>
         ceilCount(
           ((usedDemand(inputs, "demandaPico", areaTaxaId) *

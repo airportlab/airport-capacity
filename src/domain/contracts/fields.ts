@@ -399,7 +399,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
   percentualMinimoAssentos: {
     id: "percentualMinimoAssentos",
     kind: "sizing",
-    label: "Percentual mínimo de assentos",
+    label: "Percentual mínimo de assentos (P_min)",
     unit: "%",
     defaultValue: 70,
     origem:

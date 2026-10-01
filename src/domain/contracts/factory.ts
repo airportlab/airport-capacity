@@ -356,7 +356,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       ...(dualFlows && seats
         ? {
             percentualMinimoAssentos: {
-              label: "Percentual mínimo de assentos · embarque",
+              label: "Percentual mínimo de assentos (P_min) · embarque",
             },
           }
         : {}),

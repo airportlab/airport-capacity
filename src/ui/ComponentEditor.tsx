@@ -707,6 +707,9 @@ export function ComponentEditor({
               companions={area.companions}
               includeTaxa={areaTaxa}
               hasConnection={hasBoardingConnection(entry)}
+              includeSeats={contract.formulas.some(
+                (formula) => formula.id === "assentosMinimos",
+              )}
               afterEquation={
                 <>
                   <SeatsFormulaLine contract={contract} />

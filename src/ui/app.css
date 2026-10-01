@@ -905,6 +905,10 @@ fieldset.field {
   font-weight: 700;
 }
 
+.formula-card .formula-kicker-follow {
+  margin-top: 12px;
+}
+
 .formula-eq {
   margin: 0;
   font-family: var(--font-serif);
@@ -1035,7 +1039,7 @@ fieldset.field {
 
 .formula-legend > div {
   display: grid;
-  grid-template-columns: 3.2rem 1fr;
+  grid-template-columns: 4.2rem 1fr;
   gap: 8px;
   font-size: 0.88rem;
 }

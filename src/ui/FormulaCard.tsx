@@ -23,7 +23,7 @@ export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
   let last = 0;
   const pattern =
-    /(?<![A-Za-zÀ-ÿ0-9])(\()?(CHp|PMM|DHp|Emp|Toi|Tsec|Ocup|Lmp|Le|Lt|Eb|Ec|Pa|Tr|Ad|Tu|v\.a|C|N)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
+    /(?<![A-Za-zÀ-ÿ0-9])(\()?(CHp|PMM|DHp|Emp|Toi|Tsec|Ocup|Lmp|Le|Lt|Eb|Ec|Pa|P|Tr|Ad|Tu|v\.a|C|N)(?:_([A-Za-z0-9,]+))?(\))?(?![A-Za-zÀ-ÿ0-9])/g;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > last) parts.push(text.slice(last, index));
@@ -76,6 +76,14 @@ export function AreaEquation({
   );
 }
 
+function seatsNumerator(expression: string): string {
+  const boarding = expression.includes("DHp_e");
+  const includeTaxa = expression.includes("Tu");
+  const demand = boarding ? "DHp_e" : "DHp";
+  const toi = boarding ? "Toi_e" : "Toi";
+  return includeTaxa ? `${demand} × Tu × ${toi}` : `${demand} × ${toi}`;
+}
+
 export function SeatsFormulaLine({
   contract,
 }: {
@@ -83,24 +91,57 @@ export function SeatsFormulaLine({
 }) {
   const formula = contract.formulas.find((item) => item.id === "assentosMinimos");
   if (!formula) return null;
+  const numerator = seatsNumerator(formula.expression);
+  const label = `Assentos = ⌈(${numerator} / 60) × P_min⌉`;
   return (
-    <div className="tex" role="img" aria-label={`Assentos = ${formula.expression}`}>
-      <span className="tex-lhs">Assentos</span>
-      <span className="tex-eq">=</span>
-      <span>
-        <TexText text={formula.expression} />
-      </span>
-    </div>
+    <>
+      <p className="formula-kicker formula-kicker-follow">Número mínimo de assentos</p>
+      <div className="tex tex-ceil" role="img" aria-label={label}>
+        <span className="tex-lhs">Assentos</span>
+        <span className="tex-eq">=</span>
+        <span className="tex-ceil-brace" aria-hidden="true">
+          ⌈
+        </span>
+        <span className="tex-term">
+          <span className="tex-frac">
+            <span className="tex-num">
+              <TexText text={numerator} />
+            </span>
+            <span className="tex-den">60</span>
+          </span>
+          <span>
+            × <TexText text="P_min" />
+          </span>
+        </span>
+        <span className="tex-ceil-brace tex-ceil-brace-close" aria-hidden="true">
+          ⌉
+        </span>
+      </div>
+    </>
   );
 }
 
-function areaLegend(companions: boolean, includeTaxa: boolean, hasConnection: boolean) {
-  return AREA_NOTATIONS.filter((item) => {
+function areaLegend(
+  companions: boolean,
+  includeTaxa: boolean,
+  hasConnection: boolean,
+  includeSeats: boolean,
+) {
+  const items = AREA_NOTATIONS.filter((item) => {
     if (item.symbol === "v.a" && !companions) return false;
     if (item.symbol === "Tu" && !includeTaxa) return false;
     if (item.symbol === "DHp_c" && !hasConnection) return false;
     return true;
   });
+  if (!includeSeats) return items;
+  return [
+    ...items,
+    {
+      symbol: "P_min",
+      meaning: "Percentual mínimo de assentos",
+      unit: "%",
+    },
+  ];
 }
 
 function ConnectionEquation({
@@ -124,14 +165,16 @@ function AreaLegend({
   companions,
   includeTaxa,
   hasConnection,
+  includeSeats = false,
 }: {
   companions: boolean;
   includeTaxa: boolean;
   hasConnection: boolean;
+  includeSeats?: boolean;
 }) {
   return (
     <dl className="formula-legend">
-      {areaLegend(companions, includeTaxa, hasConnection).map((item) => (
+      {areaLegend(companions, includeTaxa, hasConnection, includeSeats).map((item) => (
         <div key={item.symbol}>
             <dt>
               <TexText text={item.symbol} />
@@ -223,6 +266,7 @@ interface FormulaCardProps {
   companions: boolean;
   includeTaxa?: boolean;
   hasConnection?: boolean;
+  includeSeats?: boolean;
   afterEquation?: ReactNode;
 }
 
@@ -230,6 +274,7 @@ export function FormulaCard({
   companions,
   includeTaxa = false,
   hasConnection = false,
+  includeSeats = false,
   afterEquation,
 }: FormulaCardProps) {
   const sum = simpleConnectionSumDisplay();
@@ -271,6 +316,7 @@ export function FormulaCard({
         companions={companions}
         includeTaxa={includeTaxa}
         hasConnection={hasConnection}
+        includeSeats={includeSeats}
       />
     </div>
   );
