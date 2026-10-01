@@ -849,6 +849,7 @@ export function ComponentEditor({
           <div className="fields">
             {equipmentTsecFields.map((field) => {
               const id = field.id;
+              if (!isTsecParam(id)) return null;
               return (
                 <TsecParamControl
                   key={id}
