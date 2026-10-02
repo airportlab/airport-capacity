@@ -50,6 +50,7 @@ export interface ExampleStudy {
 
 const AREA_TU = 85;
 const EQUIPMENT_TU = 90;
+const BELT_TU = 80;
 
 const EXTRA_INSTANCES: ReadonlyArray<{
   kind: OrganKind;
@@ -142,7 +143,7 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
     const note = observation(template.kind, nature);
     registry.push({
       ...created,
-      requirements: exampleRequirements(template),
+      requirements: exampleRequirements(template, nature),
       ...(note ? { observacoes: note } : {}),
       ...(exampleConnection(template.kind, nature)
         ? { hasConnection: true }
@@ -152,7 +153,10 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
   return registry;
 }
 
-function exampleRequirements(template: OrganTemplate): ComponentRequirements {
+function exampleRequirements(
+  template: OrganTemplate,
+  nature: OrganNature,
+): ComponentRequirements {
   const requirements = requirementsFromPreset(template.preset);
   if (requirements.area && template.preset === "areaCompanions") {
     requirements.area = { companions: true, taxaDiferente: true };
@@ -161,7 +165,8 @@ function exampleRequirements(template: OrganTemplate): ComponentRequirements {
     requirements.equipment = { taxaDiferente: true };
   }
   if (template.kind === "sala-desembarque") {
-    requirements.esteira = {};
+    requirements.esteira =
+      nature === "domestico" ? { taxaDiferente: true } : {};
   }
   return requirements;
 }
@@ -229,6 +234,7 @@ function fillOperations(entry: RegistryEntry, params: ComponentParams): void {
     if (field.id === "taxaDeUsoEquipamentoInternacional") {
       params.taxaDeUsoEquipamentoInternacional = 80;
     }
+    if (field.id === "taxaDeUsoEsteira") params.taxaDeUsoEsteira = BELT_TU;
   }
 }
 
@@ -363,12 +369,15 @@ function applyBelt(
 }
 
 function beltRequired(entry: RegistryEntry, params: ComponentParams): number {
+  const taxaId = entry.requirements.esteira?.taxaDiferente
+    ? "taxaDeUsoEsteira"
+    : null;
   const flows = entryFlowParams(entry);
   if (flows.length === 0) {
-    return beltTermValue(params, "demandaPico", "tempoDeOcupacao");
+    return beltTermValue(params, "demandaPico", "tempoDeOcupacao", taxaId);
   }
   return flows.reduce(
-    (sum, flow) => sum + beltTermValue(params, flow.demanda, flow.toi),
+    (sum, flow) => sum + beltTermValue(params, flow.demanda, flow.toi, taxaId),
     0,
   );
 }

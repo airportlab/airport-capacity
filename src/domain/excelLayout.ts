@@ -13,7 +13,13 @@ import type {
   InputId,
   ResultId,
 } from "./types";
-import { hasEquipment, hasEsteira, usesAreaTaxa, usesEquipmentTaxa } from "./types";
+import {
+  hasEquipment,
+  hasEsteira,
+  usesAreaTaxa,
+  usesEquipmentTaxa,
+  usesEsteiraTaxa,
+} from "./types";
 
 export const WORKBOOK_SHEET_NAME = "Dimensionamento";
 
@@ -118,7 +124,7 @@ export interface NatureSheetLayout extends ExcelHeaderLayout {
 export const NATURE_SHEET_NAME = "Natureza";
 export const NATURE_AREA_COLUMNS = 21;
 export const NATURE_EQUIPMENT_COLUMNS = 9;
-export const NATURE_BELT_COLUMNS = 8;
+export const NATURE_BELT_COLUMNS = 9;
 
 export const areaCheckContract = {
   id: "statusArea" as const,
@@ -400,24 +406,30 @@ function layoutBeltBlock(
         const fr = row;
         const flowInputs: ExcelCellMap["inputs"] = {
           [term.demanda]: areaInputs?.[term.demanda] ?? `B${fr}`,
-          [term.toi]: areaInputs?.[term.toi] ?? `E${fr}`,
-          taxaRetiradaBagagem: `C${totalRow}`,
-          comprimentoLinearPassageiro: `D${totalRow}`,
+          [term.toi]: areaInputs?.[term.toi] ?? `F${fr}`,
+          taxaRetiradaBagagem: `D${totalRow}`,
+          comprimentoLinearPassageiro: `E${totalRow}`,
+          ...(usesEsteiraTaxa(contract.requirements)
+            ? { taxaDeUsoEsteira: `C${totalRow}` }
+            : {}),
         };
         localFlows.push({
           row: fr,
           label: term.label,
           inputs: flowInputs,
-          results: term.partial ? { [term.partial]: `F${fr}` } : {},
+          results: term.partial ? { [term.partial]: `G${fr}` } : {},
         });
         row += 1;
       }
     }
     const r = row;
     const inputs: ExcelCellMap["inputs"] = {
-      taxaRetiradaBagagem: `C${r}`,
-      comprimentoLinearPassageiro: `D${r}`,
-      comprimentoEsteiras: `G${r}`,
+      ...(usesEsteiraTaxa(contract.requirements)
+        ? { taxaDeUsoEsteira: `C${r}` }
+        : {}),
+      taxaRetiradaBagagem: `D${r}`,
+      comprimentoLinearPassageiro: `E${r}`,
+      comprimentoEsteiras: `H${r}`,
     };
     if (multi) {
       for (const flow of localFlows) Object.assign(inputs, flow.inputs);
@@ -425,13 +437,13 @@ function layoutBeltBlock(
       const term = terms[0];
       if (term) {
         inputs[term.demanda] = areaInputs?.[term.demanda] ?? `B${r}`;
-        inputs[term.toi] = areaInputs?.[term.toi] ?? `E${r}`;
+        inputs[term.toi] = areaInputs?.[term.toi] ?? `F${r}`;
       }
     }
     rows[contract.id] = {
       row: r,
       inputs,
-      results: { comprimentoMinimoEsteira: `F${r}` },
+      results: { comprimentoMinimoEsteira: `G${r}` },
     };
     if (localFlows.length > 0) flowRows[contract.id] = localFlows;
     row += 1;

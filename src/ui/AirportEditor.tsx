@@ -560,6 +560,22 @@ export function AirportEditor() {
     }));
   }
 
+  function handleSetEsteiraTaxa(id: ComponentId, taxaDiferente: boolean) {
+    updateRequirements(id, (entry) => {
+      if (!entry.requirements.esteira) return entry;
+      return {
+        ...entry,
+        requirements: {
+          ...entry.requirements,
+          esteira: {
+            ...entry.requirements.esteira,
+            taxaDiferente: taxaDiferente || undefined,
+          },
+        },
+      };
+    });
+  }
+
   function handleSetEquipmentTaxa(id: ComponentId, taxaDiferente: boolean) {
     updateRequirements(id, (entry) => {
       if (!entry.requirements.equipment) return entry;
@@ -986,6 +1002,9 @@ export function AirportEditor() {
           }
           onRemoveEquipment={() => handleRemoveEquipment(activeContract.id)}
           onAddEsteira={() => handleAddEsteira(activeContract.id)}
+          onSetEsteiraTaxa={(taxaDiferente) =>
+            handleSetEsteiraTaxa(activeContract.id, taxaDiferente)
+          }
           onRemoveEsteira={() => handleRemoveEsteira(activeContract.id)}
           onSetConnection={(hasConnection) =>
             handleSetConnection(activeContract.id, hasConnection)

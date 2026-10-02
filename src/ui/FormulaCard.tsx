@@ -615,9 +615,11 @@ export function EquipmentEquation({
 
 export function BeltFormulaCard({
   mixed = false,
+  includeTaxa = false,
   afterEquation,
 }: {
   mixed?: boolean;
+  includeTaxa?: boolean;
   afterEquation?: ReactNode;
 }) {
   if (mixed) {
@@ -630,12 +632,12 @@ export function BeltFormulaCard({
         <AreaEquation
           companions={false}
           lhs="C_d,dom"
-          numerator={beltNumerator("_d,dom")}
+          numerator={beltNumerator("_d,dom", includeTaxa)}
         />
         <AreaEquation
           companions={false}
           lhs="C_d,int"
-          numerator={beltNumerator("_d,int")}
+          numerator={beltNumerator("_d,int", includeTaxa)}
         />
         <div className="tex" role="img" aria-label={sum}>
           <span className="tex-lhs">C</span>
@@ -648,7 +650,8 @@ export function BeltFormulaCard({
         <p className="origem">
           Manual de Anteprojeto. Um Tr e um Lmp da sala; cada fluxo entra com o
           seu DHp e o seu Toi. Atende se o comprimento somado das esteiras for
-          maior ou igual a C. Tr mínimo 30%; Lmp mínimo 0,9 m.
+          maior ou igual a C. Taxa de recirculação padrão 30%; valor diferente
+          pede justificativa. Lmp mínimo 0,9 m.
         </p>
       </div>
     );
@@ -656,11 +659,16 @@ export function BeltFormulaCard({
   return (
     <div className="formula-card">
       <p className="formula-kicker">Fórmula do tamanho mínimo de esteira</p>
-      <AreaEquation companions={false} lhs="C" numerator={beltNumerator()} />
+      <AreaEquation
+        companions={false}
+        lhs="C"
+        numerator={beltNumerator("", includeTaxa)}
+      />
       {afterEquation}
       <p className="origem">
         Manual de Anteprojeto. Atende se o comprimento somado das esteiras for
-        maior ou igual a C. Tr mínimo 30%; Lmp mínimo 0,9 m.
+        maior ou igual a C. Taxa de recirculação padrão 30%; valor diferente
+        pede justificativa. Lmp mínimo 0,9 m.
       </p>
     </div>
   );

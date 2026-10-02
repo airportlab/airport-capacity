@@ -60,7 +60,7 @@ export function beltManualStandard(
 export function beltTr(inputs: ResolvedInputs): number {
   const value = inputs.taxaRetiradaBagagem;
   if (!Number.isFinite(value)) return BELT_TR_MIN;
-  return Math.max(value, BELT_TR_MIN);
+  return value;
 }
 
 export function beltLmp(inputs: ResolvedInputs): number {
@@ -73,9 +73,13 @@ export function beltTermValue(
   inputs: ResolvedInputs,
   demanda: ComponentParamId,
   toi: ComponentParamId,
+  taxaId: ComponentParamId | null = null,
 ): number {
   return (
-    (inputs[demanda] * (beltTr(inputs) / 100) * beltLmp(inputs) * inputs[toi]) /
+    (usedDemand(inputs, demanda, taxaId) *
+      (beltTr(inputs) / 100) *
+      beltLmp(inputs) *
+      inputs[toi]) /
     60
   );
 }
@@ -84,10 +88,12 @@ function beltTermExcel(
   cells: ExcelCellMap["inputs"],
   demanda: ComponentParamId,
   toi: ComponentParamId,
+  taxaId: ComponentParamId | null,
 ): string {
-  const tr = `MAX(${requiredCell(cells, "taxaRetiradaBagagem")},${BELT_TR_MIN})/100`;
+  const tr = `${requiredCell(cells, "taxaRetiradaBagagem")}/100`;
   const lmp = `MAX(${requiredCell(cells, "comprimentoLinearPassageiro")},${BELT_LMP_MIN})`;
-  return `(${requiredCell(cells, demanda)}*(${tr})*${lmp}*${requiredCell(cells, toi)})/60`;
+  const demand = usedDemandExcel(cells, demanda, taxaId);
+  return `(${demand}*(${tr})*${lmp}*${requiredCell(cells, toi)})/60`;
 }
 
 function beltPartialResult(
@@ -365,6 +371,7 @@ export function capacityFormulas(copy: {
   includeSplitLounge?: boolean;
   includeAreaTaxa?: boolean;
   includeEquipmentTaxa?: boolean;
+  includeBeltTaxa?: boolean;
   companions?: boolean;
   flows?: FlowParamIds[];
   demandIds?: ComponentParamId[];
@@ -425,6 +432,10 @@ export function capacityFormulas(copy: {
     ? "taxaDeUsoEquipamento"
     : null;
   const includeBelt = copy.includeBelt ?? false;
+  const includeBeltTaxa = copy.includeBeltTaxa ?? false;
+  const beltTaxaId: ComponentParamId | null = includeBeltTaxa
+    ? "taxaDeUsoEsteira"
+    : null;
   const formulas: ContractFormula[] = [];
 
   if (includeUsoReal) {
@@ -824,7 +835,7 @@ export function capacityFormulas(copy: {
     });
     if (beltFlows.length > 1 && partials.length === beltFlows.length) {
       for (const flow of partials) {
-        const expression = beltTermDisplay(flow.suffix);
+        const expression = beltTermDisplay(flow.suffix, includeBeltTaxa);
         formulas.push({
           id: flow.id,
           label:
@@ -834,29 +845,34 @@ export function capacityFormulas(copy: {
           unit: "m",
           origem: expression,
           expression,
-          evaluate: (inputs) => beltTermValue(inputs, flow.demanda, flow.toi),
-          toExcel: (cells) => beltTermExcel(cells, flow.demanda, flow.toi),
+          evaluate: (inputs) =>
+            beltTermValue(inputs, flow.demanda, flow.toi, beltTaxaId),
+          toExcel: (cells) =>
+            beltTermExcel(cells, flow.demanda, flow.toi, beltTaxaId),
         });
       }
     }
     const singleSuffix = beltSuffix(beltFlows[0]?.area ?? "areaMinima");
     const expression =
-      beltFlows.length > 1 ? beltSumDisplay() : `C = ${beltTermRhs(singleSuffix)}`;
+      beltFlows.length > 1
+        ? beltSumDisplay()
+        : `C = ${beltTermRhs(singleSuffix, includeBeltTaxa)}`;
     formulas.push({
       id: "comprimentoMinimoEsteira",
       label: "Comprimento mínimo da esteira (C)",
       unit: "m",
       origem:
-        "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Tr mínimo 30%; Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.",
+        "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.",
       expression,
       evaluate: (inputs) =>
         beltFlows.reduce(
-          (sum, flow) => sum + beltTermValue(inputs, flow.demanda, flow.toi),
+          (sum, flow) =>
+            sum + beltTermValue(inputs, flow.demanda, flow.toi, beltTaxaId),
           0,
         ),
       toExcel: (cells) =>
         beltFlows
-          .map((flow) => beltTermExcel(cells, flow.demanda, flow.toi))
+          .map((flow) => beltTermExcel(cells, flow.demanda, flow.toi, beltTaxaId))
           .join("+"),
     });
   }

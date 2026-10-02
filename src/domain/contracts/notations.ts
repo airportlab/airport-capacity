@@ -332,14 +332,15 @@ export function beltSuffix(area: string): string {
   }
 }
 
-export function beltNumerator(suffix = ""): string {
+export function beltNumerator(suffix = "", includeTaxa = false): string {
   const dhp = suffix ? `DHp${suffix}` : "DHp";
   const toi = suffix ? `Toi${suffix}` : "Toi";
-  return `${dhp} × Tr × Lmp × ${toi}`;
+  const demand = includeTaxa ? `${dhp} × Tu` : dhp;
+  return `${demand} × Tr × Lmp × ${toi}`;
 }
 
-export function beltTermRhs(suffix = ""): string {
-  return `(${beltNumerator(suffix)}) / 60`;
+export function beltTermRhs(suffix = "", includeTaxa = false): string {
+  return `(${beltNumerator(suffix, includeTaxa)}) / 60`;
 }
 
 export function beltLhs(suffix: string): string {
@@ -348,8 +349,8 @@ export function beltLhs(suffix: string): string {
   return "C";
 }
 
-export function beltTermDisplay(suffix: string): string {
-  return `${beltLhs(suffix)} = ${beltTermRhs(suffix)}`;
+export function beltTermDisplay(suffix: string, includeTaxa = false): string {
+  return `${beltLhs(suffix)} = ${beltTermRhs(suffix, includeTaxa)}`;
 }
 
 export function beltSumDisplay(): string {

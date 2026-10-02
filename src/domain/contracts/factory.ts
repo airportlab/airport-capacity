@@ -14,6 +14,7 @@ import {
   natureOfEntry,
   usesAreaTaxa,
   usesEquipmentTaxa,
+  usesEsteiraTaxa,
 } from "../types";
 import {
   AREA_BODY_IDS,
@@ -132,6 +133,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const belt = hasEsteira(requirements);
   const includeAreaTaxa = usesAreaTaxa(requirements);
   const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
+  const includeBeltTaxa = usesEsteiraTaxa(requirements);
   const splitLounge = Boolean(area) && isSplitLoungeEntry(entry);
   const seats = Boolean(area) && !splitLounge && roundHasSeats(entry);
   const dualFlows = isDualFunction(entry);
@@ -231,6 +233,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       : []),
     ...(belt
       ? [
+          ...(includeBeltTaxa ? (["taxaDeUsoEsteira"] as const) : []),
           "taxaRetiradaBagagem" as const,
           "comprimentoLinearPassageiro" as const,
           "comprimentoEsteiras" as const,
@@ -379,6 +382,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeSplitLounge: splitLounge,
       includeAreaTaxa,
       includeEquipmentTaxa,
+      includeBeltTaxa,
       includeBelt: belt,
       companions,
       flows: flows.length > 1 ? flows : [],

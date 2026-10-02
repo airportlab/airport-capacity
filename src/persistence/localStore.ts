@@ -186,8 +186,9 @@ function parseEquipmentRequirement(
 }
 
 function parseEsteiraRequirement(raw: unknown): EsteiraRequirement | undefined {
-  if (raw === true || isRecord(raw)) return {};
-  return undefined;
+  if (raw === true) return {};
+  if (!isRecord(raw)) return undefined;
+  return raw.taxaDiferente === true ? { taxaDiferente: true } : {};
 }
 
 function clampArrivalsRequirements(entry: RegistryEntry): RegistryEntry {

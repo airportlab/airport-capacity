@@ -11,7 +11,12 @@ import type {
   RequirementCheckResult,
   ResolvedInputs,
 } from "./types";
-import { COMPONENT_PARAM_IDS, usesAreaTaxa, usesEquipmentTaxa } from "./types";
+import {
+  COMPONENT_PARAM_IDS,
+  usesAreaTaxa,
+  usesEquipmentTaxa,
+  usesEsteiraTaxa,
+} from "./types";
 
 export function resolveInputs(local: ComponentParams): ResolvedInputs {
   return Object.fromEntries(
@@ -224,7 +229,11 @@ export function evaluateBeltCheck(
   results: ComponentResults,
 ): RequirementCheckResult {
   const minimo = results.comprimentoMinimoEsteira ?? Number.NaN;
-  const demanda = peopleDemand(contract, inputs, null);
+  const demanda = peopleDemand(
+    contract,
+    inputs,
+    usesEsteiraTaxa(contract.requirements) ? "taxaDeUsoEsteira" : null,
+  );
   const capacidade = scaledCapacity(demanda, inputs.comprimentoEsteiras, minimo);
   const atende =
     inputs.comprimentoEsteiras >= minimo && Number.isFinite(minimo);

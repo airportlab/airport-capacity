@@ -83,6 +83,14 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 100,
     origem: "",
   },
+  taxaDeUsoEsteira: {
+    id: "taxaDeUsoEsteira",
+    kind: "attribute",
+    label: "Taxa de utilização (Tu)",
+    unit: "%",
+    defaultValue: 100,
+    origem: "",
+  },
   taxaDeUsoEquipamentoInternacional: {
     id: "taxaDeUsoEquipamentoInternacional",
     kind: "attribute",
@@ -441,11 +449,11 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
   taxaRetiradaBagagem: {
     id: "taxaRetiradaBagagem",
     kind: "attribute",
-    label: "Taxa de passageiros que retiram bagagem (Tr)",
+    label: "Taxa de recirculação (Tr)",
     unit: "%",
     defaultValue: 30,
     origem:
-      "Manual de Anteprojeto. Mínimo 30%.",
+      "Manual de Anteprojeto. Taxa de recirculação. Padrão 30%. Valor diferente pede justificativa.",
   },
   comprimentoLinearPassageiro: {
     id: "comprimentoLinearPassageiro",
@@ -545,7 +553,8 @@ export function isTaxaParam(id: ComponentParamId): boolean {
     id === "taxaDeUsoAreaInternacional" ||
     id === "taxaDeUsoEquipamento" ||
     id === "taxaDeUsoEquipamentoDomestico" ||
-    id === "taxaDeUsoEquipamentoInternacional"
+    id === "taxaDeUsoEquipamentoInternacional" ||
+    id === "taxaDeUsoEsteira"
   );
 }
 

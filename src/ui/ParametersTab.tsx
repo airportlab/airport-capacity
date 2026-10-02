@@ -44,8 +44,9 @@ export function ParametersTab({
           Tempo de serviço do equipamento (Tsec), em segundos, separado por
           natureza. É o padrão ao cadastrar equipamentos, na falta de outro
           tempo informado. No componente, tempo diferente desse padrão pede
-          justificativa. Só entram os tipos que têm valor. Tr e Lmp da sala de
-          desembarque são um valor só, para doméstico e internacional.
+          justificativa. Só entram os tipos que têm valor. A taxa de
+          recirculação e o Lmp da sala de desembarque são um valor só, para
+          doméstico e internacional.
         </p>
         <p className="round-meta">
           <a href={TSEC_MANUAL_URL}>Manual de Anteprojeto (ANAC)</a>
@@ -53,8 +54,9 @@ export function ParametersTab({
         <PmdTable mode="tsec" airport={airport} registry={registry} />
         <h3 className="manual-single-title">Sala de desembarque</h3>
         <p className="panel-lead">
-          Mínimos do requisito de esteira. Não se separam por natureza. Valor
-          diferente pede justificativa.
+          Padrões do requisito de esteira. Não se separam por natureza. Valor
+          diferente pede justificativa. A taxa de recirculação pode ficar
+          abaixo de 30%.
         </p>
         <div className="pmd-wrap">
           <table className="pmd-table manual-single">
@@ -67,7 +69,7 @@ export function ParametersTab({
             <tbody>
               <tr>
                 <th scope="row">
-                  Taxa de passageiros que retiram bagagem (Tr)
+                  Taxa de recirculação (Tr)
                 </th>
                 <td>
                   {formatNumber(BELT_TR_MIN)} <span className="unit">%</span>

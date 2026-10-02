@@ -48,7 +48,7 @@ import type {
   ExcelKind,
   RegistryEntry,
 } from "../domain/types";
-import { usesAreaTaxa, usesEquipmentTaxa } from "../domain/types";
+import { usesAreaTaxa, usesEquipmentTaxa, usesEsteiraTaxa } from "../domain/types";
 import { downloadBlob, stampFilename } from "./download";
 
 const COLORS = {
@@ -1400,7 +1400,7 @@ function writeBeltBlock(
     .find((formula) => formula.id === "comprimentoMinimoEsteira")?.expression;
   const note = sheet.getRow(layout.belt.noteRow);
   note.getCell(1).value = expression
-    ? `Comprimento mínimo da esteira: ${expression}. Tr mínimo 30%. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.`
+    ? `Comprimento mínimo da esteira: ${expression}. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.`
     : "Comprimento mínimo da esteira.";
   note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
   sheet.mergeCells(
@@ -1416,6 +1416,7 @@ function writeBeltBlock(
     [
       "Componente",
       "DHp (pax/h)",
+      "Tu (%)",
       "Tr (%)",
       "Lmp (m)",
       "Toi (min)",
@@ -1450,11 +1451,12 @@ function writeBeltBlock(
       }
       flowRow.getCell(3).value = "—";
       flowRow.getCell(4).value = "—";
+      flowRow.getCell(5).value = "—";
       if (toiId) {
         writeLinkedMeasure(
-          flowRow.getCell(5),
+          flowRow.getCell(6),
           flow.inputs[toiId],
-          `E${flow.row}`,
+          `F${flow.row}`,
           evaluation.inputs[toiId],
         );
       }
@@ -1465,14 +1467,14 @@ function writeBeltBlock(
         ? contract.formulas.find((formula) => formula.id === partialId)
         : undefined;
       if (partial && partialId) {
-        flowRow.getCell(6).value = {
+        flowRow.getCell(7).value = {
           formula: partial.toExcel(flow.inputs),
           result: evaluation.results[partialId],
         };
-        flowRow.getCell(6).numFmt = "#,##0.00";
+        flowRow.getCell(7).numFmt = "#,##0.00";
       }
-      flowRow.getCell(7).value = "—";
       flowRow.getCell(8).value = "—";
+      flowRow.getCell(9).value = "—";
       fillRow(flowRow, COLORS.paper, 1, NATURE_BELT_COLUMNS);
     }
 
@@ -1480,7 +1482,7 @@ function writeBeltBlock(
     row.getCell(1).value = contract.title;
     if (flows.length > 0) {
       row.getCell(2).value = "—";
-      row.getCell(5).value = "—";
+      row.getCell(6).value = "—";
     } else {
       const demandId = (Object.keys(block.inputs) as ComponentParamId[]).find(
         (id) => id.startsWith("demandaPico"),
@@ -1498,32 +1500,38 @@ function writeBeltBlock(
       }
       if (toiId) {
         writeLinkedMeasure(
-          row.getCell(5),
+          row.getCell(6),
           block.inputs[toiId],
-          `E${block.row}`,
+          `F${block.row}`,
           evaluation.inputs[toiId],
         );
       }
     }
-    row.getCell(3).value = evaluation.inputs.taxaRetiradaBagagem;
-    row.getCell(3).numFmt = "0.00";
-    row.getCell(4).value = evaluation.inputs.comprimentoLinearPassageiro;
+    if (usesEsteiraTaxa(contract.requirements)) {
+      row.getCell(3).value = evaluation.inputs.taxaDeUsoEsteira;
+      row.getCell(3).numFmt = "0.00";
+    } else {
+      row.getCell(3).value = "—";
+    }
+    row.getCell(4).value = evaluation.inputs.taxaRetiradaBagagem;
     row.getCell(4).numFmt = "0.00";
+    row.getCell(5).value = evaluation.inputs.comprimentoLinearPassageiro;
+    row.getCell(5).numFmt = "0.00";
     const formula = contract.formulas.find(
       (item) => item.id === "comprimentoMinimoEsteira",
     );
     if (formula) {
-      row.getCell(6).value = {
+      row.getCell(7).value = {
         formula: formula.toExcel(block.inputs),
         result: evaluation.results.comprimentoMinimoEsteira,
       };
-      row.getCell(6).numFmt = "#,##0.00";
-      row.getCell(6).font = { bold: true };
+      row.getCell(7).numFmt = "#,##0.00";
+      row.getCell(7).font = { bold: true };
     }
-    row.getCell(7).value = evaluation.inputs.comprimentoEsteiras;
-    row.getCell(7).numFmt = "#,##0.00";
+    row.getCell(8).value = evaluation.inputs.comprimentoEsteiras;
+    row.getCell(8).numFmt = "#,##0.00";
     if (evaluation.esteiraCheck) {
-      row.getCell(8).value = {
+      row.getCell(9).value = {
         formula: beltCheckContract.toExcel({
           inputs: block.inputs,
           results: block.results,

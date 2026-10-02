@@ -51,6 +51,7 @@ import {
   isMixedNature,
   usesAreaTaxa,
   usesEquipmentTaxa,
+  usesEsteiraTaxa,
 } from "../domain/types";
 import { formatEditable, formatNumber, parseLocaleNumber, sameNumber } from "./format";
 import {
@@ -256,7 +257,11 @@ function BeltManualControl({
         origem={field.origem}
         onValueChange={onValueChange}
         onBlur={() => {
-          if (parsed !== null && parsed < standard) {
+          if (
+            field.id === "comprimentoLinearPassageiro" &&
+            parsed !== null &&
+            parsed < standard
+          ) {
             onValueChange(formatEditable(standard));
           }
         }}
@@ -309,6 +314,7 @@ interface ComponentEditorProps {
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
   onAddEsteira: () => void;
+  onSetEsteiraTaxa: (taxaDiferente: boolean) => void;
   onRemoveEsteira: () => void;
   onSetConnection: (hasConnection: boolean) => void;
   onNatureChange: (nature: OrganNature) => void;
@@ -338,6 +344,7 @@ export function ComponentEditor({
   onSetEquipmentTaxa,
   onRemoveEquipment,
   onAddEsteira,
+  onSetEsteiraTaxa,
   onRemoveEsteira,
   onSetConnection,
   onNatureChange,
@@ -353,6 +360,7 @@ export function ComponentEditor({
   const esteira = hasEsteira(contract.requirements);
   const areaTaxa = usesAreaTaxa(contract.requirements);
   const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
+  const esteiraTaxa = usesEsteiraTaxa(contract.requirements);
   const identityIds = identityParamIds(entry);
   const identityIdSet = new Set(identityIds);
   const identityFields = contract.params.filter((field) =>
@@ -375,7 +383,11 @@ export function ComponentEditor({
       isTaxaParam(field.id) &&
       field.id !== "taxaDeUsoArea" &&
       field.id !== "taxaDeUsoAreaDomestico" &&
-      field.id !== "taxaDeUsoAreaInternacional",
+      field.id !== "taxaDeUsoAreaInternacional" &&
+      field.id !== "taxaDeUsoEsteira",
+  );
+  const beltTaxaFields = contract.params.filter(
+    (field) => field.id === "taxaDeUsoEsteira",
   );
   const areaMeasureFields = contract.params.filter(
     (field) => field.id === "areaMedida",
@@ -904,10 +916,28 @@ export function ComponentEditor({
           <h2 id={`${contract.id}-esteira`}>Tamanho mínimo de esteira</h2>
           <BeltFormulaCard
             mixed={mixed}
+            includeTaxa={esteiraTaxa}
             afterEquation={
               <EsteiraResults contract={contract} evaluation={evaluation} />
             }
           />
+          <label className="choice">
+            <input
+              type="checkbox"
+              checked={esteiraTaxa}
+              onChange={(event) => onSetEsteiraTaxa(event.target.checked)}
+            />
+            Taxa de utilização diferente de 100%
+          </label>
+          {esteiraTaxa && beltTaxaFields.length > 0 ? (
+            <FieldList
+              fields={beltTaxaFields}
+              drafts={drafts}
+              origens={origens}
+              onValueChange={onValueChange}
+              onOrigemChange={onOrigemChange}
+            />
+          ) : null}
           <div className="fields">
             {beltFields
               .filter((field) => field.id === "comprimentoEsteiras")

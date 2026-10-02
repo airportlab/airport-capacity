@@ -12,7 +12,9 @@ export interface EquipmentRequirement {
 }
 
 /** Comprimento mínimo de esteira. Só na sala de desembarque. */
-export interface EsteiraRequirement {}
+export interface EsteiraRequirement {
+  taxaDiferente?: boolean;
+}
 
 export interface ComponentRequirements {
   area?: AreaRequirement;
@@ -40,6 +42,12 @@ export function usesEquipmentTaxa(
   requirements: ComponentRequirements,
 ): boolean {
   return requirements.equipment?.taxaDiferente === true;
+}
+
+export function usesEsteiraTaxa(
+  requirements: ComponentRequirements,
+): boolean {
+  return requirements.esteira?.taxaDiferente === true;
 }
 
 export interface PmdBinding {
@@ -78,6 +86,7 @@ export const COMPONENT_PARAM_IDS = [
   "taxaDeUsoEquipamento",
   "taxaDeUsoEquipamentoDomestico",
   "taxaDeUsoEquipamentoInternacional",
+  "taxaDeUsoEsteira",
   "areaMedida",
   "espacoMinimoPorPassageiro",
   "espacoMinimoPorPassageiroEmbarque",
