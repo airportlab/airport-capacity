@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { restoreMovimento } from "../dhp/duckdb";
 import {
   airportById,
   shouldReplaceAirportName,
@@ -69,6 +70,7 @@ import {
 } from "../persistence/snapshot";
 import { AboutPage } from "./AboutPage";
 import { CirculationsTab } from "./CirculationsTab";
+import { DhpSearchPage } from "./DhpSearchPage";
 import { ComponentEditor } from "./ComponentEditor";
 import {
   formatAirportName,
@@ -105,6 +107,9 @@ export function AirportEditor() {
   const [circulations, setCirculations] = useState<HorizontalCirculation[]>(
     initial.circulations,
   );
+  useEffect(() => {
+    void restoreMovimento();
+  }, []);
   const contracts = useMemo(() => resolveContracts(registry), [registry]);
   const invalidLoungeIds = useMemo(
     () =>
@@ -152,6 +157,28 @@ export function AirportEditor() {
       ...current,
       [componentId]: { ...current[componentId], [id]: parsed },
     }));
+  }
+
+  function applyDemands(
+    componentId: ComponentId,
+    values: Partial<Record<ComponentParamId, number>>,
+  ) {
+    setComponents((current) => ({
+      ...current,
+      [componentId]: { ...current[componentId], ...values },
+    }));
+    setComponentDrafts((current) => {
+      const drafts = { ...current[componentId] };
+      for (const [id, value] of Object.entries(values) as [
+        ComponentParamId,
+        number,
+      ][]) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          drafts[id] = formatEditable(value);
+        }
+      }
+      return { ...current, [componentId]: drafts };
+    });
   }
 
   function rebuildDrafts(
@@ -813,6 +840,7 @@ export function AirportEditor() {
     tab === "params" ||
     tab === "summary" ||
     tab === "circulations" ||
+    tab === "dhp" ||
     viewingAbout
       ? null
       : (contracts.find((contract) => contract.id === tab) ?? null);
@@ -888,6 +916,14 @@ export function AirportEditor() {
           >
             Circulações
           </button>
+          <button
+            type="button"
+            className={tab === "dhp" ? "tab active" : "tab"}
+            aria-current={tab === "dhp" ? "page" : undefined}
+            onClick={() => setTab("dhp")}
+          >
+            DHP
+          </button>
         </div>
         <div className="tabs-scroll">
           {contracts.map((contract) => {
@@ -956,6 +992,8 @@ export function AirportEditor() {
           onChange={setCirculations}
         />
       ) : null}
+
+      {tab === "dhp" ? <DhpSearchPage airportId={airport.id} /> : null}
 
       {activeContract && evaluations[activeContract.id] ? (
         <ComponentEditor
@@ -1029,6 +1067,9 @@ export function AirportEditor() {
           }
           onRestoreContract={(id) =>
             handleRestoreContract(activeContract.id, id)
+          }
+          onApplyDemands={(values) =>
+            applyDemands(activeContract.id, values)
           }
         />
       ) : null}

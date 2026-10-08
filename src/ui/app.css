@@ -559,6 +559,94 @@ button.pmd-card.empty {
   vertical-align: middle;
 }
 
+.dhp-calc {
+  margin-top: 16px;
+}
+
+.dhp-meta {
+  margin: 0 0 8px;
+}
+
+.dhp-meta.dhp-arquivo {
+  margin: 0;
+  align-self: center;
+}
+
+.dhp-ponderacoes {
+  white-space: pre-line;
+}
+
+.dhp-actions {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.dhp-table th.num,
+.dhp-table td.num {
+  text-align: right;
+}
+
+.dhp-table tr.dhp-peak td {
+  background: var(--sand);
+  font-weight: 700;
+}
+
+.dhp-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dhp-chart text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.dhp-chart-axis {
+  stroke: var(--sand);
+  stroke-width: 1;
+}
+
+.dhp-chart-curve {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.dhp-chart-demand {
+  fill: none;
+  stroke: var(--slate);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 4;
+}
+
+.dhp-chart-capacity {
+  fill: none;
+  stroke: var(--slate);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1 6;
+}
+
+.dhp-chart-rank {
+  stroke: var(--slate);
+  stroke-width: 1;
+}
+
+.dhp-chart-peak {
+  fill: var(--ink);
+}
+
+.dhp-chart text.dhp-chart-cut {
+  fill: var(--slate);
+}
+
+.dhp-legend-box {
+  fill: var(--paper);
+  stroke: var(--sand);
+}
+
 .circulation-table th,
 .circulation-table td {
   text-align: center;
@@ -1106,6 +1194,10 @@ fieldset.field {
 
 .modal-circulacao {
   width: min(48rem, calc(100vw - 32px));
+}
+
+.modal-dhp {
+  width: min(72rem, calc(100vw - 32px));
 }
 
 .circ-pair {

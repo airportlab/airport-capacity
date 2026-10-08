@@ -336,6 +336,28 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             },
           }
         : {}),
+      ...(entry.kind === "saguao-embarque" && !mixedNature
+        ? {
+            demandaPicoEmbarque: {
+              label: internationalHall
+                ? "Demanda hora pico(Origem INT)"
+                : "Demanda hora pico(Origem DOM)",
+              origem: internationalHall
+                ? "Atributo do fluxo de origem internacional."
+                : "Atributo do fluxo de origem doméstico.",
+            },
+          }
+        : {}),
+      ...(entry.kind === "saguao-embarque" && mixedNature
+        ? {
+            demandaPicoEmbarqueDomestico: {
+              label: "Demanda hora pico(Origem DOM)",
+            },
+            demandaPicoEmbarqueInternacional: {
+              label: "Demanda hora pico(Origem INT)",
+            },
+          }
+        : {}),
       ...(dualFlows && !mixedNature
         ? {
             demandaPicoEmbarque: {

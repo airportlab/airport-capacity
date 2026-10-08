@@ -167,6 +167,23 @@ function splitLoungeExcel(
   return `(${usedDemandExcel(cells, "demandaPico", taxaId)}*(${seated}+${standing}))/${occupancy}`;
 }
 
+/** Coeficiente da área, sem o DHp. Com Tu marcado, entra Tu/100; com acompanhante, (1 + v.a.). */
+export function areaCoefficient(
+  inputs: ResolvedInputs,
+  emp: ComponentParamId,
+  toi: ComponentParamId,
+  va?: ComponentParamId,
+  taxaId: ComponentParamId | null = null,
+): number {
+  return (
+    (utilizationFactor(inputs, taxaId) *
+      inputs[emp] *
+      inputs[toi] *
+      (va ? 1 + inputs[va] : 1)) /
+    60
+  );
+}
+
 function areaValue(
   inputs: ResolvedInputs,
   demanda: ComponentParamId,
@@ -175,12 +192,7 @@ function areaValue(
   va?: ComponentParamId,
   taxaId: ComponentParamId | null = null,
 ): number {
-  const numerator =
-    usedDemand(inputs, demanda, taxaId) *
-    inputs[emp] *
-    inputs[toi] *
-    (va ? 1 + inputs[va] : 1);
-  return numerator / 60;
+  return inputs[demanda] * areaCoefficient(inputs, emp, toi, va, taxaId);
 }
 
 function areaExcel(

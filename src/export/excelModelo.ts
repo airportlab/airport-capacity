@@ -22,6 +22,8 @@ import {
   type ComponentParamId,
   type Evaluation,
   type ExcelCellMap,
+  isMixedNature,
+  natureOfEntry,
   type RegistryEntry,
 } from "../domain/types";
 import { journeyRank } from "../domain/templates/organs";
@@ -1900,6 +1902,24 @@ function memoryFlowLabel(
   id: ComponentParamId,
   entry: RegistryEntry | undefined,
 ): string {
+  if (entry?.kind === "saguao-embarque") {
+    const nature = natureOfEntry(entry);
+    if (
+      id === "demandaPicoEmbarqueDomestico" ||
+      (id === "demandaPicoEmbarque" && nature !== "internacional")
+    ) {
+      return "Demanda hora pico(Origem DOM)";
+    }
+    if (
+      id === "demandaPicoEmbarqueInternacional" ||
+      (id === "demandaPicoEmbarque" && nature === "internacional")
+    ) {
+      return "Demanda hora pico(Origem INT)";
+    }
+    if (id === "demandaPicoConexao") {
+      return isMixedNature(entry) ? "conexões (agregado)" : "embarque via conexão";
+    }
+  }
   if (id !== "demandaPico") return flowLabel(id);
   if (entry?.pmd?.nature === "internacional") return "internacional";
   if (entry?.pmd?.nature === "domestico") return "doméstico";
@@ -1959,7 +1979,7 @@ function buildMemoryLines(
     lines.push({
       paramId: null,
       demandId: id,
-      flowLabel: flowLabel(id),
+      flowLabel: memoryFlowLabel(id, entry),
       group: `demand:${id}`,
     });
   }

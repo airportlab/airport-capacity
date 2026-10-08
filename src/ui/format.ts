@@ -24,6 +24,14 @@ export function formatNumber(value: number, digits = 2): string {
   }).format(value);
 }
 
+export function formatFixed(value: number, digits = 2): string {
+  if (!Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
 export function formatSaturacao(percent: number): string {
   if (!Number.isFinite(percent)) return "—";
   const text = new Intl.NumberFormat("pt-BR", {

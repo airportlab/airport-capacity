@@ -63,6 +63,7 @@ import {
   SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
+import { BoardingDhpButton } from "./BoardingDhpButton";
 import { NumberField } from "./NumberField";
 import { AreaResults, EquipmentResults, EsteiraResults } from "./ResultPanel";
 
@@ -322,6 +323,7 @@ interface ComponentEditorProps {
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
   onJustificationChange: (id: JustificativaId, raw: string) => void;
   onRestoreContract: (id: JustificativaId) => void;
+  onApplyDemands: (values: Partial<Record<ComponentParamId, number>>) => void;
 }
 
 export function ComponentEditor({
@@ -352,6 +354,7 @@ export function ComponentEditor({
   onOrigemChange,
   onJustificationChange,
   onRestoreContract,
+  onApplyDemands,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
@@ -412,7 +415,12 @@ export function ComponentEditor({
         ["Doméstico", "Domestico"],
         ["Internacional", "Internacional"],
       ] as const)
-    : MIXED_GROUPS;
+    : entry.kind === "saguao-embarque"
+      ? ([
+          ["Origem DOM", "EmbarqueDomestico"],
+          ["Origem INT", "EmbarqueInternacional"],
+        ] as const)
+      : MIXED_GROUPS;
   const dual = isDualFunction(entry) || isDualContract(contract);
   const sources = resolvedSources(entry);
   const template = templateForEntry(entry);
@@ -534,24 +542,34 @@ export function ComponentEditor({
         </label>
         {boardingIdentityFields.length > 0 ? (
           mixed ? (
-            mixedGroups.map(([label, needle]) => {
-              const fields = boardingIdentityFields.filter((field) =>
-                field.id.includes(needle),
-              );
-              if (fields.length === 0) return null;
-              return (
-                <div key={needle}>
-                  <h3 className="field-label">{label}</h3>
-                  <FieldList
-                    fields={fields}
-                    drafts={drafts}
-                    origens={origens}
-                    onValueChange={onValueChange}
-                    onOrigemChange={onOrigemChange}
-                  />
-                </div>
-              );
-            })
+            entry.kind === "saguao-embarque" ? (
+              <FieldList
+                fields={boardingIdentityFields}
+                drafts={drafts}
+                origens={origens}
+                onValueChange={onValueChange}
+                onOrigemChange={onOrigemChange}
+              />
+            ) : (
+              mixedGroups.map(([label, needle]) => {
+                const fields = boardingIdentityFields.filter((field) =>
+                  field.id.includes(needle),
+                );
+                if (fields.length === 0) return null;
+                return (
+                  <div key={needle}>
+                    <h3 className="field-label">{label}</h3>
+                    <FieldList
+                      fields={fields}
+                      drafts={drafts}
+                      origens={origens}
+                      onValueChange={onValueChange}
+                      onOrigemChange={onOrigemChange}
+                    />
+                  </div>
+                );
+              })
+            )
           ) : dual ? (
             <>
               <h3 className="field-label">Fluxo de embarque</h3>
@@ -620,6 +638,14 @@ export function ComponentEditor({
               onOrigemChange={onOrigemChange}
             />
           </>
+        ) : null}
+        {entry.kind === "saguao-embarque" ? (
+          <BoardingDhpButton
+            icao={airport.icao}
+            entry={entry}
+            drafts={drafts}
+            onApply={onApplyDemands}
+          />
         ) : null}
         <div className="actions">
           <button
