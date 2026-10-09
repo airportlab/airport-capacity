@@ -302,6 +302,26 @@ export function organNatureLabel(nature: OrganNature): string {
   return nature === "internacional" ? "internacional" : "doméstico";
 }
 
+/** Troca o sufixo do nome quando ele ainda é o rótulo da natureza atual. */
+function titleForNatureChange(
+  title: string,
+  from: OrganNature,
+  to: OrganNature,
+): string {
+  const fromLabel = organNatureLabel(from);
+  const toLabel = organNatureLabel(to);
+  const trimmedEnd = title.trimEnd();
+  const boundary = trimmedEnd.length - fromLabel.length;
+  const matches =
+    boundary >= 0 &&
+    trimmedEnd.slice(boundary).toLocaleLowerCase("pt-BR") === fromLabel &&
+    (boundary === 0 || trimmedEnd[boundary - 1] === " ");
+  if (!matches) return title;
+  return (
+    trimmedEnd.slice(0, boundary) + toLabel + title.slice(trimmedEnd.length)
+  );
+}
+
 export { natureOfEntry };
 
 function bindOrganPmd(
@@ -358,11 +378,14 @@ export function rebindOrganNature(
   const template = templateForEntry(entry);
   if (!template) return entry;
   if (!naturesForTemplate(template).includes(nature)) return entry;
-  if (natureOfEntry(entry) === nature) return entry;
+  const current = natureOfEntry(entry);
+  if (current === nature) return entry;
   const bound = bindOrganPmd(template, nature);
   return applyPmdRequirements({
     id: entry.id,
-    title: entry.title,
+    title: current
+      ? titleForNatureChange(entry.title, current, nature)
+      : entry.title,
     kind: template.kind,
     requirements: entry.requirements,
     observacoes: entry.observacoes,
