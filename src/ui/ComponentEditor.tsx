@@ -642,6 +642,7 @@ export function ComponentEditor({
         {entry.kind === "saguao-embarque" ? (
           <BoardingDhpButton
             icao={airport.icao}
+            airportName={airport.name}
             entry={entry}
             drafts={drafts}
             onApply={onApplyDemands}

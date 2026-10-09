@@ -581,9 +581,16 @@ button.pmd-card.empty {
   margin-bottom: 16px;
 }
 
-.dhp-table th.num,
-.dhp-table td.num {
-  text-align: right;
+.dhp-table {
+  width: max-content;
+  margin-inline: auto;
+}
+
+.dhp-table th,
+.dhp-table td {
+  text-align: center;
+  white-space: nowrap;
+  padding: 10px 12px;
 }
 
 .dhp-table tr.dhp-peak td {
@@ -1198,6 +1205,11 @@ fieldset.field {
 
 .modal-dhp {
   width: min(72rem, calc(100vw - 32px));
+}
+
+.modal-dhp-tabela {
+  width: fit-content;
+  max-width: calc(100vw - 32px);
 }
 
 .circ-pair {

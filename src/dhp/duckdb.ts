@@ -382,11 +382,17 @@ function periodToken(iso: string): string {
   return code ? `${code}${match[1]}` : iso;
 }
 
+export function dhpPeriodRange(coverage: DhpCoverage): string | null {
+  if (!coverage.periodoInicio || !coverage.periodoFim) return null;
+  return `${periodToken(coverage.periodoInicio)} a ${periodToken(coverage.periodoFim)}`;
+}
+
 export function dhpCoverageText(coverage: DhpCoverage): string {
-  if (!coverage.dataRecente || !coverage.periodoInicio || !coverage.periodoFim) {
+  const range = dhpPeriodRange(coverage);
+  if (!coverage.dataRecente || !range) {
     return "DHP Calculado no Período de —.";
   }
-  return `DHP Calculado no Período de ${periodToken(coverage.periodoInicio)} a ${periodToken(coverage.periodoFim)}`;
+  return `DHP Calculado no Período de ${range}`;
 }
 
 function textOrNull(value: unknown): string | null {

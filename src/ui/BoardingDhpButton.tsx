@@ -9,6 +9,7 @@ import {
 import type { ComponentParamId, RegistryEntry, ResolvedInputs } from "../domain/types";
 import {
   dhpCoverageText,
+  dhpPeriodRange,
   searchBoardingDhp,
   type BoardingDhpWindow,
   type DhpCoverage,
@@ -18,9 +19,21 @@ import { arquivoTexto, useMovimento } from "./useMovimento";
 
 interface BoardingDhpButtonProps {
   icao: string;
+  airportName: string;
   entry: RegistryEntry;
   drafts: Record<ComponentParamId, string>;
   onApply: (values: Partial<Record<ComponentParamId, number>>) => void;
+}
+
+function janelasTitulo(range: string | null, airportName: string): string {
+  const durante = range
+    ? `30h de maior demanda durante o período de ${range}`
+    : "30h de maior demanda durante o período";
+  return `${durante} — ${airportName}`;
+}
+
+function graficoTitulo(range: string | null, airportName: string): string {
+  return `Curva de DHP ${range ?? "—"} — ${airportName}`;
 }
 
 const AREA_MESSAGE = "O peso sai do requisito de área.";
@@ -271,6 +284,7 @@ function OrderedDemandChart({
 
 export function BoardingDhpButton({
   icao,
+  airportName,
   entry,
   drafts,
   onApply,
@@ -298,6 +312,9 @@ export function BoardingDhpButton({
     stored && signature === stored.signature ? stored.janelas : null;
   const tabela = janelas?.filter((item) => item.posicao <= 30) ?? null;
   const shownCoverage = coverage?.icao === icao ? coverage.value : null;
+  const periodRange = shownCoverage ? dhpPeriodRange(shownCoverage) : null;
+  const tituloJanelas = janelasTitulo(periodRange, airportName);
+  const tituloGrafico = graficoTitulo(periodRange, airportName);
   const areaMedida = parseLocaleNumber(drafts.areaMedida ?? "");
   const capacidade =
     areaMedida !== null && areaMedida > 0 ? areaMedida : null;
@@ -386,13 +403,13 @@ export function BoardingDhpButton({
           onClick={() => setOpen(false)}
         >
           <div
-            className="panel modal modal-dhp"
+            className="panel modal modal-dhp modal-dhp-tabela"
             role="dialog"
             aria-modal="true"
             aria-labelledby="dhp-janelas-titulo"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="dhp-janelas-titulo">30 horas</h2>
+            <h2 id="dhp-janelas-titulo">{tituloJanelas}</h2>
             {shownCoverage ? (
               <p className="dhp-meta">{dhpCoverageText(shownCoverage)}</p>
             ) : null}
@@ -458,7 +475,7 @@ export function BoardingDhpButton({
             aria-labelledby="dhp-grafico-titulo"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 id="dhp-grafico-titulo">Demanda ordenada</h2>
+            <h2 id="dhp-grafico-titulo">{tituloGrafico}</h2>
             <p className="dhp-meta">
               A curva começa no Nº 1 e desce até o Nº {janelas.length}. O ponto
               30 é a hora gravada no componente.
