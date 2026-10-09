@@ -464,7 +464,17 @@ function searchFailure(error: unknown): Error {
   return new Error("Não foi possível consultar as janelas.");
 }
 
-function boardingQuery(icao: string, pesos: BoardingPonderation): string {
+function rankLimit(value: number): number {
+  const n = Math.floor(value);
+  if (!Number.isFinite(n) || n < 1) return BOARDING_RANK_LIMIT;
+  return n;
+}
+
+function boardingQuery(
+  icao: string,
+  pesos: BoardingPonderation,
+  limit = BOARDING_RANK_LIMIT,
+): string {
   const weight = Object.fromEntries(
     BOARDING_FLOW_KEYS.map((key) => [key, sqlWeight(pesos[key])]),
   ) as Record<BoardingFlowKey, string>;
@@ -553,7 +563,7 @@ LEFT JOIN (
             ORDER BY demanda_ponderada DESC, inicio
         ) AS posicao
     FROM janelas
-) AS ranqueadas ON ranqueadas.posicao <= ${BOARDING_RANK_LIMIT}
+) AS ranqueadas ON ranqueadas.posicao <= ${rankLimit(limit)}
 ORDER BY ranqueadas.demanda_ponderada ASC, ranqueadas.inicio
 `;
 }
@@ -567,13 +577,14 @@ function countsFrom(record: Record<string, unknown>): BoardingHourCounts {
 export async function searchBoardingDhp(
   icao: string,
   pesos: BoardingPonderation,
+  limit = BOARDING_RANK_LIMIT,
 ): Promise<BoardingDhpResult> {
   const code = catalogIcao(icao);
   if (!code) throw new Error("Aeroporto fora do catálogo.");
   for (const key of BOARDING_FLOW_KEYS) sqlWeight(pesos[key]);
   try {
     return await withConnection(async (conn) => {
-      const table = await conn.query(boardingQuery(code, pesos));
+      const table = await conn.query(boardingQuery(code, pesos, limit));
       const rows = table.toArray() as Record<string, unknown>[];
       const coverage = coverageFrom(rows[0]);
       const ranked = rows.filter(windowRecord);

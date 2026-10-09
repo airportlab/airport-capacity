@@ -14,15 +14,61 @@ import {
   type BoardingDhpWindow,
   type DhpCoverage,
 } from "../dhp/duckdb";
-import { formatFixed, formatNumber, parseLocaleNumber } from "./format";
+import {
+  formatEditable,
+  formatFixed,
+  formatNumber,
+  parseLocaleNumber,
+  sameNumber,
+} from "./format";
 import { arquivoTexto, useMovimento } from "./useMovimento";
+
+export interface BoardingDhpStamp {
+  signature: string;
+  values: Partial<Record<ComponentParamId, number>>;
+}
+
+export type BoardingDhpMark = "calculado" | "recalcular";
+
+export function boardingDhpMarkText(mark: BoardingDhpMark): string {
+  return mark === "calculado" ? "Calculado" : "Calcular novamente para validar";
+}
+
+export function boardingDhpMark(
+  stamp: BoardingDhpStamp | null,
+  icao: string,
+  entry: RegistryEntry,
+  drafts: Record<ComponentParamId, string>,
+): BoardingDhpMark | null {
+  if (!stamp) return null;
+  const prepared = flowsFromDrafts(entry, drafts);
+  const signature = Array.isArray(prepared) ? flowSignature(icao, prepared) : null;
+  if (signature !== stamp.signature) return "recalcular";
+  for (const [id, value] of Object.entries(stamp.values) as [
+    ComponentParamId,
+    number,
+  ][]) {
+    const parsed = parseLocaleNumber(drafts[id] ?? "");
+    const stamped = parseLocaleNumber(formatEditable(value));
+    if (
+      parsed === null ||
+      stamped === null ||
+      !sameNumber(parsed, stamped)
+    ) {
+      return "recalcular";
+    }
+  }
+  return "calculado";
+}
 
 interface BoardingDhpButtonProps {
   icao: string;
   airportName: string;
   entry: RegistryEntry;
   drafts: Record<ComponentParamId, string>;
+  mark: BoardingDhpMark | null;
   onApply: (values: Partial<Record<ComponentParamId, number>>) => void;
+  onStamp: (stamp: BoardingDhpStamp) => void;
 }
 
 function janelasTitulo(range: string | null, airportName: string): string {
@@ -68,26 +114,70 @@ function pessoasNaHora(
   return flows.reduce((sum, flow) => sum + item.counts[flow.key], 0);
 }
 
-const CHART_WIDTH = 720;
-const CHART_HEIGHT = 340;
-const CHART_PAD = { top: 20, right: 20, bottom: 36, left: 76 };
+const CHART_WIDTH = 854;
+const CHART_HEIGHT = 360;
+const CHART_PAD = { top: 20, right: 20, bottom: 56, left: 210 };
+const AREA_TITLE_X = 16;
+const HOURS_WHEN_CAPACITY_ABOVE = 100;
+const HOURS_AFTER_CAPACITY = 50;
+const RANK_LABEL_GAP = 28;
 
-function yBounds(values: readonly number[], extras: readonly number[]): {
-  min: number;
-  max: number;
-} {
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  for (const extra of extras) {
-    min = Math.min(min, extra);
-    max = Math.max(max, extra);
-  }
-  if (min === max) {
-    min -= 1;
-    max += 1;
-  }
-  const pad = (max - min) * 0.06;
-  return { min: min - pad, max: max + pad };
+function capacityCrossIndex(
+  ordered: readonly BoardingDhpWindow[],
+  capacidade: number | null,
+): number {
+  if (ordered.length === 0 || capacidade === null) return -1;
+  if (capacidade > ordered[0].demandaPonderada) return -1;
+  return ordered.findIndex((item) => item.demandaPonderada <= capacidade);
+}
+
+function visibleDhpWindows(
+  janelas: readonly BoardingDhpWindow[],
+  capacidade: number | null,
+): BoardingDhpWindow[] {
+  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
+  if (ordered.length === 0 || capacidade === null) return ordered;
+  const first = ordered[0].demandaPonderada;
+  if (capacidade > first) return ordered.slice(0, HOURS_WHEN_CAPACITY_ABOVE);
+  const cross = capacityCrossIndex(ordered, capacidade);
+  if (cross < 0) return ordered;
+  return ordered.slice(0, cross + 1 + HOURS_AFTER_CAPACITY);
+}
+
+function chartNeedsMoreHours(
+  janelas: readonly BoardingDhpWindow[],
+  capacidade: number | null,
+  quantidadeJanelas: number,
+): boolean {
+  if (capacidade === null || janelas.length === 0) return false;
+  if (quantidadeJanelas > 0 && janelas.length >= quantidadeJanelas) return false;
+  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
+  if (capacidade > ordered[0].demandaPonderada) return false;
+  const cross = capacityCrossIndex(ordered, capacidade);
+  if (cross < 0) return true;
+  return cross + 1 + HOURS_AFTER_CAPACITY > ordered.length;
+}
+
+function separateRankLabels(
+  peakX: number | null,
+  crossX: number | null,
+): { peak: number | null; cross: number | null } {
+  if (peakX === null || crossX === null) return { peak: peakX, cross: crossX };
+  const gap = Math.abs(peakX - crossX);
+  if (gap >= RANK_LABEL_GAP) return { peak: peakX, cross: crossX };
+  const shift = (RANK_LABEL_GAP - gap) / 2;
+  if (crossX < peakX) return { peak: peakX + shift, cross: crossX - shift };
+  return { peak: peakX - shift, cross: crossX + shift };
+}
+
+function chartYMax(
+  ordered: readonly BoardingDhpWindow[],
+  capacidade: number | null,
+): number {
+  let max = 0;
+  for (const item of ordered) max = Math.max(max, item.demandaPonderada);
+  if (capacidade !== null) max = Math.max(max, capacidade);
+  return max > 0 ? max : 1;
 }
 
 const AXIS_LABEL_GAP = 14;
@@ -97,20 +187,26 @@ function axisLabelYs(
   capacityY: number | null,
   floor: number,
 ): { demand: number | null; capacity: number | null } {
+  const aboveZero = (y: number) => Math.min(y, floor);
   if (demandY === null || capacityY === null) {
-    return { demand: demandY, capacity: capacityY };
+    return {
+      demand: demandY === null ? null : aboveZero(demandY),
+      capacity: capacityY === null ? null : aboveZero(capacityY),
+    };
   }
-  if (Math.abs(demandY - capacityY) >= AXIS_LABEL_GAP) {
-    return { demand: demandY, capacity: capacityY };
+  let demand = aboveZero(demandY);
+  let capacity = aboveZero(capacityY);
+  if (Math.abs(demand - capacity) >= AXIS_LABEL_GAP) {
+    return { demand, capacity };
   }
-  const top = Math.min(demandY, capacityY);
+  const top = Math.min(demand, capacity);
   let bottom = top + AXIS_LABEL_GAP;
   let nextTop = top;
   if (bottom > floor) {
     bottom = floor;
     nextTop = floor - AXIS_LABEL_GAP;
   }
-  if (demandY <= capacityY) return { demand: nextTop, capacity: bottom };
+  if (demand <= capacity) return { demand: nextTop, capacity: bottom };
   return { demand: bottom, capacity: nextTop };
 }
 
@@ -121,19 +217,15 @@ function OrderedDemandChart({
   janelas: readonly BoardingDhpWindow[];
   capacidade: number | null;
 }) {
-  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
-  const bounds = yBounds(
-    ordered.map((item) => item.demandaPonderada),
-    capacidade === null ? [] : [capacidade],
-  );
+  const ordered = visibleDhpWindows(janelas, capacidade);
+  const yMax = chartYMax(ordered, capacidade);
   const innerW = CHART_WIDTH - CHART_PAD.left - CHART_PAD.right;
   const innerH = CHART_HEIGHT - CHART_PAD.top - CHART_PAD.bottom;
   const xOf = (index: number) =>
     CHART_PAD.left +
     (ordered.length === 1 ? innerW / 2 : (index / (ordered.length - 1)) * innerW);
   const yOf = (value: number) =>
-    CHART_PAD.top +
-    (1 - (value - bounds.min) / (bounds.max - bounds.min)) * innerH;
+    CHART_PAD.top + (1 - value / yMax) * innerH;
   const baseline = CHART_PAD.top + innerH;
   const points = ordered
     .map((item, index) => `${xOf(index)},${yOf(item.demandaPonderada)}`)
@@ -142,7 +234,18 @@ function OrderedDemandChart({
   const peak = peakIndex >= 0 ? ordered[peakIndex] : null;
   const peakY = peak ? yOf(peak.demandaPonderada) : null;
   const capacityY = capacidade === null ? null : yOf(capacidade);
-  const cuts = axisLabelYs(peakY, capacityY, baseline - 4);
+  const cuts = axisLabelYs(peakY, capacityY, baseline - AXIS_LABEL_GAP);
+  const axisTitleY = CHART_PAD.top + innerH / 2;
+  const crossIndex = capacityCrossIndex(ordered, capacidade);
+  const cross = crossIndex >= 0 ? ordered[crossIndex] : null;
+  const showCross = cross !== null && cross.posicao !== 30;
+  const rankLabels = separateRankLabels(
+    peakIndex >= 0 ? xOf(peakIndex) : null,
+    showCross ? xOf(crossIndex) : null,
+  );
+  const markedRanks = new Set<number>();
+  if (peak) markedRanks.add(peak.posicao);
+  if (cross) markedRanks.add(cross.posicao);
   const legendItems = [
     { label: "Demanda ponderada", mark: "dhp-chart-curve" },
     ...(peak
@@ -207,7 +310,7 @@ function OrderedDemandChart({
             y={cuts.demand + 4}
             textAnchor="end"
           >
-            {formatFixed(peak.demandaPonderada)}
+            {formatNumber(peak.demandaPonderada, 2)}m²(Requisito)
           </text>
         ) : null}
         {capacidade !== null && cuts.capacity !== null ? (
@@ -217,9 +320,25 @@ function OrderedDemandChart({
             y={cuts.capacity + 4}
             textAnchor="end"
           >
-            {formatFixed(capacidade)}
+            {formatNumber(capacidade, 2)}m²(Capacidade)
           </text>
         ) : null}
+        <text
+          className="dhp-chart-cut"
+          x={CHART_PAD.left - 8}
+          y={baseline + 4}
+          textAnchor="end"
+        >
+          0
+        </text>
+        <text
+          x={AREA_TITLE_X}
+          y={axisTitleY}
+          textAnchor="middle"
+          transform={`rotate(-90 ${AREA_TITLE_X} ${axisTitleY})`}
+        >
+          Área
+        </text>
         {peak && peakY !== null ? (
           <>
             <line
@@ -235,21 +354,52 @@ function OrderedDemandChart({
               cy={peakY}
               r={4}
             />
-            <text x={xOf(peakIndex)} y={baseline + 18} textAnchor="middle">
+            <text x={rankLabels.peak ?? xOf(peakIndex)} y={baseline + 18} textAnchor="middle">
               30º
             </text>
           </>
         ) : null}
-        {first ? (
+        {showCross && cross ? (
+          <>
+            <line
+              className="dhp-chart-rank"
+              x1={xOf(crossIndex)}
+              y1={yOf(cross.demandaPonderada)}
+              x2={xOf(crossIndex)}
+              y2={baseline}
+            />
+            <circle
+              className="dhp-chart-peak"
+              cx={xOf(crossIndex)}
+              cy={yOf(cross.demandaPonderada)}
+              r={4}
+            />
+            <text
+              x={rankLabels.cross ?? xOf(crossIndex)}
+              y={baseline + 18}
+              textAnchor="middle"
+            >
+              {cross.posicao}º
+            </text>
+          </>
+        ) : null}
+        {first && !markedRanks.has(first.posicao) ? (
           <text x={xOf(0)} y={baseline + 18} textAnchor="middle">
             {first.posicao}
           </text>
         ) : null}
-        {last && ordered.length > 1 ? (
+        {last && last.posicao !== first?.posicao && !markedRanks.has(last.posicao) ? (
           <text x={xOf(ordered.length - 1)} y={baseline + 18} textAnchor="middle">
             {last.posicao}
           </text>
         ) : null}
+        <text
+          x={CHART_PAD.left + innerW / 2}
+          y={baseline + 38}
+          textAnchor="middle"
+        >
+          DHPº(h)
+        </text>
         <g className="dhp-legend">
           <rect
             className="dhp-legend-box"
@@ -287,7 +437,9 @@ export function BoardingDhpButton({
   airportName,
   entry,
   drafts,
+  mark,
   onApply,
+  onStamp,
 }: BoardingDhpButtonProps) {
   const movimento = useMovimento();
   const [busy, setBusy] = useState(false);
@@ -297,6 +449,7 @@ export function BoardingDhpButton({
   const [stored, setStored] = useState<{
     signature: string;
     janelas: BoardingDhpWindow[];
+    quantidadeJanelas: number;
   } | null>(null);
   const [coverage, setCoverage] = useState<{
     icao: string;
@@ -310,6 +463,8 @@ export function BoardingDhpButton({
   const signature = flows ? flowSignature(icao, flows) : null;
   const janelas =
     stored && signature === stored.signature ? stored.janelas : null;
+  const quantidadeJanelas =
+    stored && signature === stored.signature ? stored.quantidadeJanelas : 0;
   const tabela = janelas?.filter((item) => item.posicao <= 30) ?? null;
   const shownCoverage = coverage?.icao === icao ? coverage.value : null;
   const periodRange = shownCoverage ? dhpPeriodRange(shownCoverage) : null;
@@ -318,6 +473,8 @@ export function BoardingDhpButton({
   const areaMedida = parseLocaleNumber(drafts.areaMedida ?? "");
   const capacidade =
     areaMedida !== null && areaMedida > 0 ? areaMedida : null;
+  const graficoJanelas = janelas ? visibleDhpWindows(janelas, capacidade) : null;
+  const ultimaHoraGrafico = graficoJanelas?.[graficoJanelas.length - 1]?.posicao;
 
   async function calculate() {
     if (!flows || !signature) return;
@@ -335,11 +492,56 @@ export function BoardingDhpButton({
         setError(SHORT_MESSAGE);
         return;
       }
-      setStored({ signature, janelas: result.janelas });
-      onApply(boardingDemandsFromHour(flows, hora.counts));
+      const values = boardingDemandsFromHour(flows, hora.counts);
+      setStored({
+        signature,
+        janelas: result.janelas,
+        quantidadeJanelas: result.quantidadeJanelas,
+      });
+      onApply(values);
+      onStamp({ signature, values });
     } catch (caught) {
       setStored(null);
       setCoverage(null);
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Não foi possível consultar as janelas.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openChart() {
+    if (!flows || !signature || !janelas) return;
+    if (!chartNeedsMoreHours(janelas, capacidade, quantidadeJanelas)) {
+      setChartOpen(true);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setOpen(false);
+    try {
+      let current = janelas;
+      let total = quantidadeJanelas;
+      let limit = current.length;
+      while (chartNeedsMoreHours(current, capacidade, total)) {
+        const next = Math.min(total, Math.max(limit + 500, limit * 2));
+        if (next <= limit) break;
+        const result = await searchBoardingDhp(
+          icao,
+          boardingPonderation(flows),
+          next,
+        );
+        current = result.janelas;
+        total = result.quantidadeJanelas;
+        limit = next;
+        if (current.length < next) break;
+      }
+      setStored({ signature, janelas: current, quantidadeJanelas: total });
+      setChartOpen(true);
+    } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
@@ -366,6 +568,11 @@ export function BoardingDhpButton({
           {prepared === "invalid" ? INVALID_MESSAGE : AREA_MESSAGE}
         </p>
       )}
+      {mark ? (
+        <p className={`dhp-meta dhp-mark dhp-mark-${mark}`}>
+          {boardingDhpMarkText(mark)}
+        </p>
+      ) : null}
       <p className="dhp-meta">
         {arquivoTexto(movimento, "Envie o arquivo de movimentação na aba DHp.")}
       </p>
@@ -386,7 +593,7 @@ export function BoardingDhpButton({
         </button>
         <button
           type="button"
-          onClick={() => setChartOpen(true)}
+          onClick={() => void openChart()}
           disabled={busy || janelas === null}
         >
           Gráfico
@@ -477,8 +684,8 @@ export function BoardingDhpButton({
           >
             <h2 id="dhp-grafico-titulo">{tituloGrafico}</h2>
             <p className="dhp-meta">
-              A curva começa no Nº 1 e desce até o Nº {janelas.length}. O ponto
-              30 é a hora gravada no componente.
+              A curva começa no Nº 1 e desce até o Nº {ultimaHoraGrafico}. O
+              ponto 30 é a hora gravada no componente.
             </p>
             <OrderedDemandChart janelas={janelas} capacidade={capacidade} />
             {capacidade === null ? (
