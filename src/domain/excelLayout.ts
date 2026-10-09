@@ -14,6 +14,7 @@ import type {
   ResultId,
 } from "./types";
 import {
+  BOARDING_CONNECTION_CATALOG,
   hasEquipment,
   hasEsteira,
   usesAreaTaxa,
@@ -321,23 +322,33 @@ function connectionSizing(contract: ComponentContract): {
   };
 }
 
+function boardingConnectionRows(contract: ComponentContract) {
+  return BOARDING_CONNECTION_CATALOG.filter((spec) =>
+    contract.params.some((field) => field.id === spec.demanda),
+  );
+}
+
 function layoutConnectionAreaRow(
   contract: ComponentContract,
   r: number,
+  demanda: ComponentParamId,
+  area: ResultId,
+  empCell?: string,
+  toiCell?: string,
 ): NatureAreaRowLayout {
   const sizing = connectionSizing(contract);
   return {
     row: r,
     inputs: {
-      demandaPicoConexao: `B${r}`,
-      [sizing.emp]: `D${r}`,
-      [sizing.toi]: `F${r}`,
+      [demanda]: `B${r}`,
+      [sizing.emp]: empCell ?? `D${r}`,
+      [sizing.toi]: toiCell ?? `F${r}`,
       ...(usesAreaTaxa(contract.requirements)
         ? { taxaDeUsoArea: `R${r}` }
         : {}),
     },
     results: {
-      areaMinimaConexao: `N${r}`,
+      [area]: `N${r}`,
     },
     statusCell: `P${r}`,
   };
@@ -555,11 +566,21 @@ export function getNatureSheetLayout(
             row += 1;
           }
         } else if (contractHasConnection(contract)) {
-          const connectionRow = layoutConnectionAreaRow(contract, row);
-          totalInputs.demandaPicoConexao = `B${row}`;
-          totalResults.areaMinimaConexao = `N${row}`;
-          collected.push(connectionRow);
-          row += 1;
+          const sizing = connectionSizing(contract);
+          for (const spec of boardingConnectionRows(contract)) {
+            const connectionRow = layoutConnectionAreaRow(
+              contract,
+              row,
+              spec.demanda,
+              spec.area,
+              totalInputs[sizing.emp],
+              totalInputs[sizing.toi],
+            );
+            totalInputs[spec.demanda] = `B${row}`;
+            totalResults[spec.area] = `N${row}`;
+            collected.push(connectionRow);
+            row += 1;
+          }
         }
         const totalRow = row;
         totalInputs.areaMedida = `K${totalRow}`;
@@ -578,19 +599,26 @@ export function getNatureSheetLayout(
         continue;
       }
       const collected: NatureAreaRowLayout[] = [];
+      const connectionInputs: ExcelCellMap["inputs"] = {};
+      const connectionResults: ExcelCellMap["results"] = {};
       if (contractHasConnection(contract)) {
-        collected.push(layoutConnectionAreaRow(contract, row));
-        row += 1;
+        for (const spec of boardingConnectionRows(contract)) {
+          collected.push(
+            layoutConnectionAreaRow(contract, row, spec.demanda, spec.area),
+          );
+          connectionInputs[spec.demanda] = `B${row}`;
+          connectionResults[spec.area] = `N${row}`;
+          row += 1;
+        }
       }
       const r = row;
-      const connectionInputs = collected[0]?.inputs ?? {};
       rows[contract.id] = {
         row: r,
         inputs: {
           demandaPico: `B${r}`,
           demandaPicoEmbarque: `B${r}`,
           demandaPicoDesembarque: `C${r}`,
-          demandaPicoConexao: connectionInputs.demandaPicoConexao,
+          ...connectionInputs,
           espacoMinimoPorPassageiro: `D${r}`,
           espacoMinimoPorPassageiroEmbarque: `D${r}`,
           tempoDeOcupacao: `F${r}`,
@@ -612,7 +640,7 @@ export function getNatureSheetLayout(
         results: {
           areaMinimaEmbarque: `L${r}`,
           areaMinimaDesembarque: `M${r}`,
-          areaMinimaConexao: collected[0]?.results.areaMinimaConexao,
+          ...connectionResults,
           areaMinima: `N${r}`,
           assentosMinimos: `O${r}`,
         },
@@ -728,13 +756,11 @@ export function getNatureSheetLayout(
           inputs.demandaPicoEmbarque = `B${r}`;
           inputs.demandaPicoDesembarque = `C${r}`;
         }
-        const connectionCell = mixedFlows?.find(
-          (flow) => flow.inputs.demandaPicoConexao,
-        )?.inputs.demandaPicoConexao;
-        if (connectionCell) {
-          inputs.demandaPicoConexao = connectionCell;
-        } else if (contractHasConnection(contract)) {
-          inputs.demandaPicoConexao = `G${r}`;
+        for (const spec of BOARDING_CONNECTION_CATALOG) {
+          const connectionCell = mixedFlows?.find(
+            (flow) => flow.inputs[spec.demanda],
+          )?.inputs[spec.demanda];
+          if (connectionCell) inputs[spec.demanda] = connectionCell;
         }
         for (const term of terms) {
           inputs[term.toi] = areaInputs?.[term.toi] ?? `E${r}`;

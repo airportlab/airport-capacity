@@ -215,7 +215,43 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Atributo opcional do embarque via conexão. No saguão misto, demanda agregada das conexões.",
+      "Atributo opcional do embarque via conexão. Cada par ligado tem o seu DHp.",
+  },
+  demandaPicoConexaoDomDom: {
+    id: "demandaPicoConexaoDomDom",
+    kind: "attribute",
+    label: "DHp conexão DOM-DOM",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Embarque via conexão com origem e destino domésticos. Sem acompanhante.",
+  },
+  demandaPicoConexaoIntDom: {
+    id: "demandaPicoConexaoIntDom",
+    kind: "attribute",
+    label: "DHp conexão INT-DOM",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Embarque via conexão com origem internacional e destino doméstico. Sem acompanhante.",
+  },
+  demandaPicoConexaoDomInt: {
+    id: "demandaPicoConexaoDomInt",
+    kind: "attribute",
+    label: "DHp conexão DOM-INT",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Embarque via conexão com origem doméstica e destino internacional. Sem acompanhante.",
+  },
+  demandaPicoConexaoIntInt: {
+    id: "demandaPicoConexaoIntInt",
+    kind: "attribute",
+    label: "DHp conexão INT-INT",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Embarque via conexão com origem e destino internacionais. Sem acompanhante.",
   },
   demandaPicoConexaoDesembarqueDomestico: {
     id: "demandaPicoConexaoDesembarqueDomestico",

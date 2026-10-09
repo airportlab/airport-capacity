@@ -31,6 +31,7 @@ import {
   type OrganNature,
 } from "../domain/templates/organs";
 import type {
+  BoardingConnectionPair,
   ComponentContract,
   ComponentJustificativas,
   ComponentParamId,
@@ -44,6 +45,9 @@ import {
   allowsArrivalsConnection,
   allowsBoardingConnection,
   hasArrivalsConnection,
+  boardingConnectionPairsFor,
+  boardingConnectionSpec,
+  enabledBoardingConnections,
   hasBoardingConnection,
   hasEquipment,
   hasEsteira,
@@ -63,7 +67,11 @@ import {
   SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
-import { BoardingDhpButton } from "./BoardingDhpButton";
+import {
+  boardingDhpMark,
+  BoardingDhpButton,
+  type BoardingDhpStamp,
+} from "./BoardingDhpButton";
 import { NumberField } from "./NumberField";
 import { AreaResults, EquipmentResults, EsteiraResults } from "./ResultPanel";
 
@@ -80,12 +88,16 @@ function FieldList({
   origens,
   onValueChange,
   onOrigemChange,
+  dhpMark,
+  dhpIds,
 }: {
   fields: ComponentContract["params"];
   drafts: Record<ComponentParamId, string>;
   origens: Record<ComponentParamId, string>;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
+  dhpMark?: ReturnType<typeof boardingDhpMark>;
+  dhpIds?: ReadonlySet<ComponentParamId>;
 }) {
   return (
     <div className="fields">
@@ -105,6 +117,7 @@ function FieldList({
               ? (raw) => onOrigemChange(field.id, raw)
               : undefined
           }
+          dhpMark={dhpMark && dhpIds?.has(field.id) ? dhpMark : null}
         />
       ))}
     </div>
@@ -318,12 +331,15 @@ interface ComponentEditorProps {
   onSetEsteiraTaxa: (taxaDiferente: boolean) => void;
   onRemoveEsteira: () => void;
   onSetConnection: (hasConnection: boolean) => void;
+  onSetConnectionPair: (pair: BoardingConnectionPair, enabled: boolean) => void;
   onNatureChange: (nature: OrganNature) => void;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
   onJustificationChange: (id: JustificativaId, raw: string) => void;
   onRestoreContract: (id: JustificativaId) => void;
   onApplyDemands: (values: Partial<Record<ComponentParamId, number>>) => void;
+  dhpStamp: BoardingDhpStamp | null;
+  onDhpStamp: (stamp: BoardingDhpStamp) => void;
 }
 
 export function ComponentEditor({
@@ -349,12 +365,15 @@ export function ComponentEditor({
   onSetEsteiraTaxa,
   onRemoveEsteira,
   onSetConnection,
+  onSetConnectionPair,
   onNatureChange,
   onValueChange,
   onOrigemChange,
   onJustificationChange,
   onRestoreContract,
   onApplyDemands,
+  dhpStamp,
+  onDhpStamp,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
@@ -375,6 +394,13 @@ export function ComponentEditor({
   const boardingIdentityFields = identityFields.filter(
     (field) => !field.id.startsWith("demandaPicoConexao"),
   );
+  const dhpMark =
+    entry.kind === "saguao-embarque"
+      ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts)
+      : null;
+  const dhpIds = dhpStamp
+    ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
+    : undefined;
   const areaTaxaFields = contract.params.filter(
     (field) =>
       field.id === "taxaDeUsoArea" ||
@@ -408,6 +434,7 @@ export function ComponentEditor({
       field.id === "comprimentoEsteiras",
   );
   const sizingFields = contract.params.filter((field) => isSizingParam(field.id));
+  const connectionPairs = enabledBoardingConnections(entry);
   const mixed = isMixedNature(entry) || isMixedNatureContract(contract);
   const singleFunctionMixed = isSingleFunctionMixedContract(contract);
   const mixedGroups = singleFunctionMixed
@@ -549,6 +576,8 @@ export function ComponentEditor({
                 origens={origens}
                 onValueChange={onValueChange}
                 onOrigemChange={onOrigemChange}
+                dhpMark={dhpMark}
+                dhpIds={dhpIds}
               />
             ) : (
               mixedGroups.map(([label, needle]) => {
@@ -600,6 +629,8 @@ export function ComponentEditor({
               origens={origens}
               onValueChange={onValueChange}
               onOrigemChange={onOrigemChange}
+              dhpMark={dhpMark}
+              dhpIds={dhpIds}
             />
           )
         ) : null}
@@ -612,6 +643,22 @@ export function ComponentEditor({
             />
             Há embarque via conexão
           </label>
+        ) : null}
+        {hasBoardingConnection(entry) ? (
+          <div className="connection-pairs">
+            {boardingConnectionPairsFor(entry).map((pair) => (
+              <label className="choice" key={pair}>
+                <input
+                  type="checkbox"
+                  checked={enabledBoardingConnections(entry).includes(pair)}
+                  onChange={(event) =>
+                    onSetConnectionPair(pair, event.target.checked)
+                  }
+                />
+                Conexão {boardingConnectionSpec(pair).label}
+              </label>
+            ))}
+          </div>
         ) : null}
         {allowsArrivalsConnection(entry) ? (
           <label className="choice">
@@ -636,6 +683,8 @@ export function ComponentEditor({
               origens={origens}
               onValueChange={onValueChange}
               onOrigemChange={onOrigemChange}
+              dhpMark={dhpMark}
+              dhpIds={dhpIds}
             />
           </>
         ) : null}
@@ -645,7 +694,9 @@ export function ComponentEditor({
             airportName={airport.name}
             entry={entry}
             drafts={drafts}
+            mark={dhpMark}
             onApply={onApplyDemands}
+            onStamp={onDhpStamp}
           />
         ) : null}
         <div className="actions">
@@ -714,8 +765,9 @@ export function ComponentEditor({
                   false)
               }
               hasConnection={
-                hasBoardingConnection(entry) || hasArrivalsConnection(entry)
+                connectionPairs.length > 0 || hasArrivalsConnection(entry)
               }
+              connectionPairs={connectionPairs}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -724,7 +776,8 @@ export function ComponentEditor({
             <DualAreaFormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
-              hasConnection={hasBoardingConnection(entry)}
+              hasConnection={connectionPairs.length > 0}
+              connectionPairs={connectionPairs}
               afterEquation={
                 <>
                   <SeatsFormulaLine contract={contract} />
@@ -745,7 +798,8 @@ export function ComponentEditor({
             <FormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
-              hasConnection={hasBoardingConnection(entry)}
+              hasConnection={connectionPairs.length > 0}
+              connectionPairs={connectionPairs}
               includeSeats={contract.formulas.some(
                 (formula) => formula.id === "assentosMinimos",
               )}

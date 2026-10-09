@@ -1,4 +1,5 @@
-import type { ComponentParamId, EquipmentTerm } from "../types";
+import type { BoardingConnectionPair, ComponentParamId, EquipmentTerm } from "../types";
+import { boardingConnectionSpec } from "../types";
 
 export const AREA_NOTATIONS = [
   { symbol: "Ad", meaning: "Área mínima necessária", unit: "m²" },
@@ -62,7 +63,21 @@ export function dualArrivalsAreaRhs(
   return `(${areaNumerator(companions, includeTaxa, "_d")}) / 60`;
 }
 
-export function dualAreaSumDisplay(hasConnection = false): string {
+export function boardingConnectionAreaList(
+  pairs: readonly BoardingConnectionPair[],
+): string {
+  return pairs
+    .map((pair) => boardingConnectionSpec(pair).areaSymbol)
+    .join(" + ");
+}
+
+export function dualAreaSumDisplay(
+  hasConnection = false,
+  pairs: readonly BoardingConnectionPair[] = [],
+): string {
+  if (pairs.length > 0) {
+    return `Ad = Ad_e + Ad_d + ${boardingConnectionAreaList(pairs)}`;
+  }
   return hasConnection ? "Ad = Ad_e + Ad_d + Ad_c" : "Ad = Ad_e + Ad_d";
 }
 
@@ -70,11 +85,15 @@ export function dualAreaFormulaDisplay(
   companions: boolean,
   includeTaxa = false,
   hasConnection = false,
+  pairs: readonly BoardingConnectionPair[] = [],
 ): string {
-  const connection = hasConnection
-    ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e")};`
-    : "";
-  return `Ad_e = ${dualBoardingAreaRhs(companions, includeTaxa)}; Ad_d = ${dualArrivalsAreaRhs(companions, includeTaxa)};${connection} ${dualAreaSumDisplay(hasConnection)}`;
+  const connection =
+    pairs.length > 0
+      ? ` ${boardingConnectionAreasClause(pairs, includeTaxa, "_e")}`
+      : hasConnection
+        ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e")};`
+        : "";
+  return `Ad_e = ${dualBoardingAreaRhs(companions, includeTaxa)}; Ad_d = ${dualArrivalsAreaRhs(companions, includeTaxa)};${connection} ${dualAreaSumDisplay(hasConnection, pairs)}`;
 }
 
 export function singleFunctionMixedSumDisplay(): string {
@@ -94,6 +113,7 @@ export function mixedAreaSumDisplay(
   flowCount = 4,
   hasConnection = false,
   arrivalsOnly = false,
+  pairs: readonly BoardingConnectionPair[] = [],
 ): string {
   if (arrivalsOnly) {
     return hasConnection
@@ -104,6 +124,7 @@ export function mixedAreaSumDisplay(
     flowCount <= 2
       ? "Ad = Ad_e,dom + Ad_e,int"
       : "Ad = Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int";
+  if (pairs.length > 0) return `${base} + ${boardingConnectionAreaList(pairs)}`;
   return hasConnection ? `${base} + Ad_c` : base;
 }
 
@@ -113,21 +134,25 @@ export function mixedAreaFormulaDisplay(
   includeTaxa = false,
   hasConnection = false,
   arrivalsOnly = false,
+  pairs: readonly BoardingConnectionPair[] = [],
 ): string {
   const rhs = areaFormulaRhs(companions, includeTaxa);
-  const connection = hasConnection
-    ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e,dom")};`
-    : "";
+  const connection =
+    pairs.length > 0
+      ? ` ${boardingConnectionAreasClause(pairs, includeTaxa, "_e,dom")}`
+      : hasConnection
+        ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e,dom")};`
+        : "";
   if (arrivalsOnly) {
-    const connection = hasConnection
+    const arrivals = hasConnection
       ? ` ${arrivalsConnectionAreaDisplay("dom", includeTaxa)}; ${arrivalsConnectionAreaDisplay("int", includeTaxa)};`
       : "";
-    return `Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection, true)}`;
+    return `Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${arrivals} ${mixedAreaSumDisplay(2, hasConnection, true)}`;
   }
   if (flowCount <= 2) {
-    return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection)}`;
+    return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection, false, pairs)}`;
   }
-  return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs}; Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(4, hasConnection)}`;
+  return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs}; Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(4, hasConnection, false, pairs)}`;
 }
 
 export function arrivalsConnectionNumerator(
@@ -172,15 +197,53 @@ export function connectionAreaDisplay(
   return `Ad_c = ${connectionAreaRhs(includeTaxa, empSuffix)}`;
 }
 
-export function simpleConnectionSumDisplay(): string {
+export function boardingConnectionNumerator(
+  pair: BoardingConnectionPair,
+  includeTaxa = false,
+  empSuffix = "",
+): string {
+  const demand = withTu(boardingConnectionSpec(pair).dhpSymbol, includeTaxa);
+  return `${demand} × Emp${empSuffix} × Toi${empSuffix}`;
+}
+
+export function boardingConnectionAreaDisplay(
+  pair: BoardingConnectionPair,
+  includeTaxa = false,
+  empSuffix = "",
+): string {
+  const lhs = boardingConnectionSpec(pair).areaSymbol;
+  return `${lhs} = (${boardingConnectionNumerator(pair, includeTaxa, empSuffix)}) / 60`;
+}
+
+function boardingConnectionAreasClause(
+  pairs: readonly BoardingConnectionPair[],
+  includeTaxa: boolean,
+  empSuffix: string,
+): string {
+  return `${pairs
+    .map((pair) => boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix))
+    .join("; ")};`;
+}
+
+export function simpleConnectionSumDisplay(
+  pairs: readonly BoardingConnectionPair[] = [],
+): string {
+  if (pairs.length > 0) {
+    return `Ad = Ad_e + ${boardingConnectionAreaList(pairs)}`;
+  }
   return "Ad = Ad_e + Ad_c";
 }
 
 export function simpleConnectionFormulaDisplay(
   companions: boolean,
   includeTaxa = false,
+  pairs: readonly BoardingConnectionPair[] = [],
 ): string {
-  return `Ad_e = ${areaFormulaRhs(companions, includeTaxa)}; ${connectionAreaDisplay(includeTaxa)}; ${simpleConnectionSumDisplay()}`;
+  const connection =
+    pairs.length > 0
+      ? boardingConnectionAreasClause(pairs, includeTaxa, "_e")
+      : `${connectionAreaDisplay(includeTaxa)};`;
+  return `Ad_e = ${areaFormulaRhs(companions, includeTaxa)}; ${connection} ${simpleConnectionSumDisplay(pairs)}`;
 }
 
 export function demandSymbol(id: ComponentParamId): string {
@@ -203,6 +266,14 @@ export function demandSymbol(id: ComponentParamId): string {
       return "DHp_int";
     case "demandaPicoConexao":
       return "DHp_c";
+    case "demandaPicoConexaoDomDom":
+      return "DHp_c,DomDom";
+    case "demandaPicoConexaoIntDom":
+      return "DHp_c,IntDom";
+    case "demandaPicoConexaoDomInt":
+      return "DHp_c,DomInt";
+    case "demandaPicoConexaoIntInt":
+      return "DHp_c,IntInt";
     case "demandaPicoConexaoDesembarqueDomestico":
       return "DHp_c,dom";
     case "demandaPicoConexaoDesembarqueInternacional":

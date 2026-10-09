@@ -576,6 +576,20 @@ button.pmd-card.empty {
   white-space: pre-line;
 }
 
+.dhp-mark {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.dhp-mark-calculado {
+  color: var(--ok);
+}
+
+.dhp-mark-recalcular {
+  color: var(--quiet);
+  font-weight: 600;
+}
+
 .dhp-actions {
   margin-top: 0;
   margin-bottom: 16px;
@@ -930,6 +944,14 @@ fieldset.field {
   gap: 8px;
   font-weight: 500;
   margin: 12px 0;
+}
+
+.connection-pairs {
+  margin: 0 0 4px 22px;
+}
+
+.connection-pairs .choice {
+  margin: 6px 0;
 }
 
 .requirement-balloon {

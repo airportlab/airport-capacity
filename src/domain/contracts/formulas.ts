@@ -1,10 +1,13 @@
 import type {
+  BoardingConnectionPair,
   ComponentParamId,
   ContractFormula,
   EquipmentTerm,
   ExcelCellMap,
   ResolvedInputs,
+  ResultId,
 } from "../types";
+import { BOARDING_CONNECTION_CATALOG } from "../types";
 import type { FlowParamIds } from "./flowParams";
 import {
   demandSum,
@@ -20,6 +23,7 @@ import {
   beltSumDisplay,
   beltTermDisplay,
   beltTermRhs,
+  boardingConnectionAreaDisplay,
   connectionAreaDisplay,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
@@ -300,6 +304,12 @@ function withDemandTu(demand: string, includeTaxa: boolean, tu = "Tu"): string {
   return includeTaxa ? `${demand} × ${tu}` : demand;
 }
 
+function boardingPairOfArea(area: ResultId): BoardingConnectionPair | null {
+  return (
+    BOARDING_CONNECTION_CATALOG.find((item) => item.area === area)?.pair ?? null
+  );
+}
+
 function connectionExpression(
   item: FlowParamIds,
   mixedNature: boolean,
@@ -311,7 +321,10 @@ function connectionExpression(
   if (item.area === "areaMinimaConexaoInternacional") {
     return arrivalsConnectionAreaDisplay("int", includeTaxa);
   }
-  return connectionAreaDisplay(includeTaxa, mixedNature ? "_e,dom" : "_e");
+  const pair = boardingPairOfArea(item.area);
+  const empSuffix = mixedNature ? "_e,dom" : "_e";
+  if (pair) return boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix);
+  return connectionAreaDisplay(includeTaxa, empSuffix);
 }
 
 function connectionLabel(item: FlowParamIds): string {
@@ -321,7 +334,20 @@ function connectionLabel(item: FlowParamIds): string {
   if (item.area === "areaMinimaConexaoInternacional") {
     return "Área mínima de conexão de desembarque internacional (Ad_c,int)";
   }
+  const pair = boardingPairOfArea(item.area);
+  if (pair) {
+    const spec = BOARDING_CONNECTION_CATALOG.find((item) => item.pair === pair);
+    return `Área mínima de conexão ${spec?.label ?? pair} (${spec?.areaSymbol ?? "Ad_c"})`;
+  }
   return "Área mínima de conexões (Ad_c)";
+}
+
+function boardingPairsOf(
+  connections: readonly FlowParamIds[],
+): BoardingConnectionPair[] {
+  return BOARDING_CONNECTION_CATALOG.filter((item) =>
+    connections.some((connection) => connection.area === item.area),
+  ).map((item) => item.pair);
 }
 
 function equipmentDemandExcel(
@@ -517,11 +543,13 @@ export function capacityFormulas(copy: {
       });
     }
     const arrivalsOnly = isArrivalsOnlyMixed(flows);
+    const pairs = boardingPairsOf(connections);
+    const genericConnection = pairs.length === 0 && connections.length > 0;
     const sumDisplay = singleFunctionMixed
       ? singleFunctionMixedSumDisplay()
       : mixedNature
-        ? mixedAreaSumDisplay(flows.length, connections.length > 0, arrivalsOnly)
-        : dualAreaSumDisplay(connections.length > 0);
+        ? mixedAreaSumDisplay(flows.length, genericConnection, arrivalsOnly, pairs)
+        : dualAreaSumDisplay(connections.length > 0, pairs);
     formulas.push({
       id: "areaMinima",
       label: "Área mínima necessária (Ad)",
@@ -582,7 +610,8 @@ export function capacityFormulas(copy: {
       },
     });
   } else if (includeArea) {
-    if (connection) {
+    const looseConnections = connections.length > 0 ? connections : connection ? [connection] : [];
+    if (looseConnections.length > 0) {
       const originExpression = `Ad_e = ${areaFormulaDisplay(companions, includeAreaTaxa).replace("Ad = ", "")}`;
       formulas.push({
         id: "areaMinimaEmbarque",
@@ -609,33 +638,35 @@ export function capacityFormulas(copy: {
             areaTaxaId,
           ),
       });
-      const connectionExpression = connectionAreaDisplay(includeAreaTaxa);
-      formulas.push({
-        id: connection.area,
-        label: "Área mínima de conexões (Ad_c)",
-        unit: "m²",
-        origem: `${connectionExpression}. Conexões sem acompanhante.`,
-        expression: connectionExpression,
-        evaluate: (inputs) =>
-          areaValue(
-            inputs,
-            connection.demanda,
-            connection.emp,
-            connection.toi,
-            undefined,
-            areaTaxaId,
-          ),
-        toExcel: (cells) =>
-          areaExcel(
-            cells,
-            connection.demanda,
-            connection.emp,
-            connection.toi,
-            undefined,
-            areaTaxaId,
-          ),
-      });
-      const sumDisplay = simpleConnectionSumDisplay();
+      for (const item of looseConnections) {
+        const expression = connectionExpression(item, false, includeAreaTaxa);
+        formulas.push({
+          id: item.area,
+          label: connectionLabel(item),
+          unit: "m²",
+          origem: `${expression}. Conexões sem acompanhante.`,
+          expression,
+          evaluate: (inputs) =>
+            areaValue(
+              inputs,
+              item.demanda,
+              item.emp,
+              item.toi,
+              undefined,
+              areaTaxaId,
+            ),
+          toExcel: (cells) =>
+            areaExcel(
+              cells,
+              item.demanda,
+              item.emp,
+              item.toi,
+              undefined,
+              areaTaxaId,
+            ),
+        });
+      }
+      const sumDisplay = simpleConnectionSumDisplay(boardingPairsOf(looseConnections));
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
@@ -651,13 +682,18 @@ export function capacityFormulas(copy: {
             companions ? "va" : undefined,
             areaTaxaId,
           ) +
-          areaValue(
-            inputs,
-            connection.demanda,
-            connection.emp,
-            connection.toi,
-            undefined,
-            areaTaxaId,
+          looseConnections.reduce(
+            (sum, item) =>
+              sum +
+              areaValue(
+                inputs,
+                item.demanda,
+                item.emp,
+                item.toi,
+                undefined,
+                areaTaxaId,
+              ),
+            0,
           ),
         toExcel: (cells) =>
           [
@@ -669,13 +705,15 @@ export function capacityFormulas(copy: {
               companions ? "va" : undefined,
               areaTaxaId,
             ),
-            areaExcel(
-              cells,
-              connection.demanda,
-              connection.emp,
-              connection.toi,
-              undefined,
-              areaTaxaId,
+            ...looseConnections.map((item) =>
+              areaExcel(
+                cells,
+                item.demanda,
+                item.emp,
+                item.toi,
+                undefined,
+                areaTaxaId,
+              ),
             ),
           ].join("+"),
       });

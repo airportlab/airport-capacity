@@ -22,7 +22,6 @@ import {
   type ComponentParamId,
   type Evaluation,
   type ExcelCellMap,
-  isMixedNature,
   natureOfEntry,
   type RegistryEntry,
 } from "../domain/types";
@@ -362,6 +361,14 @@ function flowLabel(id: ComponentParamId): string {
       return "desembarque";
     case "demandaPicoConexao":
       return "embarque via conexão";
+    case "demandaPicoConexaoDomDom":
+      return "conexão DOM-DOM";
+    case "demandaPicoConexaoIntDom":
+      return "conexão INT-DOM";
+    case "demandaPicoConexaoDomInt":
+      return "conexão DOM-INT";
+    case "demandaPicoConexaoIntInt":
+      return "conexão INT-INT";
     case "demandaPicoConexaoDesembarqueDomestico":
       return "conexão DOM/INT";
     case "demandaPicoConexaoDesembarqueInternacional":
@@ -1871,6 +1878,10 @@ const FLOW_SUFFIXES: { suffix: string; demand: ComponentParamId }[] = [
 
 const CONNECTION_DEMANDS = new Set<ComponentParamId>([
   "demandaPicoConexao",
+  "demandaPicoConexaoDomDom",
+  "demandaPicoConexaoIntDom",
+  "demandaPicoConexaoDomInt",
+  "demandaPicoConexaoIntInt",
   "demandaPicoConexaoDesembarqueDomestico",
   "demandaPicoConexaoDesembarqueInternacional",
 ]);
@@ -1917,7 +1928,7 @@ function memoryFlowLabel(
       return "Demanda hora pico(Origem INT)";
     }
     if (id === "demandaPicoConexao") {
-      return isMixedNature(entry) ? "conexões (agregado)" : "embarque via conexão";
+      return "embarque via conexão";
     }
   }
   if (id !== "demandaPico") return flowLabel(id);

@@ -46,6 +46,7 @@ import {
   type OrganNature,
 } from "../domain/templates/organs";
 import type {
+  BoardingConnectionPair,
   ComponentId,
   ComponentJustificativas,
   ComponentParamId,
@@ -53,6 +54,10 @@ import type {
   ComponentParams,
   EditorTab,
   RegistryEntry,
+} from "../domain/types";
+import {
+  boardingConnectionPairsFor,
+  boardingConnectionsAllOn,
 } from "../domain/types";
 import { downloadBlob, stampFilename } from "../export/download";
 import {
@@ -72,6 +77,7 @@ import { AboutPage } from "./AboutPage";
 import { CirculationsTab } from "./CirculationsTab";
 import { DhpSearchPage } from "./DhpSearchPage";
 import { ComponentEditor } from "./ComponentEditor";
+import type { BoardingDhpStamp } from "./BoardingDhpButton";
 import {
   formatAirportName,
   formatEditable,
@@ -107,6 +113,9 @@ export function AirportEditor() {
   const [circulations, setCirculations] = useState<HorizontalCirculation[]>(
     initial.circulations,
   );
+  const [dhpStamps, setDhpStamps] = useState<
+    Partial<Record<ComponentId, BoardingDhpStamp>>
+  >({});
   useEffect(() => {
     void restoreMovimento();
   }, []);
@@ -207,6 +216,7 @@ export function AirportEditor() {
     setComponentOrigens(next.componentOrigens);
     setJustificativas(next.justificativas);
     setCirculations(next.circulations);
+    setDhpStamps({});
     rebuildDrafts(next.registry, next.components);
   }
 
@@ -338,6 +348,7 @@ export function AirportEditor() {
         : undefined,
       observacoes: source.observacoes,
       hasConnection: source.hasConnection,
+      conexoes: source.conexoes ? { ...source.conexoes } : undefined,
     };
     applyComponentRecords(
       id,
@@ -398,6 +409,10 @@ export function AirportEditor() {
       "comprimentoEsteiras",
       "tsec",
       "demandaPicoConexao",
+      "demandaPicoConexaoDomDom",
+      "demandaPicoConexaoIntDom",
+      "demandaPicoConexaoDomInt",
+      "demandaPicoConexaoIntInt",
       "demandaPicoConexaoDesembarqueDomestico",
       "demandaPicoConexaoDesembarqueInternacional",
     ]);
@@ -451,6 +466,10 @@ export function AirportEditor() {
       params.demandaPicoDomestico = 0;
       params.demandaPicoInternacional = 0;
       params.demandaPicoConexao = 0;
+      params.demandaPicoConexaoDomDom = 0;
+      params.demandaPicoConexaoIntDom = 0;
+      params.demandaPicoConexaoDomInt = 0;
+      params.demandaPicoConexaoIntInt = 0;
       params.demandaPicoConexaoDesembarqueDomestico = 0;
       params.demandaPicoConexaoDesembarqueInternacional = 0;
       params.areaMedida = 0;
@@ -581,10 +600,37 @@ export function AirportEditor() {
   }
 
   function handleSetConnection(id: ComponentId, hasConnection: boolean) {
-    updateRequirements(id, (entry) => ({
-      ...entry,
-      hasConnection: hasConnection || undefined,
-    }));
+    updateRequirements(id, (entry) => {
+      if (!hasConnection) {
+        return { ...entry, hasConnection: undefined, conexoes: undefined };
+      }
+      const nature = natureOfEntry(entry);
+      return {
+        ...entry,
+        hasConnection: true,
+        conexoes: boardingConnectionsAllOn(
+          nature === "internacional" || nature === "misto" ? nature : "domestico",
+        ),
+      };
+    });
+  }
+
+  function handleSetConnectionPair(
+    id: ComponentId,
+    pair: BoardingConnectionPair,
+    enabled: boolean,
+  ) {
+    updateRequirements(id, (entry) => {
+      const possible = boardingConnectionPairsFor(entry);
+      const current =
+        entry.conexoes ??
+        Object.fromEntries(possible.map((item) => [item, true]));
+      return {
+        ...entry,
+        hasConnection: true,
+        conexoes: { ...current, [pair]: enabled },
+      };
+    });
   }
 
   function handleSetEsteiraTaxa(id: ComponentId, taxaDiferente: boolean) {
@@ -688,6 +734,7 @@ export function AirportEditor() {
     setComponentOrigens({});
     setJustificativas({});
     setCirculations((current) => clearCirculationLinks(current));
+    setDhpStamps({});
     rebuildDrafts([], {});
     setTab("summary");
     setMessage("Todos os componentes operacionais foram apagados.");
@@ -711,6 +758,11 @@ export function AirportEditor() {
     setComponentOrigens(nextOrigens);
     setComponentDrafts(nextDrafts);
     setJustificativas(nextJust);
+    setDhpStamps((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setCirculations((current) => clearCirculationComponent(current, id));
     if (tab === id) setTab("summary");
     setMessage(`Componente “${entry.title}” removido.`);
@@ -1047,6 +1099,9 @@ export function AirportEditor() {
           onSetConnection={(hasConnection) =>
             handleSetConnection(activeContract.id, hasConnection)
           }
+          onSetConnectionPair={(pair, enabled) =>
+            handleSetConnectionPair(activeContract.id, pair, enabled)
+          }
           onNatureChange={(nature) =>
             handleNatureChange(activeContract.id, nature)
           }
@@ -1070,6 +1125,13 @@ export function AirportEditor() {
           }
           onApplyDemands={(values) =>
             applyDemands(activeContract.id, values)
+          }
+          dhpStamp={dhpStamps[activeContract.id] ?? null}
+          onDhpStamp={(stamp) =>
+            setDhpStamps((current) => ({
+              ...current,
+              [activeContract.id]: stamp,
+            }))
           }
         />
       ) : null}

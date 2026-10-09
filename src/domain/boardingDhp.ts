@@ -1,14 +1,12 @@
 import { areaCoefficient } from "./contracts/formulas";
-import {
-  connectionAreaParams,
-  entryFlowParams,
-} from "./contracts/flowParams";
+import { connectionFlows, entryFlowParams } from "./contracts/flowParams";
 import type {
   ComponentParamId,
   RegistryEntry,
   ResolvedInputs,
 } from "./types";
 import {
+  BOARDING_CONNECTION_CATALOG,
   hasBoardingConnection,
   isMixedNature,
   natureOfEntry,
@@ -57,17 +55,15 @@ interface WeightSpec {
   va?: ComponentParamId;
 }
 
-const CONNECTION_PAIRS: ReadonlyArray<{
-  key: BoardingFlowKey;
-  label: string;
-  /** Natureza do voo que embarca. Doméstico leva os pares que terminam em DOM. */
-  leg: "dom" | "int";
-}> = [
-  { key: "conexaoDomDom", label: "conexão DOM-DOM", leg: "dom" },
-  { key: "conexaoIntDom", label: "conexão INT-DOM", leg: "dom" },
-  { key: "conexaoDomInt", label: "conexão DOM-INT", leg: "int" },
-  { key: "conexaoIntInt", label: "conexão INT-INT", leg: "int" },
-];
+const CONNECTION_FLOW_KEY: Record<
+  (typeof BOARDING_CONNECTION_CATALOG)[number]["pair"],
+  BoardingFlowKey
+> = {
+  domDom: "conexaoDomDom",
+  intDom: "conexaoIntDom",
+  domInt: "conexaoDomInt",
+  intInt: "conexaoIntInt",
+};
 
 function weightSpecs(entry: RegistryEntry): WeightSpec[] | null {
   if (entry.kind !== "saguao-embarque" || !entry.requirements.area) return null;
@@ -100,28 +96,30 @@ function weightSpecs(entry: RegistryEntry): WeightSpec[] | null {
     }
   } else {
     const international = nature === "internacional";
+    const boarding = entryFlowParams(entry).find(
+      (flow) => flow.area === "areaMinimaEmbarque",
+    );
     specs.push({
-      demanda: "demandaPico",
+      demanda: boarding?.demanda ?? "demandaPico",
       label: international ? "origem INT" : "origem DOM",
       key: international ? "origemInt" : "origemDom",
-      emp: "espacoMinimoPorPassageiro",
-      toi: "tempoDeOcupacao",
-      va: companions ? "va" : undefined,
+      emp: boarding?.emp ?? "espacoMinimoPorPassageiro",
+      toi: boarding?.toi ?? "tempoDeOcupacao",
+      va: companions ? (boarding?.va ?? "va") : undefined,
     });
   }
   if (hasBoardingConnection(entry)) {
-    const connection = connectionAreaParams(entry);
-    if (!connection) return null;
-    const leg =
-      nature === "internacional" ? "int" : nature === "domestico" ? "dom" : null;
-    for (const pair of CONNECTION_PAIRS) {
-      if (leg && pair.leg !== leg) continue;
+    for (const item of connectionFlows(entry)) {
+      const spec = BOARDING_CONNECTION_CATALOG.find(
+        (pair) => pair.demanda === item.demanda,
+      );
+      if (!spec) continue;
       specs.push({
-        demanda: connection.demanda,
-        label: pair.label,
-        key: pair.key,
-        emp: connection.emp,
-        toi: connection.toi,
+        demanda: item.demanda,
+        label: `conexão ${spec.label}`,
+        key: CONNECTION_FLOW_KEY[spec.pair],
+        emp: item.emp,
+        toi: item.toi,
       });
     }
   }
@@ -171,19 +169,14 @@ export function boardingPonderation(
   return pesos;
 }
 
-/** Contagem da 30ª hora. Os pares de conexão da situação somam num DHp só. */
+/** Contagem da 30ª hora. Cada par de conexão ligado grava o seu DHp. */
 export function boardingDemandsFromHour(
   flows: readonly BoardingFlowWeight[],
   hour: BoardingHourCounts,
 ): Partial<Record<ComponentParamId, number>> {
   const values: Partial<Record<ComponentParamId, number>> = {};
   for (const flow of flows) {
-    const count = hour[flow.key];
-    if (flow.key === "origemDom" || flow.key === "origemInt") {
-      values[flow.demanda] = count;
-    } else {
-      values[flow.demanda] = (values[flow.demanda] ?? 0) + count;
-    }
+    values[flow.demanda] = hour[flow.key];
   }
   return values;
 }

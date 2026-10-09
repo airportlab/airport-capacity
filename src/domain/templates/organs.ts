@@ -10,6 +10,7 @@ import {
 } from "../pmd";
 import {
   natureOfEntry,
+  reconcileBoardingConnections,
   type ComponentId,
   type ComponentParamId,
   type ComponentParams,
@@ -71,7 +72,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "embarque", rowId: "saguao-embarque" }],
     detail:
-      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: DHp extra de embarque via conexão (no misto, agregada).",
+      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: um DHp por par ligado (DOM-DOM, INT-DOM, DOM-INT, INT-INT).",
   },
   {
     kind: "saguao-desembarque",
@@ -92,7 +93,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
       { role: "desembarque", rowId: "saguao-desembarque" },
     ],
     detail:
-      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque (no misto, agregada).",
+      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque, um DHp por par ligado.",
   },
   {
     kind: "checkin-bagagens",
@@ -390,6 +391,7 @@ export function rebindOrganNature(
     requirements: entry.requirements,
     observacoes: entry.observacoes,
     hasConnection: entry.hasConnection,
+    conexoes: reconcileBoardingConnections(entry, nature),
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

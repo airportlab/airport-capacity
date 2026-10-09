@@ -78,6 +78,10 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoDomestico",
   "demandaPicoInternacional",
   "demandaPicoConexao",
+  "demandaPicoConexaoDomDom",
+  "demandaPicoConexaoIntDom",
+  "demandaPicoConexaoDomInt",
+  "demandaPicoConexaoIntInt",
   "demandaPicoConexaoDesembarqueDomestico",
   "demandaPicoConexaoDesembarqueInternacional",
   "taxaDeUsoArea",
@@ -183,6 +187,12 @@ export interface RegistryFlow {
   pmd: PmdBinding;
 }
 
+/** Par de embarque via conexão. A ordem é a da conta. */
+export type BoardingConnectionPair = "domDom" | "intDom" | "domInt" | "intInt";
+
+/** Par ausente ou falso fica fora da conta. Sem o objeto, todos os pares possíveis ficam ligados. */
+export type BoardingConnections = Partial<Record<BoardingConnectionPair, boolean>>;
+
 export interface RegistryEntry {
   id: ComponentId;
   title: string;
@@ -193,6 +203,7 @@ export interface RegistryEntry {
   sizingSources?: SizingSources;
   observacoes?: string;
   hasConnection?: boolean;
+  conexoes?: BoardingConnections;
 }
 
 const BOARDING_CONNECTION_KINDS = new Set([
@@ -249,6 +260,10 @@ export type ResultId =
   | "areaMinimaDomestico"
   | "areaMinimaInternacional"
   | "areaMinimaConexao"
+  | "areaMinimaConexaoDomDom"
+  | "areaMinimaConexaoIntDom"
+  | "areaMinimaConexaoDomInt"
+  | "areaMinimaConexaoIntInt"
   | "areaMinimaConexaoDomestico"
   | "areaMinimaConexaoInternacional"
   | "areaMinima"
@@ -259,6 +274,110 @@ export type ResultId =
   | "comprimentoMinimoDesembarqueDomestico"
   | "comprimentoMinimoDesembarqueInternacional"
   | "comprimentoMinimoEsteira";
+
+export const BOARDING_CONNECTION_CATALOG: readonly {
+  pair: BoardingConnectionPair;
+  demanda: ComponentParamId;
+  area: ResultId;
+  label: string;
+  dhpSymbol: string;
+  areaSymbol: string;
+}[] = [
+  {
+    pair: "domDom",
+    demanda: "demandaPicoConexaoDomDom",
+    area: "areaMinimaConexaoDomDom",
+    label: "DOM-DOM",
+    dhpSymbol: "DHp_c,DomDom",
+    areaSymbol: "Ad_c,DomDom",
+  },
+  {
+    pair: "intDom",
+    demanda: "demandaPicoConexaoIntDom",
+    area: "areaMinimaConexaoIntDom",
+    label: "INT-DOM",
+    dhpSymbol: "DHp_c,IntDom",
+    areaSymbol: "Ad_c,IntDom",
+  },
+  {
+    pair: "domInt",
+    demanda: "demandaPicoConexaoDomInt",
+    area: "areaMinimaConexaoDomInt",
+    label: "DOM-INT",
+    dhpSymbol: "DHp_c,DomInt",
+    areaSymbol: "Ad_c,DomInt",
+  },
+  {
+    pair: "intInt",
+    demanda: "demandaPicoConexaoIntInt",
+    area: "areaMinimaConexaoIntInt",
+    label: "INT-INT",
+    dhpSymbol: "DHp_c,IntInt",
+    areaSymbol: "Ad_c,IntInt",
+  },
+];
+
+export function boardingConnectionSpec(
+  pair: BoardingConnectionPair,
+): (typeof BOARDING_CONNECTION_CATALOG)[number] {
+  const spec = BOARDING_CONNECTION_CATALOG.find((item) => item.pair === pair);
+  if (!spec) return BOARDING_CONNECTION_CATALOG[0];
+  return spec;
+}
+
+/** Doméstico: pares que embarcam em voo doméstico. Internacional: os que embarcam em voo internacional. */
+export function boardingConnectionPairsForNature(
+  nature: PeakNature | "misto" | undefined,
+): BoardingConnectionPair[] {
+  if (nature === "internacional") return ["domInt", "intInt"];
+  if (nature === "misto") return ["domDom", "intDom", "domInt", "intInt"];
+  return ["domDom", "intDom"];
+}
+
+export function boardingConnectionPairsFor(
+  entry: RegistryEntry,
+): BoardingConnectionPair[] {
+  return boardingConnectionPairsForNature(natureOfEntry(entry));
+}
+
+export function boardingConnectionsAllOn(
+  nature: PeakNature | "misto",
+): BoardingConnections {
+  return Object.fromEntries(
+    boardingConnectionPairsForNature(nature).map((pair) => [pair, true]),
+  );
+}
+
+/** Pares que entram na conta. Sem `conexoes`, o arquivo antigo liga todos os possíveis. */
+export function enabledBoardingConnections(
+  entry: RegistryEntry,
+): BoardingConnectionPair[] {
+  if (!hasBoardingConnection(entry)) return [];
+  const possible = boardingConnectionPairsFor(entry);
+  if (!entry.conexoes) return possible;
+  return possible.filter((pair) => entry.conexoes?.[pair] === true);
+}
+
+/** Troca de natureza: par novo nasce ligado; par que saiu da natureza sai do registro. */
+export function reconcileBoardingConnections(
+  entry: RegistryEntry,
+  nature: PeakNature | "misto",
+): BoardingConnections | undefined {
+  if (entry.hasConnection !== true || !allowsBoardingConnection(entry)) {
+    return undefined;
+  }
+  if (!entry.conexoes) return undefined;
+  const possible = boardingConnectionPairsForNature(nature);
+  const previous = new Set(boardingConnectionPairsFor(entry));
+  const next: BoardingConnections = {};
+  for (const pair of possible) {
+    if (entry.conexoes[pair] === false) next[pair] = false;
+    else if (entry.conexoes[pair] === true || !previous.has(pair)) {
+      next[pair] = true;
+    }
+  }
+  return next;
+}
 
 export type ComponentParams = Record<ComponentParamId, number>;
 export type ResolvedInputs = ComponentParams;
