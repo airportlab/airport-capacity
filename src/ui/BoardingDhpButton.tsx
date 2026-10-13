@@ -86,10 +86,6 @@ function graficoTitulo(
   return `Curva de DHP de ${range ?? "—"} do ${componentName} — ${airportName}`;
 }
 
-function graficoTesteTitulo(range: string | null, airportName: string): string {
-  return `Curva de DHP do período inteiro ${range ?? "—"} — ${airportName}`;
-}
-
 const AREA_MESSAGE = "O peso sai do requisito de área.";
 const INVALID_MESSAGE = "Informe os parâmetros da área.";
 const SHORT_MESSAGE = "Não há 30 janelas no período.";
@@ -125,7 +121,6 @@ function pessoasNaHora(
 const CHART_WIDTH = 854;
 const CHART_HEIGHT = 360;
 const CHART_PAD = { top: 20, right: 20, bottom: 56, left: 210 };
-const TEST_CHART_PAD = { top: 20, right: 20, bottom: 56, left: 72 };
 const AREA_TITLE_X = 16;
 const HOURS_WHEN_CAPACITY_ABOVE = 100;
 const HOURS_AFTER_CAPACITY = 50;
@@ -441,232 +436,6 @@ function OrderedDemandChart({
   );
 }
 
-function clockHour(inicio: string): number {
-  const match = /(\d{2}):\d{2}$/.exec(inicio);
-  const hour = match ? Number(match[1]) : 0;
-  if (!Number.isFinite(hour)) return 0;
-  return Math.min(23, Math.max(0, Math.trunc(hour)));
-}
-
-function hourColor(hour: number): string {
-  const t = Math.min(23, Math.max(0, hour)) / 23;
-  const hue = 216 + (28 - 216) * t;
-  const sat = 28 + 34 * t;
-  const light = 15 + 37 * t;
-  return `hsl(${hue.toFixed(1)} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
-}
-
-function PeriodDemandChart({
-  janelas,
-}: {
-  janelas: readonly BoardingDhpWindow[];
-}) {
-  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
-  if (ordered.length === 0) return null;
-  const yMax = chartYMax(ordered, null);
-  const pad = TEST_CHART_PAD;
-  const innerW = CHART_WIDTH - pad.left - pad.right;
-  const innerH = CHART_HEIGHT - pad.top - pad.bottom;
-  const xOf = (index: number) =>
-    pad.left +
-    (ordered.length === 1 ? innerW / 2 : (index / (ordered.length - 1)) * innerW);
-  const yOf = (value: number) => pad.top + (1 - value / yMax) * innerH;
-  const baseline = pad.top + innerH;
-  const points = ordered
-    .map((item, index) => `${xOf(index)},${yOf(item.demandaPonderada)}`)
-    .join(" ");
-  const area =
-    `M ${xOf(0)} ${baseline} ` +
-    ordered
-      .map((item, index) => `L ${xOf(index)} ${yOf(item.demandaPonderada)}`)
-      .join(" ") +
-    ` L ${xOf(ordered.length - 1)} ${baseline} Z`;
-  const bands: { key: string; x: number; width: number; hour: number }[] = [];
-  if (ordered.length === 1) {
-    bands.push({
-      key: String(ordered[0].posicao),
-      x: pad.left,
-      width: innerW,
-      hour: clockHour(ordered[0].inicio),
-    });
-  } else {
-    for (let index = 0; index < ordered.length - 1; index += 1) {
-      const hour = clockHour(ordered[index].inicio);
-      const x = xOf(index);
-      const width = xOf(index + 1) - x;
-      const prev = bands[bands.length - 1];
-      if (prev && prev.hour === hour) {
-        prev.width += width;
-      } else {
-        bands.push({
-          key: String(ordered[index].posicao),
-          x,
-          width,
-          hour,
-        });
-      }
-    }
-  }
-  const peakIndex = ordered.findIndex((item) => item.posicao === 30);
-  const peak = peakIndex >= 0 ? ordered[peakIndex] : null;
-  const peakY = peak ? yOf(peak.demandaPonderada) : null;
-  const axisTitleY = pad.top + innerH / 2;
-  const first = ordered[0];
-  const last = ordered[ordered.length - 1];
-  const firstX = first.posicao === 30 ? null : xOf(0);
-  const rankLabels = separateRankLabels(
-    peakIndex >= 0 ? xOf(peakIndex) : null,
-    firstX,
-  );
-  const legendWidth = 196;
-  const legendHeight = 40;
-  const legendX = CHART_WIDTH - pad.right - legendWidth;
-  const legendY = 8;
-  const barX = legendX + 10;
-  const barY = legendY + 8;
-  const barW = legendWidth - 20;
-  const hours = Array.from({ length: 24 }, (_, hour) => hour);
-
-  return (
-    <svg
-      className="dhp-chart"
-      viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-      role="img"
-      aria-labelledby="dhp-grafico-teste-titulo"
-    >
-      <defs>
-        <clipPath id="dhp-teste-area">
-          <path d={area} />
-        </clipPath>
-        <linearGradient id="dhp-teste-horas" x1="0" y1="0" x2="1" y2="0">
-          {hours.map((hour) => (
-            <stop
-              key={hour}
-              offset={`${(hour / 23) * 100}%`}
-              stopColor={hourColor(hour)}
-            />
-          ))}
-        </linearGradient>
-      </defs>
-      <line
-        className="dhp-chart-axis"
-        x1={pad.left}
-        y1={pad.top}
-        x2={pad.left}
-        y2={baseline}
-      />
-      <line
-        className="dhp-chart-axis"
-        x1={pad.left}
-        y1={baseline}
-        x2={pad.left + innerW}
-        y2={baseline}
-      />
-      <g clipPath="url(#dhp-teste-area)">
-        {bands.map((band) => (
-          <rect
-            key={band.key}
-            x={band.x}
-            y={pad.top}
-            width={band.width}
-            height={innerH}
-            fill={hourColor(band.hour)}
-          />
-        ))}
-      </g>
-      <polyline className="dhp-chart-curve" points={points} />
-      <text
-        className="dhp-chart-cut"
-        x={pad.left - 8}
-        y={pad.top + 4}
-        textAnchor="end"
-      >
-        {formatNumber(yMax, 2)}
-      </text>
-      <text
-        className="dhp-chart-cut"
-        x={pad.left - 8}
-        y={baseline + 4}
-        textAnchor="end"
-      >
-        0
-      </text>
-      <text
-        x={AREA_TITLE_X}
-        y={axisTitleY}
-        textAnchor="middle"
-        transform={`rotate(-90 ${AREA_TITLE_X} ${axisTitleY})`}
-      >
-        Área
-      </text>
-      {peak && peakY !== null ? (
-        <>
-          <line
-            className="dhp-chart-rank"
-            x1={xOf(peakIndex)}
-            y1={peakY}
-            x2={xOf(peakIndex)}
-            y2={baseline}
-          />
-          <circle
-            className="dhp-chart-peak"
-            cx={xOf(peakIndex)}
-            cy={peakY}
-            r={4}
-          />
-          <text
-            x={rankLabels.peak ?? xOf(peakIndex)}
-            y={baseline + 18}
-            textAnchor="middle"
-          >
-            30º
-          </text>
-        </>
-      ) : null}
-      {firstX !== null ? (
-        <text
-          x={rankLabels.cross ?? firstX}
-          y={baseline + 18}
-          textAnchor="middle"
-        >
-          {first.posicao}
-        </text>
-      ) : null}
-      {last && last.posicao !== first.posicao && last.posicao !== 30 ? (
-        <text x={xOf(ordered.length - 1)} y={baseline + 18} textAnchor="middle">
-          {last.posicao}
-        </text>
-      ) : null}
-      <text x={pad.left + innerW / 2} y={baseline + 38} textAnchor="middle">
-        DHPº(h)
-      </text>
-      <g className="dhp-legend">
-        <rect
-          className="dhp-legend-box"
-          x={legendX}
-          y={legendY}
-          width={legendWidth}
-          height={legendHeight}
-          rx={4}
-        />
-        <rect
-          x={barX}
-          y={barY}
-          width={barW}
-          height={10}
-          fill="url(#dhp-teste-horas)"
-        />
-        <text x={barX} y={barY + 24}>
-          00:00
-        </text>
-        <text x={barX + barW} y={barY + 24} textAnchor="end">
-          23:00
-        </text>
-      </g>
-    </svg>
-  );
-}
-
 export function BoardingDhpButton({
   icao,
   airportName,
@@ -681,7 +450,6 @@ export function BoardingDhpButton({
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [chartOpen, setChartOpen] = useState(false);
-  const [testChartOpen, setTestChartOpen] = useState(false);
   const [stored, setStored] = useState<{
     signature: string;
     janelas: BoardingDhpWindow[];
@@ -706,9 +474,6 @@ export function BoardingDhpButton({
   const periodRange = shownCoverage ? dhpPeriodRange(shownCoverage) : null;
   const tituloJanelas = janelasTitulo(periodRange, airportName);
   const tituloGrafico = graficoTitulo(periodRange, entry.title, airportName);
-  const tituloGraficoTeste = graficoTesteTitulo(periodRange, airportName);
-  const ultimaHoraTeste =
-    janelas?.reduce((max, item) => Math.max(max, item.posicao), 0) ?? 0;
   const areaMedida = parseLocaleNumber(drafts.areaMedida ?? "");
   const capacidade =
     areaMedida !== null && areaMedida > 0 ? areaMedida : null;
@@ -721,7 +486,6 @@ export function BoardingDhpButton({
     setError(null);
     setOpen(false);
     setChartOpen(false);
-    setTestChartOpen(false);
     setCoverage(null);
     try {
       const result = await searchBoardingDhp(icao, boardingPonderation(flows));
@@ -756,14 +520,12 @@ export function BoardingDhpButton({
   async function openChart() {
     if (!flows || !signature || !janelas) return;
     if (!chartNeedsMoreHours(janelas, capacidade, quantidadeJanelas)) {
-      setTestChartOpen(false);
       setChartOpen(true);
       return;
     }
     setBusy(true);
     setError(null);
     setOpen(false);
-    setTestChartOpen(false);
     try {
       let current = janelas;
       let total = quantidadeJanelas;
@@ -783,45 +545,6 @@ export function BoardingDhpButton({
       }
       setStored({ signature, janelas: current, quantidadeJanelas: total });
       setChartOpen(true);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Não foi possível consultar as janelas.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function openTestChart() {
-    if (!flows || !signature || !janelas) return;
-    if (quantidadeJanelas > 0 && janelas.length >= quantidadeJanelas) {
-      setChartOpen(false);
-      setTestChartOpen(true);
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setOpen(false);
-    setChartOpen(false);
-    try {
-      const result = await searchBoardingDhp(
-        icao,
-        boardingPonderation(flows),
-        quantidadeJanelas,
-      );
-      if (result.janelas.length === 0) {
-        setError("Não foi possível consultar as janelas.");
-        return;
-      }
-      setCoverage({ icao, value: result.coverage });
-      setStored({
-        signature,
-        janelas: result.janelas,
-        quantidadeJanelas: result.quantidadeJanelas,
-      });
-      setTestChartOpen(true);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -878,13 +601,6 @@ export function BoardingDhpButton({
           disabled={busy || janelas === null}
         >
           Gráfico
-        </button>
-        <button
-          type="button"
-          onClick={() => void openTestChart()}
-          disabled={busy || janelas === null}
-        >
-          Gráfico teste
         </button>
       </div>
       {shownCoverage ? (
@@ -983,33 +699,6 @@ export function BoardingDhpButton({
             ) : null}
             <div className="actions modal-actions">
               <button type="button" onClick={() => setChartOpen(false)}>
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {testChartOpen && janelas ? (
-        <div
-          className="modal-backdrop"
-          role="presentation"
-          onClick={() => setTestChartOpen(false)}
-        >
-          <div
-            className="panel modal modal-dhp"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dhp-grafico-teste-titulo"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 id="dhp-grafico-teste-titulo">{tituloGraficoTeste}</h2>
-            <p className="dhp-meta">
-              A curva começa no Nº 1 e desce até o Nº {ultimaHoraTeste}. A cor
-              da área é a hora do dia de cada janela, das 00:00 às 23:00.
-            </p>
-            <PeriodDemandChart janelas={janelas} />
-            <div className="actions modal-actions">
-              <button type="button" onClick={() => setTestChartOpen(false)}>
                 Fechar
               </button>
             </div>
