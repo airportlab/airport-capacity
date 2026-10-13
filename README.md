@@ -13,6 +13,8 @@ npm run dev
 
 Build estático: `npm run build`. Pré-visualização: `npm run preview`.
 
+A aba DHP mostra o período da movimentação enviada. O arquivo `.parquet` é lido no navegador, com duckdb-wasm, e fica guardado neste navegador até um envio novo. Ele não entra no estudo nem no `.airport`.
+
 ## Fontes do PMD
 
 O catálogo em `src/domain/airports.ts` liga cada aeroporto concedido ao contrato, à rodada e ao bloco. As tabelas numéricas estão em `src/domain/pmd.ts`:

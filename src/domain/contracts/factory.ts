@@ -7,6 +7,8 @@ import type {
   RegistryEntry,
 } from "../types";
 import {
+  boardingConnectionSpec,
+  enabledBoardingConnections,
   hasEquipment,
   hasEsteira,
   isDualFunction,
@@ -97,24 +99,16 @@ export function isSingleFunctionMixedContract(
 }
 
 export function contractHasConnection(contract: ComponentContract): boolean {
-  return contract.params.some(
-    (field) =>
-      field.id === "demandaPicoConexao" ||
-      field.id === "demandaPicoConexaoDesembarqueDomestico" ||
-      field.id === "demandaPicoConexaoDesembarqueInternacional",
-  );
+  return contract.params.some((field) => field.id.startsWith("demandaPicoConexao"));
 }
 
-/** Emp, Toi e tsec da conexão vêm do embarque: no misto e no doméstico, da coluna doméstica. */
+/** Emp e Toi da conexão vêm do embarque: no misto e no doméstico, da coluna doméstica. */
 export function connectionDemandOrigem(entry: RegistryEntry): string {
   const nature = natureOfEntry(entry);
-  if (nature === "misto") {
-    return "Demanda agregada das conexões. Emp, Toi e Tsec usados nesta conta são os do embarque doméstico.";
-  }
   if (nature === "internacional") {
-    return "Emp, Toi e Tsec usados nesta conta são os do embarque internacional.";
+    return "Emp e Toi usados nesta conta são os do embarque internacional. Sem acompanhante.";
   }
-  return "Emp, Toi e Tsec usados nesta conta são os do embarque doméstico.";
+  return "Emp e Toi usados nesta conta são os do embarque doméstico. Sem acompanhante.";
 }
 
 export function makeContract(entry: RegistryEntry): ComponentContract {
@@ -151,6 +145,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const arrivalsOnly = isArrivalsOnlyMixed(flows);
   const connection = connectionAreaParams(entry);
   const connections = connectionFlows(entry);
+  const boardingPairs = enabledBoardingConnections(entry);
   const rawTerms = equipmentTerms(entry);
   const splitCheckin = isSplitCheckinEquipment(rawTerms);
   const terms = splitCheckin && includeEquipmentTaxa
@@ -255,13 +250,23 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           companions,
           flows.length,
           includeAreaTaxa,
-          connections.length > 0,
+          connections.length > 0 && boardingPairs.length === 0,
           arrivalsOnly,
+          boardingPairs,
         )
     : dualFlows
-      ? dualAreaFormulaDisplay(companions, includeAreaTaxa, Boolean(connection))
+      ? dualAreaFormulaDisplay(
+          companions,
+          includeAreaTaxa,
+          Boolean(connection) && boardingPairs.length === 0,
+          boardingPairs,
+        )
       : connection
-        ? simpleConnectionFormulaDisplay(companions, includeAreaTaxa)
+        ? simpleConnectionFormulaDisplay(
+            companions,
+            includeAreaTaxa,
+            boardingPairs,
+          )
         : areaFormulaDisplay(companions, includeAreaTaxa);
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
@@ -336,6 +341,28 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             },
           }
         : {}),
+      ...(entry.kind === "saguao-embarque" && !mixedNature
+        ? {
+            demandaPicoEmbarque: {
+              label: internationalHall
+                ? "Demanda hora pico(Origem INT)"
+                : "Demanda hora pico(Origem DOM)",
+              origem: internationalHall
+                ? "Atributo do fluxo de origem internacional."
+                : "Atributo do fluxo de origem doméstico.",
+            },
+          }
+        : {}),
+      ...(entry.kind === "saguao-embarque" && mixedNature
+        ? {
+            demandaPicoEmbarqueDomestico: {
+              label: "Demanda hora pico(Origem DOM)",
+            },
+            demandaPicoEmbarqueInternacional: {
+              label: "Demanda hora pico(Origem INT)",
+            },
+          }
+        : {}),
       ...(dualFlows && !mixedNature
         ? {
             demandaPicoEmbarque: {
@@ -363,16 +390,18 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             },
           }
         : {}),
-      ...(connection
-        ? {
-            demandaPicoConexao: {
-              label: mixedNature
-                ? "DHp conexões (agregado)"
-                : "DHp embarque via conexão",
+      ...Object.fromEntries(
+        boardingPairs.map((pair) => {
+          const spec = boardingConnectionSpec(pair);
+          return [
+            spec.demanda,
+            {
+              label: `DHp conexão ${spec.label}`,
               origem: connectionDemandOrigem(entry),
             },
-          }
-        : {}),
+          ];
+        }),
+      ),
       ...tsecPatch,
     }),
     formulas: capacityFormulas({

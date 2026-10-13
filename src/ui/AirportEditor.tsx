@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { restoreMovimento, type BoardingPlaceFilter } from "../dhp/duckdb";
 import {
   airportById,
   shouldReplaceAirportName,
@@ -45,6 +46,7 @@ import {
   type OrganNature,
 } from "../domain/templates/organs";
 import type {
+  BoardingConnectionPair,
   ComponentId,
   ComponentJustificativas,
   ComponentParamId,
@@ -52,6 +54,10 @@ import type {
   ComponentParams,
   EditorTab,
   RegistryEntry,
+} from "../domain/types";
+import {
+  boardingConnectionPairsFor,
+  boardingConnectionsAllOn,
 } from "../domain/types";
 import { downloadBlob, stampFilename } from "../export/download";
 import {
@@ -69,7 +75,12 @@ import {
 } from "../persistence/snapshot";
 import { AboutPage } from "./AboutPage";
 import { CirculationsTab } from "./CirculationsTab";
+import { DhpSearchPage } from "./DhpSearchPage";
 import { ComponentEditor } from "./ComponentEditor";
+import {
+  EMPTY_BOARDING_PLACES,
+  type BoardingDhpStamp,
+} from "./BoardingDhpButton";
 import {
   formatAirportName,
   formatEditable,
@@ -105,6 +116,15 @@ export function AirportEditor() {
   const [circulations, setCirculations] = useState<HorizontalCirculation[]>(
     initial.circulations,
   );
+  const [dhpStamps, setDhpStamps] = useState<
+    Partial<Record<ComponentId, BoardingDhpStamp>>
+  >({});
+  const [dhpPlaces, setDhpPlaces] = useState<
+    Partial<Record<ComponentId, Partial<Record<string, BoardingPlaceFilter>>>>
+  >({});
+  useEffect(() => {
+    void restoreMovimento();
+  }, []);
   const contracts = useMemo(() => resolveContracts(registry), [registry]);
   const invalidLoungeIds = useMemo(
     () =>
@@ -154,6 +174,28 @@ export function AirportEditor() {
     }));
   }
 
+  function applyDemands(
+    componentId: ComponentId,
+    values: Partial<Record<ComponentParamId, number>>,
+  ) {
+    setComponents((current) => ({
+      ...current,
+      [componentId]: { ...current[componentId], ...values },
+    }));
+    setComponentDrafts((current) => {
+      const drafts = { ...current[componentId] };
+      for (const [id, value] of Object.entries(values) as [
+        ComponentParamId,
+        number,
+      ][]) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+          drafts[id] = formatEditable(value);
+        }
+      }
+      return { ...current, [componentId]: drafts };
+    });
+  }
+
   function rebuildDrafts(
     nextRegistry: RegistryEntry[],
     nextComponents: typeof components,
@@ -180,6 +222,7 @@ export function AirportEditor() {
     setComponentOrigens(next.componentOrigens);
     setJustificativas(next.justificativas);
     setCirculations(next.circulations);
+    setDhpStamps({});
     rebuildDrafts(next.registry, next.components);
   }
 
@@ -311,6 +354,7 @@ export function AirportEditor() {
         : undefined,
       observacoes: source.observacoes,
       hasConnection: source.hasConnection,
+      conexoes: source.conexoes ? { ...source.conexoes } : undefined,
     };
     applyComponentRecords(
       id,
@@ -371,6 +415,10 @@ export function AirportEditor() {
       "comprimentoEsteiras",
       "tsec",
       "demandaPicoConexao",
+      "demandaPicoConexaoDomDom",
+      "demandaPicoConexaoIntDom",
+      "demandaPicoConexaoDomInt",
+      "demandaPicoConexaoIntInt",
       "demandaPicoConexaoDesembarqueDomestico",
       "demandaPicoConexaoDesembarqueInternacional",
     ]);
@@ -424,6 +472,10 @@ export function AirportEditor() {
       params.demandaPicoDomestico = 0;
       params.demandaPicoInternacional = 0;
       params.demandaPicoConexao = 0;
+      params.demandaPicoConexaoDomDom = 0;
+      params.demandaPicoConexaoIntDom = 0;
+      params.demandaPicoConexaoDomInt = 0;
+      params.demandaPicoConexaoIntInt = 0;
       params.demandaPicoConexaoDesembarqueDomestico = 0;
       params.demandaPicoConexaoDesembarqueInternacional = 0;
       params.areaMedida = 0;
@@ -510,17 +562,6 @@ export function AirportEditor() {
     );
   }
 
-  function handleAddArea(id: ComponentId, companions: boolean) {
-    updateRequirements(id, (entry) => ({
-      ...entry,
-      requirements: {
-        ...entry.requirements,
-        area: { companions: companions && organAllowsCompanions(entry) },
-      },
-    }));
-    setMessage("Requisito de área cadastrado.");
-  }
-
   function handleSetCompanions(id: ComponentId, companions: boolean) {
     updateRequirements(id, (entry) => {
       if (!entry.requirements.area) return entry;
@@ -554,10 +595,37 @@ export function AirportEditor() {
   }
 
   function handleSetConnection(id: ComponentId, hasConnection: boolean) {
-    updateRequirements(id, (entry) => ({
-      ...entry,
-      hasConnection: hasConnection || undefined,
-    }));
+    updateRequirements(id, (entry) => {
+      if (!hasConnection) {
+        return { ...entry, hasConnection: undefined, conexoes: undefined };
+      }
+      const nature = natureOfEntry(entry);
+      return {
+        ...entry,
+        hasConnection: true,
+        conexoes: boardingConnectionsAllOn(
+          nature === "internacional" || nature === "misto" ? nature : "domestico",
+        ),
+      };
+    });
+  }
+
+  function handleSetConnectionPair(
+    id: ComponentId,
+    pair: BoardingConnectionPair,
+    enabled: boolean,
+  ) {
+    updateRequirements(id, (entry) => {
+      const possible = boardingConnectionPairsFor(entry);
+      const current =
+        entry.conexoes ??
+        Object.fromEntries(possible.map((item) => [item, true]));
+      return {
+        ...entry,
+        hasConnection: true,
+        conexoes: { ...current, [pair]: enabled },
+      };
+    });
   }
 
   function handleSetEsteiraTaxa(id: ComponentId, taxaDiferente: boolean) {
@@ -590,16 +658,6 @@ export function AirportEditor() {
         },
       };
     });
-  }
-
-  function handleRemoveArea(id: ComponentId) {
-    if (!window.confirm("Remover o requisito de área deste componente?")) return;
-    updateRequirements(id, (entry) => {
-      const requirements = { ...entry.requirements };
-      delete requirements.area;
-      return { ...entry, requirements };
-    });
-    setMessage("Requisito de área removido.");
   }
 
   function handleAddEquipment(id: ComponentId) {
@@ -661,6 +719,7 @@ export function AirportEditor() {
     setComponentOrigens({});
     setJustificativas({});
     setCirculations((current) => clearCirculationLinks(current));
+    setDhpStamps({});
     rebuildDrafts([], {});
     setTab("summary");
     setMessage("Todos os componentes operacionais foram apagados.");
@@ -684,6 +743,11 @@ export function AirportEditor() {
     setComponentOrigens(nextOrigens);
     setComponentDrafts(nextDrafts);
     setJustificativas(nextJust);
+    setDhpStamps((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setCirculations((current) => clearCirculationComponent(current, id));
     if (tab === id) setTab("summary");
     setMessage(`Componente “${entry.title}” removido.`);
@@ -813,6 +877,7 @@ export function AirportEditor() {
     tab === "params" ||
     tab === "summary" ||
     tab === "circulations" ||
+    tab === "dhp" ||
     viewingAbout
       ? null
       : (contracts.find((contract) => contract.id === tab) ?? null);
@@ -888,6 +953,14 @@ export function AirportEditor() {
           >
             Circulações
           </button>
+          <button
+            type="button"
+            className={tab === "dhp" ? "tab active" : "tab"}
+            aria-current={tab === "dhp" ? "page" : undefined}
+            onClick={() => setTab("dhp")}
+          >
+            DHP
+          </button>
         </div>
         <div className="tabs-scroll">
           {contracts.map((contract) => {
@@ -957,6 +1030,8 @@ export function AirportEditor() {
         />
       ) : null}
 
+      {tab === "dhp" ? <DhpSearchPage airportId={airport.id} /> : null}
+
       {activeContract && evaluations[activeContract.id] ? (
         <ComponentEditor
           airport={airport}
@@ -988,14 +1063,12 @@ export function AirportEditor() {
             handleObservacoesChange(activeContract.id, raw)
           }
           onRemove={() => handleRemove(activeContract.id)}
-          onAddArea={(companions) => handleAddArea(activeContract.id, companions)}
           onSetCompanions={(companions) =>
             handleSetCompanions(activeContract.id, companions)
           }
           onSetAreaTaxa={(taxaDiferente) =>
             handleSetAreaTaxa(activeContract.id, taxaDiferente)
           }
-          onRemoveArea={() => handleRemoveArea(activeContract.id)}
           onAddEquipment={() => handleAddEquipment(activeContract.id)}
           onSetEquipmentTaxa={(taxaDiferente) =>
             handleSetEquipmentTaxa(activeContract.id, taxaDiferente)
@@ -1008,6 +1081,9 @@ export function AirportEditor() {
           onRemoveEsteira={() => handleRemoveEsteira(activeContract.id)}
           onSetConnection={(hasConnection) =>
             handleSetConnection(activeContract.id, hasConnection)
+          }
+          onSetConnectionPair={(pair, enabled) =>
+            handleSetConnectionPair(activeContract.id, pair, enabled)
           }
           onNatureChange={(nature) =>
             handleNatureChange(activeContract.id, nature)
@@ -1029,6 +1105,28 @@ export function AirportEditor() {
           }
           onRestoreContract={(id) =>
             handleRestoreContract(activeContract.id, id)
+          }
+          onApplyDemands={(values) =>
+            applyDemands(activeContract.id, values)
+          }
+          dhpStamp={dhpStamps[activeContract.id] ?? null}
+          onDhpStamp={(stamp) =>
+            setDhpStamps((current) => ({
+              ...current,
+              [activeContract.id]: stamp,
+            }))
+          }
+          dhpPlaces={
+            dhpPlaces[activeContract.id]?.[airport.icao] ?? EMPTY_BOARDING_PLACES
+          }
+          onDhpPlacesChange={(places) =>
+            setDhpPlaces((current) => ({
+              ...current,
+              [activeContract.id]: {
+                ...current[activeContract.id],
+                [airport.icao]: places,
+              },
+            }))
           }
         />
       ) : null}

@@ -9,6 +9,8 @@ import type {
   SizingParamId,
 } from "../types";
 import {
+  boardingConnectionSpec,
+  enabledBoardingConnections,
   hasArrivalsConnection,
   hasBoardingConnection,
   isMixedNature,
@@ -117,7 +119,11 @@ export function identityParamIds(entry: RegistryEntry): ComponentParamId[] {
   const flows = entryFlowParams(entry);
   const ids: ComponentParamId[] =
     flows.length > 0 ? flows.map((flow) => flow.demanda) : ["demandaPico"];
-  if (hasBoardingConnection(entry)) ids.push("demandaPicoConexao");
+  if (hasBoardingConnection(entry)) {
+    for (const pair of enabledBoardingConnections(entry)) {
+      ids.push(boardingConnectionSpec(pair).demanda);
+    }
+  }
   if (hasArrivalsConnection(entry)) {
     ids.push(
       "demandaPicoConexaoDesembarqueDomestico",
@@ -127,9 +133,44 @@ export function identityParamIds(entry: RegistryEntry): ComponentParamId[] {
   return ids;
 }
 
+function boardingSizing(
+  entry: RegistryEntry,
+): Pick<FlowParamIds, "emp" | "toi" | "va"> | null {
+  if (!hasBoardingConnection(entry)) return null;
+  const flows = entryFlowParams(entry);
+  if (isMixedNature(entry)) {
+    const boarding = flows.find(
+      (flow) => flow.demanda === "demandaPicoEmbarqueDomestico",
+    );
+    if (!boarding) return null;
+    return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+  }
+  if (flows.length > 0) {
+    const boarding =
+      flows.find((flow) => flow.area === "areaMinimaEmbarque") ?? flows[0];
+    return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+  }
+  return {
+    emp: "espacoMinimoPorPassageiro",
+    toi: "tempoDeOcupacao",
+    va: "va",
+  };
+}
+
 export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
-  const boarding = connectionAreaParams(entry);
-  if (boarding) return [boarding];
+  const sizing = boardingSizing(entry);
+  if (sizing) {
+    return enabledBoardingConnections(entry).map((pair) => {
+      const spec = boardingConnectionSpec(pair);
+      return {
+        demanda: spec.demanda,
+        emp: sizing.emp,
+        toi: sizing.toi,
+        va: sizing.va,
+        area: spec.area,
+      };
+    });
+  }
   if (!hasArrivalsConnection(entry)) return [];
   const flows = entryFlowParams(entry);
   const list: FlowParamIds[] = [];
@@ -163,39 +204,7 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
 export function connectionAreaParams(
   entry: RegistryEntry,
 ): FlowParamIds | null {
-  if (!hasBoardingConnection(entry)) return null;
-  const flows = entryFlowParams(entry);
-  if (isMixedNature(entry)) {
-    const boarding = flows.find(
-      (flow) => flow.demanda === "demandaPicoEmbarqueDomestico",
-    );
-    if (!boarding) return null;
-    return {
-      demanda: "demandaPicoConexao",
-      emp: boarding.emp,
-      toi: boarding.toi,
-      va: boarding.va,
-      area: "areaMinimaConexao",
-    };
-  }
-  if (flows.length > 0) {
-    const boarding =
-      flows.find((flow) => flow.area === "areaMinimaEmbarque") ?? flows[0];
-    return {
-      demanda: "demandaPicoConexao",
-      emp: boarding.emp,
-      toi: boarding.toi,
-      va: boarding.va,
-      area: "areaMinimaConexao",
-    };
-  }
-  return {
-    demanda: "demandaPicoConexao",
-    emp: "espacoMinimoPorPassageiro",
-    toi: "tempoDeOcupacao",
-    va: "va",
-    area: "areaMinimaConexao",
-  };
+  return connectionFlows(entry)[0] ?? null;
 }
 
 export function areaBodyIdsFromFlows(

@@ -1,4 +1,8 @@
 import type { ParamField } from "../domain/types";
+import {
+  boardingDhpMarkText,
+  type BoardingDhpMark,
+} from "./BoardingDhpButton";
 import { TexText } from "./FormulaCard";
 
 interface NumberFieldProps {
@@ -9,6 +13,7 @@ interface NumberFieldProps {
   onOrigemChange?: (raw: string) => void;
   onBlur?: () => void;
   describedBy?: string;
+  dhpMark?: BoardingDhpMark | null;
 }
 
 export function NumberField({
@@ -19,6 +24,7 @@ export function NumberField({
   onOrigemChange,
   onBlur,
   describedBy,
+  dhpMark,
 }: NumberFieldProps) {
   const origemId = describedBy ?? `${field.id}-origem`;
   const origemEdit = Boolean(field.origemEditavel && onOrigemChange);
@@ -36,6 +42,11 @@ export function NumberField({
         {!origemEdit && origemText ? (
           <span id={origemId} className="origem">
             {origemText}
+          </span>
+        ) : null}
+        {dhpMark ? (
+          <span className={`dhp-mark dhp-mark-${dhpMark}`}>
+            {boardingDhpMarkText(dhpMark)}
           </span>
         ) : null}
       </span>

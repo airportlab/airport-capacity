@@ -26,11 +26,12 @@ import {
   organAllowsCompanions,
   organAllowsEquipment,
   organNatureLabel,
-  suggestedCompanions,
   templateForEntry,
   type OrganNature,
 } from "../domain/templates/organs";
+import type { BoardingPlaceFilter } from "../dhp/duckdb";
 import type {
+  BoardingConnectionPair,
   ComponentContract,
   ComponentJustificativas,
   ComponentParamId,
@@ -44,6 +45,9 @@ import {
   allowsArrivalsConnection,
   allowsBoardingConnection,
   hasArrivalsConnection,
+  boardingConnectionPairsFor,
+  boardingConnectionSpec,
+  enabledBoardingConnections,
   hasBoardingConnection,
   hasEquipment,
   hasEsteira,
@@ -63,6 +67,11 @@ import {
   SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
+import {
+  boardingDhpMark,
+  BoardingDhpButton,
+  type BoardingDhpStamp,
+} from "./BoardingDhpButton";
 import { NumberField } from "./NumberField";
 import { AreaResults, EquipmentResults, EsteiraResults } from "./ResultPanel";
 
@@ -79,12 +88,16 @@ function FieldList({
   origens,
   onValueChange,
   onOrigemChange,
+  dhpMark,
+  dhpIds,
 }: {
   fields: ComponentContract["params"];
   drafts: Record<ComponentParamId, string>;
   origens: Record<ComponentParamId, string>;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
+  dhpMark?: ReturnType<typeof boardingDhpMark>;
+  dhpIds?: ReadonlySet<ComponentParamId>;
 }) {
   return (
     <div className="fields">
@@ -104,6 +117,7 @@ function FieldList({
               ? (raw) => onOrigemChange(field.id, raw)
               : undefined
           }
+          dhpMark={dhpMark && dhpIds?.has(field.id) ? dhpMark : null}
         />
       ))}
     </div>
@@ -306,10 +320,8 @@ interface ComponentEditorProps {
   onTitleChange: (title: string) => void;
   onObservacoesChange: (raw: string) => void;
   onRemove: () => void;
-  onAddArea: (companions: boolean) => void;
   onSetCompanions: (companions: boolean) => void;
   onSetAreaTaxa: (taxaDiferente: boolean) => void;
-  onRemoveArea: () => void;
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
@@ -317,11 +329,17 @@ interface ComponentEditorProps {
   onSetEsteiraTaxa: (taxaDiferente: boolean) => void;
   onRemoveEsteira: () => void;
   onSetConnection: (hasConnection: boolean) => void;
+  onSetConnectionPair: (pair: BoardingConnectionPair, enabled: boolean) => void;
   onNatureChange: (nature: OrganNature) => void;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
   onJustificationChange: (id: JustificativaId, raw: string) => void;
   onRestoreContract: (id: JustificativaId) => void;
+  onApplyDemands: (values: Partial<Record<ComponentParamId, number>>) => void;
+  dhpStamp: BoardingDhpStamp | null;
+  onDhpStamp: (stamp: BoardingDhpStamp) => void;
+  dhpPlaces: BoardingPlaceFilter;
+  onDhpPlacesChange: (places: BoardingPlaceFilter) => void;
 }
 
 export function ComponentEditor({
@@ -336,10 +354,8 @@ export function ComponentEditor({
   onTitleChange,
   onObservacoesChange,
   onRemove,
-  onAddArea,
   onSetCompanions,
   onSetAreaTaxa,
-  onRemoveArea,
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
@@ -347,11 +363,17 @@ export function ComponentEditor({
   onSetEsteiraTaxa,
   onRemoveEsteira,
   onSetConnection,
+  onSetConnectionPair,
   onNatureChange,
   onValueChange,
   onOrigemChange,
   onJustificationChange,
   onRestoreContract,
+  onApplyDemands,
+  dhpStamp,
+  onDhpStamp,
+  dhpPlaces,
+  onDhpPlacesChange,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
@@ -372,6 +394,13 @@ export function ComponentEditor({
   const boardingIdentityFields = identityFields.filter(
     (field) => !field.id.startsWith("demandaPicoConexao"),
   );
+  const dhpMark =
+    entry.kind === "saguao-embarque"
+      ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts, dhpPlaces)
+      : null;
+  const dhpIds = dhpStamp
+    ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
+    : undefined;
   const areaTaxaFields = contract.params.filter(
     (field) =>
       field.id === "taxaDeUsoArea" ||
@@ -405,6 +434,7 @@ export function ComponentEditor({
       field.id === "comprimentoEsteiras",
   );
   const sizingFields = contract.params.filter((field) => isSizingParam(field.id));
+  const connectionPairs = enabledBoardingConnections(entry);
   const mixed = isMixedNature(entry) || isMixedNatureContract(contract);
   const singleFunctionMixed = isSingleFunctionMixedContract(contract);
   const mixedGroups = singleFunctionMixed
@@ -412,7 +442,12 @@ export function ComponentEditor({
         ["Doméstico", "Domestico"],
         ["Internacional", "Internacional"],
       ] as const)
-    : MIXED_GROUPS;
+    : entry.kind === "saguao-embarque"
+      ? ([
+          ["Origem DOM", "EmbarqueDomestico"],
+          ["Origem INT", "EmbarqueInternacional"],
+        ] as const)
+      : MIXED_GROUPS;
   const dual = isDualFunction(entry) || isDualContract(contract);
   const sources = resolvedSources(entry);
   const template = templateForEntry(entry);
@@ -434,7 +469,6 @@ export function ComponentEditor({
           ) === index,
       )
     : flowMeta;
-  const empty = !area && !equipment && !esteira;
   const loungeInvalid = loungeInvalidForAirport(entry, airport);
 
   function renderSizing(fields: ComponentContract["params"]) {
@@ -534,24 +568,36 @@ export function ComponentEditor({
         </label>
         {boardingIdentityFields.length > 0 ? (
           mixed ? (
-            mixedGroups.map(([label, needle]) => {
-              const fields = boardingIdentityFields.filter((field) =>
-                field.id.includes(needle),
-              );
-              if (fields.length === 0) return null;
-              return (
-                <div key={needle}>
-                  <h3 className="field-label">{label}</h3>
-                  <FieldList
-                    fields={fields}
-                    drafts={drafts}
-                    origens={origens}
-                    onValueChange={onValueChange}
-                    onOrigemChange={onOrigemChange}
-                  />
-                </div>
-              );
-            })
+            entry.kind === "saguao-embarque" ? (
+              <FieldList
+                fields={boardingIdentityFields}
+                drafts={drafts}
+                origens={origens}
+                onValueChange={onValueChange}
+                onOrigemChange={onOrigemChange}
+                dhpMark={dhpMark}
+                dhpIds={dhpIds}
+              />
+            ) : (
+              mixedGroups.map(([label, needle]) => {
+                const fields = boardingIdentityFields.filter((field) =>
+                  field.id.includes(needle),
+                );
+                if (fields.length === 0) return null;
+                return (
+                  <div key={needle}>
+                    <h3 className="field-label">{label}</h3>
+                    <FieldList
+                      fields={fields}
+                      drafts={drafts}
+                      origens={origens}
+                      onValueChange={onValueChange}
+                      onOrigemChange={onOrigemChange}
+                    />
+                  </div>
+                );
+              })
+            )
           ) : dual ? (
             <>
               <h3 className="field-label">Fluxo de embarque</h3>
@@ -582,6 +628,8 @@ export function ComponentEditor({
               origens={origens}
               onValueChange={onValueChange}
               onOrigemChange={onOrigemChange}
+              dhpMark={dhpMark}
+              dhpIds={dhpIds}
             />
           )
         ) : null}
@@ -594,6 +642,22 @@ export function ComponentEditor({
             />
             Há embarque via conexão
           </label>
+        ) : null}
+        {hasBoardingConnection(entry) ? (
+          <div className="connection-pairs">
+            {boardingConnectionPairsFor(entry).map((pair) => (
+              <label className="choice" key={pair}>
+                <input
+                  type="checkbox"
+                  checked={enabledBoardingConnections(entry).includes(pair)}
+                  onChange={(event) =>
+                    onSetConnectionPair(pair, event.target.checked)
+                  }
+                />
+                Conexão {boardingConnectionSpec(pair).label}
+              </label>
+            ))}
+          </div>
         ) : null}
         {allowsArrivalsConnection(entry) ? (
           <label className="choice">
@@ -618,8 +682,23 @@ export function ComponentEditor({
               origens={origens}
               onValueChange={onValueChange}
               onOrigemChange={onOrigemChange}
+              dhpMark={dhpMark}
+              dhpIds={dhpIds}
             />
           </>
+        ) : null}
+        {entry.kind === "saguao-embarque" ? (
+          <BoardingDhpButton
+            icao={airport.icao}
+            airportName={airport.name}
+            entry={entry}
+            drafts={drafts}
+            mark={dhpMark}
+            places={dhpPlaces}
+            onPlacesChange={onDhpPlacesChange}
+            onApply={onApplyDemands}
+            onStamp={onDhpStamp}
+          />
         ) : null}
         <div className="actions">
           <button
@@ -631,26 +710,8 @@ export function ComponentEditor({
             Remover componente
           </button>
         </div>
-        {empty ? (
-          <p className="panel-lead">
-            {arrivalsHall
-              ? "Área e tamanho mínimo de esteira são opcionais. Adicione o que este componente operacional precisa."
-              : allowsEquipment
-                ? "Área e equipamentos são opcionais. Adicione o que este componente operacional precisa."
-                : "Área é opcional. Adicione o que este componente operacional precisa."}
-          </p>
-        ) : null}
-        {!area || (arrivalsHall ? !esteira : allowsEquipment && !equipment) ? (
+        {(arrivalsHall && !esteira) || (allowsEquipment && !equipment) ? (
           <div className="requirement-add">
-            {!area ? (
-              <button
-                type="button"
-                className="accent"
-                onClick={() => onAddArea(suggestedCompanions(template))}
-              >
-                Adicionar requisito de área
-              </button>
-            ) : null}
             {arrivalsHall && !esteira ? (
               <button type="button" className="accent" onClick={onAddEsteira}>
                 Adicionar requisito de tamanho mínimo de esteira
@@ -687,8 +748,9 @@ export function ComponentEditor({
                   false)
               }
               hasConnection={
-                hasBoardingConnection(entry) || hasArrivalsConnection(entry)
+                connectionPairs.length > 0 || hasArrivalsConnection(entry)
               }
+              connectionPairs={connectionPairs}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -697,7 +759,8 @@ export function ComponentEditor({
             <DualAreaFormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
-              hasConnection={hasBoardingConnection(entry)}
+              hasConnection={connectionPairs.length > 0}
+              connectionPairs={connectionPairs}
               afterEquation={
                 <>
                   <SeatsFormulaLine contract={contract} />
@@ -718,7 +781,8 @@ export function ComponentEditor({
             <FormulaCard
               companions={area.companions}
               includeTaxa={areaTaxa}
-              hasConnection={hasBoardingConnection(entry)}
+              hasConnection={connectionPairs.length > 0}
+              connectionPairs={connectionPairs}
               includeSeats={contract.formulas.some(
                 (formula) => formula.id === "assentosMinimos",
               )}
@@ -797,11 +861,6 @@ export function ComponentEditor({
           ) : (
             renderSizing(sizingFields)
           )}
-          <div className="actions">
-            <button type="button" className="ghost" onClick={onRemoveArea}>
-              Remover área
-            </button>
-          </div>
         </section>
       ) : null}
 

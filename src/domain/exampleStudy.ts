@@ -27,6 +27,7 @@ import {
   type OrganTemplate,
 } from "./templates/organs";
 import {
+  boardingConnectionsAllOn,
   natureOfEntry,
   type ComponentId,
   type ComponentJustificativas,
@@ -146,7 +147,12 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
       requirements: exampleRequirements(template, nature),
       ...(note ? { observacoes: note } : {}),
       ...(exampleConnection(template.kind, nature)
-        ? { hasConnection: true }
+        ? {
+            hasConnection: true,
+            ...(template.kind === "saguao-desembarque"
+              ? {}
+              : { conexoes: boardingConnectionsAllOn(nature) }),
+          }
         : {}),
     });
   }

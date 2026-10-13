@@ -42,10 +42,12 @@ import type {
   SizingSources,
 } from "../domain/types";
 import {
+  BOARDING_CONNECTION_CATALOG,
   COMPONENT_PARAM_IDS,
   JUSTIFICATIVA_IDS,
   SIZING_PARAM_IDS,
   natureOfEntry,
+  type BoardingConnections,
   type JustificativaId,
 } from "../domain/types";
 
@@ -216,6 +218,17 @@ function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {
   };
 }
 
+function ensureAreaRequirement(entry: RegistryEntry): RegistryEntry {
+  if (entry.requirements.area) return entry;
+  return {
+    ...entry,
+    requirements: {
+      ...entry.requirements,
+      area: { companions: organAllowsCompanions(entry) },
+    },
+  };
+}
+
 function parseRequirements(raw: unknown): ComponentRequirements | null {
   if (!isRecord(raw)) return null;
   const requirements: ComponentRequirements = {};
@@ -240,6 +253,19 @@ function parseOptionalText(value: unknown): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+function parseConexoes(raw: unknown): BoardingConnections | undefined {
+  if (!isRecord(raw)) return undefined;
+  const next: BoardingConnections = {};
+  let seen = false;
+  for (const spec of BOARDING_CONNECTION_CATALOG) {
+    if (raw[spec.pair] === true || raw[spec.pair] === false) {
+      next[spec.pair] = raw[spec.pair] === true;
+      seen = true;
+    }
+  }
+  return seen ? next : undefined;
+}
+
 function parseRegistry(raw: unknown): RegistryEntry[] | null {
   if (!Array.isArray(raw)) return null;
   const entries: RegistryEntry[] = [];
@@ -251,18 +277,22 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const fromRequirements = parseRequirements(item.requirements);
     if (!fromRequirements) return null;
     const observacoes = parseOptionalText(item.observacoes);
+    const conexoes = parseConexoes(item.conexoes);
     entries.push(
-      clampArrivalsRequirements(clampAreaCompanions({
-        id: item.id,
-        title: item.title,
-        kind: typeof item.kind === "string" ? item.kind : undefined,
-        requirements: fromRequirements,
-        pmd: parsePmd(item.pmd),
-        flows: parseFlows(item.flows),
-        sizingSources: parseSizingSources(item.sizingSources),
-        observacoes,
-        ...(item.hasConnection === true ? { hasConnection: true } : {}),
-      })),
+      ensureAreaRequirement(
+        clampArrivalsRequirements(clampAreaCompanions({
+          id: item.id,
+          title: item.title,
+          kind: typeof item.kind === "string" ? item.kind : undefined,
+          requirements: fromRequirements,
+          pmd: parsePmd(item.pmd),
+          flows: parseFlows(item.flows),
+          sizingSources: parseSizingSources(item.sizingSources),
+          observacoes,
+          ...(item.hasConnection === true ? { hasConnection: true } : {}),
+          ...(conexoes ? { conexoes } : {}),
+        })),
+      ),
     );
   }
   return entries;

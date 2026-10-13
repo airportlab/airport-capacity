@@ -10,6 +10,7 @@ import {
 } from "../pmd";
 import {
   natureOfEntry,
+  reconcileBoardingConnections,
   type ComponentId,
   type ComponentParamId,
   type ComponentParams,
@@ -71,7 +72,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "embarque", rowId: "saguao-embarque" }],
     detail:
-      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: DHp extra de embarque via conexão (no misto, agregada).",
+      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: um DHp por par ligado (DOM-DOM, INT-DOM, DOM-INT, INT-INT).",
   },
   {
     kind: "saguao-desembarque",
@@ -92,7 +93,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
       { role: "desembarque", rowId: "saguao-desembarque" },
     ],
     detail:
-      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque (no misto, agregada).",
+      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque, um DHp por par ligado.",
   },
   {
     kind: "checkin-bagagens",
@@ -302,6 +303,26 @@ export function organNatureLabel(nature: OrganNature): string {
   return nature === "internacional" ? "internacional" : "doméstico";
 }
 
+/** Troca o sufixo do nome quando ele ainda é o rótulo da natureza atual. */
+function titleForNatureChange(
+  title: string,
+  from: OrganNature,
+  to: OrganNature,
+): string {
+  const fromLabel = organNatureLabel(from);
+  const toLabel = organNatureLabel(to);
+  const trimmedEnd = title.trimEnd();
+  const boundary = trimmedEnd.length - fromLabel.length;
+  const matches =
+    boundary >= 0 &&
+    trimmedEnd.slice(boundary).toLocaleLowerCase("pt-BR") === fromLabel &&
+    (boundary === 0 || trimmedEnd[boundary - 1] === " ");
+  if (!matches) return title;
+  return (
+    trimmedEnd.slice(0, boundary) + toLabel + title.slice(trimmedEnd.length)
+  );
+}
+
 export { natureOfEntry };
 
 function bindOrganPmd(
@@ -358,15 +379,19 @@ export function rebindOrganNature(
   const template = templateForEntry(entry);
   if (!template) return entry;
   if (!naturesForTemplate(template).includes(nature)) return entry;
-  if (natureOfEntry(entry) === nature) return entry;
+  const current = natureOfEntry(entry);
+  if (current === nature) return entry;
   const bound = bindOrganPmd(template, nature);
   return applyPmdRequirements({
     id: entry.id,
-    title: entry.title,
+    title: current
+      ? titleForNatureChange(entry.title, current, nature)
+      : entry.title,
     kind: template.kind,
     requirements: entry.requirements,
     observacoes: entry.observacoes,
     hasConnection: entry.hasConnection,
+    conexoes: reconcileBoardingConnections(entry, nature),
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });
@@ -494,7 +519,7 @@ export function instantiateOrgan(
     id: slugify(template.kind, existingIds),
     title: title.trim() ? title : defaultTitleFor(template, nature),
     kind: template.kind,
-    requirements: {},
+    requirements: { area: { companions: suggestedCompanions(template) } },
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

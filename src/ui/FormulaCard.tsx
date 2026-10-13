@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import {
   AREA_NOTATIONS,
   areaNumerator,
+  boardingConnectionAreaList,
+  boardingConnectionNumerator,
   connectionAreaNumerator,
   dualAreaSumDisplay,
   equipmentFormulaDisplay,
@@ -17,7 +19,12 @@ import {
   singleFunctionMixedSumDisplay,
 } from "../domain/contracts/notations";
 import { isSplitCheckinEquipment } from "../domain/contracts/flowParams";
-import type { ComponentContract, EquipmentTerm } from "../domain/types";
+import type {
+  BoardingConnectionPair,
+  ComponentContract,
+  EquipmentTerm,
+} from "../domain/types";
+import { boardingConnectionSpec } from "../domain/types";
 
 export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
@@ -126,16 +133,28 @@ function areaLegend(
   includeTaxa: boolean,
   hasConnection: boolean,
   includeSeats: boolean,
+  pairs: readonly BoardingConnectionPair[] = [],
 ) {
   const items = AREA_NOTATIONS.filter((item) => {
     if (item.symbol === "v.a" && !companions) return false;
     if (item.symbol === "Tu" && !includeTaxa) return false;
-    if (item.symbol === "DHp_c" && !hasConnection) return false;
+    if (item.symbol === "DHp_c" && (!hasConnection || pairs.length > 0)) {
+      return false;
+    }
     return true;
   });
-  if (!includeSeats) return items;
+  const connectionItems = pairs.map((pair) => {
+    const spec = boardingConnectionSpec(pair);
+    return {
+      symbol: spec.dhpSymbol,
+      meaning: `Demanda hora pico da conexão ${spec.label}`,
+      unit: "pax/h",
+    };
+  });
+  const listed = [...items, ...connectionItems];
+  if (!includeSeats) return listed;
   return [
-    ...items,
+    ...listed,
     {
       symbol: "P_min",
       meaning: "Percentual mínimo de assentos",
@@ -147,17 +166,53 @@ function areaLegend(
 function ConnectionEquation({
   includeTaxa,
   empSuffix,
+  pair,
 }: {
   includeTaxa: boolean;
   empSuffix: string;
+  pair?: BoardingConnectionPair;
 }) {
+  if (!pair) {
+    return (
+      <AreaEquation
+        companions={false}
+        includeTaxa={includeTaxa}
+        lhs="Ad_c"
+        numerator={connectionAreaNumerator(includeTaxa, empSuffix)}
+      />
+    );
+  }
+  const spec = boardingConnectionSpec(pair);
   return (
     <AreaEquation
       companions={false}
       includeTaxa={includeTaxa}
-      lhs="Ad_c"
-      numerator={connectionAreaNumerator(includeTaxa, empSuffix)}
+      lhs={spec.areaSymbol}
+      numerator={boardingConnectionNumerator(pair, includeTaxa, empSuffix)}
     />
+  );
+}
+
+function BoardingConnectionEquations({
+  pairs,
+  includeTaxa,
+  empSuffix,
+}: {
+  pairs: readonly BoardingConnectionPair[];
+  includeTaxa: boolean;
+  empSuffix: string;
+}) {
+  return (
+    <>
+      {pairs.map((pair) => (
+        <ConnectionEquation
+          key={pair}
+          includeTaxa={includeTaxa}
+          empSuffix={empSuffix}
+          pair={pair}
+        />
+      ))}
+    </>
   );
 }
 
@@ -166,15 +221,17 @@ function AreaLegend({
   includeTaxa,
   hasConnection,
   includeSeats = false,
+  pairs = [],
 }: {
   companions: boolean;
   includeTaxa: boolean;
   hasConnection: boolean;
   includeSeats?: boolean;
+  pairs?: readonly BoardingConnectionPair[];
 }) {
   return (
     <dl className="formula-legend">
-      {areaLegend(companions, includeTaxa, hasConnection, includeSeats).map((item) => (
+      {areaLegend(companions, includeTaxa, hasConnection, includeSeats, pairs).map((item) => (
         <div key={item.symbol}>
             <dt>
               <TexText text={item.symbol} />
@@ -266,6 +323,7 @@ interface FormulaCardProps {
   companions: boolean;
   includeTaxa?: boolean;
   hasConnection?: boolean;
+  connectionPairs?: readonly BoardingConnectionPair[];
   includeSeats?: boolean;
   afterEquation?: ReactNode;
 }
@@ -274,39 +332,49 @@ export function FormulaCard({
   companions,
   includeTaxa = false,
   hasConnection = false,
+  connectionPairs = [],
   includeSeats = false,
   afterEquation,
 }: FormulaCardProps) {
-  const sum = simpleConnectionSumDisplay();
+  const linked = hasConnection || connectionPairs.length > 0;
+  const sum = simpleConnectionSumDisplay(connectionPairs);
+  const sumBody =
+    connectionPairs.length > 0
+      ? `Ad_e + ${boardingConnectionAreaList(connectionPairs)}`
+      : "Ad_e + Ad_c";
   return (
     <div className="formula-card">
       <p className="formula-kicker">
-        {hasConnection
+        {linked
           ? "Fórmulas de embarque e conexão"
           : "Fórmula do requisito de área"}
       </p>
       <AreaEquation
         companions={companions}
         includeTaxa={includeTaxa}
-        lhs={hasConnection ? "Ad_e" : "Ad"}
+        lhs={linked ? "Ad_e" : "Ad"}
+        numerator={linked ? areaNumerator(companions, includeTaxa, "_e") : undefined}
       />
-      {hasConnection ? (
-        <>
-          <ConnectionEquation
-            includeTaxa={includeTaxa}
-            empSuffix=""
-          />
-          <div className="tex" role="img" aria-label={sum}>
-            <span className="tex-lhs">Ad</span>
-            <span className="tex-eq">=</span>
-            <span>
-              <TexText text="Ad_e + Ad_c" />
-            </span>
-          </div>
-        </>
+      {connectionPairs.length > 0 ? (
+        <BoardingConnectionEquations
+          pairs={connectionPairs}
+          includeTaxa={includeTaxa}
+          empSuffix="_e"
+        />
+      ) : hasConnection ? (
+        <ConnectionEquation includeTaxa={includeTaxa} empSuffix="_e" />
+      ) : null}
+      {linked ? (
+        <div className="tex" role="img" aria-label={sum}>
+          <span className="tex-lhs">Ad</span>
+          <span className="tex-eq">=</span>
+          <span>
+            <TexText text={sumBody} />
+          </span>
+        </div>
       ) : null}
       {afterEquation}
-      {hasConnection ? (
+      {linked ? (
         <p className="origem">
           Uma área medida. Atende se a área medida for maior ou igual à soma das
           contas.
@@ -315,8 +383,9 @@ export function FormulaCard({
       <AreaLegend
         companions={companions}
         includeTaxa={includeTaxa}
-        hasConnection={hasConnection}
+        hasConnection={linked}
         includeSeats={includeSeats}
+        pairs={connectionPairs}
       />
     </div>
   );
@@ -326,6 +395,7 @@ interface DualFormulaCardProps {
   companions: boolean;
   includeTaxa?: boolean;
   hasConnection?: boolean;
+  connectionPairs?: readonly BoardingConnectionPair[];
   afterEquation?: ReactNode;
 }
 
@@ -333,9 +403,10 @@ export function DualAreaFormulaCard({
   companions,
   includeTaxa = false,
   hasConnection = false,
+  connectionPairs = [],
   afterEquation,
 }: DualFormulaCardProps) {
-  const sum = dualAreaSumDisplay(hasConnection);
+  const sum = dualAreaSumDisplay(hasConnection, connectionPairs);
   return (
     <div className="formula-card">
       <p className="formula-kicker">
@@ -355,19 +426,20 @@ export function DualAreaFormulaCard({
         lhs="Ad_d"
         numerator={areaNumerator(companions, includeTaxa, "_d")}
       />
-      {hasConnection ? (
-        <ConnectionEquation
+      {connectionPairs.length > 0 ? (
+        <BoardingConnectionEquations
+          pairs={connectionPairs}
           includeTaxa={includeTaxa}
           empSuffix="_e"
         />
+      ) : hasConnection ? (
+        <ConnectionEquation includeTaxa={includeTaxa} empSuffix="_e" />
       ) : null}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>
         <span className="tex-eq">=</span>
         <span>
-          <TexText
-            text={hasConnection ? "Ad_e + Ad_d + Ad_c" : "Ad_e + Ad_d"}
-          />
+          <TexText text={sum.replace("Ad = ", "")} />
         </span>
       </div>
       {afterEquation}
@@ -383,6 +455,7 @@ export function MixedNatureAreaFormulaCard({
   includeTaxa = false,
   flowCount = 4,
   hasConnection = false,
+  connectionPairs = [],
   singleFunction = false,
   arrivalsOnly = false,
   afterEquation,
@@ -438,18 +511,13 @@ export function MixedNatureAreaFormulaCard({
   const num = areaNumerator(companions, includeTaxa);
   const boardingOnly = flowCount <= 2 && !arrivalsOnly;
   const twoFlows = flowCount <= 2;
-  const sum = mixedAreaSumDisplay(flowCount, hasConnection, arrivalsOnly);
-  const sumBody = arrivalsOnly
-    ? hasConnection
-      ? "Ad_d,dom + Ad_d,int + Ad_c,dom + Ad_c,int"
-      : "Ad_d,dom + Ad_d,int"
-    : boardingOnly
-      ? hasConnection
-        ? "Ad_e,dom + Ad_e,int + Ad_c"
-        : "Ad_e,dom + Ad_e,int"
-      : hasConnection
-        ? "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int + Ad_c"
-        : "Ad_e,dom + Ad_e,int + Ad_d,dom + Ad_d,int";
+  const sum = mixedAreaSumDisplay(
+    flowCount,
+    hasConnection && connectionPairs.length === 0,
+    arrivalsOnly,
+    connectionPairs,
+  );
+  const sumBody = sum.replace("Ad = ", "");
   return (
     <div className="formula-card">
       <p className="formula-kicker">
@@ -508,8 +576,9 @@ export function MixedNatureAreaFormulaCard({
           />
         </>
       )}
-      {hasConnection && !arrivalsOnly ? (
-        <ConnectionEquation
+      {connectionPairs.length > 0 && !arrivalsOnly ? (
+        <BoardingConnectionEquations
+          pairs={connectionPairs}
           includeTaxa={includeTaxa}
           empSuffix="_e,dom"
         />

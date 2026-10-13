@@ -559,6 +559,127 @@ button.pmd-card.empty {
   vertical-align: middle;
 }
 
+.dhp-calc {
+  margin-top: 16px;
+}
+
+.dhp-meta {
+  margin: 0 0 8px;
+}
+
+.dhp-ponderacoes {
+  white-space: pre-line;
+}
+
+.dhp-mark {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.dhp-mark-calculado {
+  color: var(--ok);
+}
+
+.dhp-mark-recalcular {
+  color: var(--quiet);
+  font-weight: 600;
+}
+
+.dhp-actions {
+  margin-top: 0;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+button.dhp-gear {
+  display: inline-grid;
+  place-items: center;
+  padding: 10px;
+}
+
+button.dhp-gear svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.dhp-filtro {
+  white-space: pre-line;
+}
+
+.dhp-table {
+  width: max-content;
+  margin-inline: auto;
+}
+
+.dhp-table th,
+.dhp-table td {
+  text-align: center;
+  white-space: nowrap;
+  padding: 10px 12px;
+}
+
+.dhp-table tr.dhp-peak td {
+  background: var(--sand);
+  font-weight: 700;
+}
+
+.dhp-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dhp-chart text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.dhp-chart-axis {
+  stroke: var(--sand);
+  stroke-width: 1;
+}
+
+.dhp-chart-curve {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.dhp-chart-demand {
+  fill: none;
+  stroke: var(--slate);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 4;
+}
+
+.dhp-chart-capacity {
+  fill: none;
+  stroke: var(--slate);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1 6;
+}
+
+.dhp-chart-rank {
+  stroke: var(--slate);
+  stroke-width: 1;
+}
+
+.dhp-chart-peak {
+  fill: var(--ink);
+}
+
+.dhp-chart text.dhp-chart-cut {
+  fill: var(--slate);
+}
+
+.dhp-legend-box {
+  fill: var(--paper);
+  stroke: var(--sand);
+}
+
 .circulation-table th,
 .circulation-table td {
   text-align: center;
@@ -837,6 +958,14 @@ fieldset.field {
   margin: 12px 0;
 }
 
+.connection-pairs {
+  margin: 0 0 4px 22px;
+}
+
+.connection-pairs .choice {
+  margin: 6px 0;
+}
+
 .requirement-balloon {
   margin-top: 18px;
   padding: 16px;
@@ -1106,6 +1235,33 @@ fieldset.field {
 
 .modal-circulacao {
   width: min(48rem, calc(100vw - 32px));
+}
+
+.modal-dhp {
+  width: min(72rem, calc(100vw - 32px));
+}
+
+.modal.modal-dhp-matriz {
+  width: min(48rem, calc(100vw - 32px));
+}
+
+.modal-dhp-matriz h3.field-label {
+  margin: 16px 0 8px;
+}
+
+.dhp-place-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 4px 16px;
+}
+
+.dhp-place-row .choice {
+  margin: 0;
+}
+
+.modal-dhp-tabela {
+  width: fit-content;
+  max-width: calc(100vw - 32px);
 }
 
 .circ-pair {

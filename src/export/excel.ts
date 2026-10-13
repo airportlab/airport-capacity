@@ -370,41 +370,58 @@ function writeDashOrNumber(
   cell.numFmt = "#,##0.00";
 }
 
+const CONNECTION_DEMAND_IDS: ComponentParamId[] = [
+  "demandaPicoConexaoDesembarqueDomestico",
+  "demandaPicoConexaoDesembarqueInternacional",
+  "demandaPicoConexaoDomDom",
+  "demandaPicoConexaoIntDom",
+  "demandaPicoConexaoDomInt",
+  "demandaPicoConexaoIntInt",
+  "demandaPicoConexao",
+];
+
+const CONNECTION_RESULT_IDS = [
+  "areaMinimaConexaoDomestico",
+  "areaMinimaConexaoInternacional",
+  "areaMinimaConexaoDomDom",
+  "areaMinimaConexaoIntDom",
+  "areaMinimaConexaoDomInt",
+  "areaMinimaConexaoIntInt",
+  "areaMinimaConexao",
+] as const;
+
 function connectionDemandId(
   inputs: NatureAreaRowLayout["inputs"],
 ): ComponentParamId | undefined {
-  if (inputs.demandaPicoConexaoDesembarqueDomestico) {
-    return "demandaPicoConexaoDesembarqueDomestico";
-  }
-  if (inputs.demandaPicoConexaoDesembarqueInternacional) {
-    return "demandaPicoConexaoDesembarqueInternacional";
-  }
-  if (inputs.demandaPicoConexao) return "demandaPicoConexao";
-  return undefined;
+  return CONNECTION_DEMAND_IDS.find((id) => inputs[id]);
 }
 
 function connectionResultId(
   results: NatureAreaRowLayout["results"],
-): "areaMinimaConexaoDomestico" | "areaMinimaConexaoInternacional" | "areaMinimaConexao" | undefined {
-  if (results.areaMinimaConexaoDomestico) return "areaMinimaConexaoDomestico";
-  if (results.areaMinimaConexaoInternacional) {
-    return "areaMinimaConexaoInternacional";
-  }
-  if (results.areaMinimaConexao) return "areaMinimaConexao";
-  return undefined;
+): (typeof CONNECTION_RESULT_IDS)[number] | undefined {
+  return CONNECTION_RESULT_IDS.find((id) => results[id]);
 }
 
 function connectionRowLabel(
   title: string,
   demandId: ComponentParamId | undefined,
 ): string {
-  if (demandId === "demandaPicoConexaoDesembarqueDomestico") {
-    return `${title} · conexão DOM/INT`;
+  switch (demandId) {
+    case "demandaPicoConexaoDesembarqueDomestico":
+      return `${title} · conexão DOM/INT`;
+    case "demandaPicoConexaoDesembarqueInternacional":
+      return `${title} · conexão INT/DOM + INT/INT`;
+    case "demandaPicoConexaoDomDom":
+      return `${title} · conexão DOM-DOM`;
+    case "demandaPicoConexaoIntDom":
+      return `${title} · conexão INT-DOM`;
+    case "demandaPicoConexaoDomInt":
+      return `${title} · conexão DOM-INT`;
+    case "demandaPicoConexaoIntInt":
+      return `${title} · conexão INT-INT`;
+    default:
+      return `${title} · conexões`;
   }
-  if (demandId === "demandaPicoConexaoDesembarqueInternacional") {
-    return `${title} · conexão INT/DOM + INT/INT`;
-  }
-  return `${title} · conexões`;
 }
 
 function writeConnectionAreaRow(
@@ -1283,9 +1300,17 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         row.getCell(3).value = "—";
       }
       row.getCell(2).numFmt = "#,##0.00";
-      if (block.inputs.demandaPicoConexao === `G${block.row}`) {
-        row.getCell(7).value = evaluation.inputs.demandaPicoConexao;
-        row.getCell(7).numFmt = "#,##0.00";
+      for (const id of [
+        "demandaPicoConexaoDomDom",
+        "demandaPicoConexaoIntDom",
+        "demandaPicoConexaoDomInt",
+        "demandaPicoConexaoIntInt",
+        "demandaPicoConexao",
+      ] as const) {
+        if (block.inputs[id] === `G${block.row}`) {
+          row.getCell(7).value = evaluation.inputs[id];
+          row.getCell(7).numFmt = "#,##0.00";
+        }
       }
       if (flowBlocks.length > 0) {
         row.getCell(4).value = "—";
