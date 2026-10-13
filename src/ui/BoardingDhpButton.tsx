@@ -251,7 +251,7 @@ function OrderedDemandChart({
   if (peak) markedRanks.add(peak.posicao);
   if (cross) markedRanks.add(cross.posicao);
   const legendItems = [
-    { label: "Demanda ponderada", mark: "dhp-chart-curve" },
+    { label: "Área mínima necessária", mark: "dhp-chart-curve" },
     ...(peak
       ? [{ label: "Demanda da 30ª hora", mark: "dhp-chart-demand" }]
       : []),
@@ -625,7 +625,7 @@ export function BoardingDhpButton({
               <p className="dhp-meta">{dhpCoverageText(shownCoverage)}</p>
             ) : null}
             <p className="dhp-meta">
-              A demanda ponderada cresce de cima para baixo. A linha 30 é a
+              A área mínima necessária cresce de cima para baixo. A linha 30 é a
               hora gravada no componente.
             </p>
             <table className="summary-table dhp-table">
@@ -640,7 +640,7 @@ export function BoardingDhpButton({
                     </th>
                   ))}
                   <th className="num">Pessoas</th>
-                  <th className="num">Demanda ponderada</th>
+                  <th className="num">Área mínima necessária</th>
                 </tr>
               </thead>
               <tbody>
