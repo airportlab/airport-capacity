@@ -218,6 +218,17 @@ function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {
   };
 }
 
+function ensureAreaRequirement(entry: RegistryEntry): RegistryEntry {
+  if (entry.requirements.area) return entry;
+  return {
+    ...entry,
+    requirements: {
+      ...entry.requirements,
+      area: { companions: organAllowsCompanions(entry) },
+    },
+  };
+}
+
 function parseRequirements(raw: unknown): ComponentRequirements | null {
   if (!isRecord(raw)) return null;
   const requirements: ComponentRequirements = {};
@@ -268,18 +279,20 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const observacoes = parseOptionalText(item.observacoes);
     const conexoes = parseConexoes(item.conexoes);
     entries.push(
-      clampArrivalsRequirements(clampAreaCompanions({
-        id: item.id,
-        title: item.title,
-        kind: typeof item.kind === "string" ? item.kind : undefined,
-        requirements: fromRequirements,
-        pmd: parsePmd(item.pmd),
-        flows: parseFlows(item.flows),
-        sizingSources: parseSizingSources(item.sizingSources),
-        observacoes,
-        ...(item.hasConnection === true ? { hasConnection: true } : {}),
-        ...(conexoes ? { conexoes } : {}),
-      })),
+      ensureAreaRequirement(
+        clampArrivalsRequirements(clampAreaCompanions({
+          id: item.id,
+          title: item.title,
+          kind: typeof item.kind === "string" ? item.kind : undefined,
+          requirements: fromRequirements,
+          pmd: parsePmd(item.pmd),
+          flows: parseFlows(item.flows),
+          sizingSources: parseSizingSources(item.sizingSources),
+          observacoes,
+          ...(item.hasConnection === true ? { hasConnection: true } : {}),
+          ...(conexoes ? { conexoes } : {}),
+        })),
+      ),
     );
   }
   return entries;

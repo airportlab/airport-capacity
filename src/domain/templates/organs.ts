@@ -519,7 +519,7 @@ export function instantiateOrgan(
     id: slugify(template.kind, existingIds),
     title: title.trim() ? title : defaultTitleFor(template, nature),
     kind: template.kind,
-    requirements: {},
+    requirements: { area: { companions: suggestedCompanions(template) } },
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

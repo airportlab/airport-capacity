@@ -556,17 +556,6 @@ export function AirportEditor() {
     );
   }
 
-  function handleAddArea(id: ComponentId, companions: boolean) {
-    updateRequirements(id, (entry) => ({
-      ...entry,
-      requirements: {
-        ...entry.requirements,
-        area: { companions: companions && organAllowsCompanions(entry) },
-      },
-    }));
-    setMessage("Requisito de área cadastrado.");
-  }
-
   function handleSetCompanions(id: ComponentId, companions: boolean) {
     updateRequirements(id, (entry) => {
       if (!entry.requirements.area) return entry;
@@ -663,16 +652,6 @@ export function AirportEditor() {
         },
       };
     });
-  }
-
-  function handleRemoveArea(id: ComponentId) {
-    if (!window.confirm("Remover o requisito de área deste componente?")) return;
-    updateRequirements(id, (entry) => {
-      const requirements = { ...entry.requirements };
-      delete requirements.area;
-      return { ...entry, requirements };
-    });
-    setMessage("Requisito de área removido.");
   }
 
   function handleAddEquipment(id: ComponentId) {
@@ -1078,14 +1057,12 @@ export function AirportEditor() {
             handleObservacoesChange(activeContract.id, raw)
           }
           onRemove={() => handleRemove(activeContract.id)}
-          onAddArea={(companions) => handleAddArea(activeContract.id, companions)}
           onSetCompanions={(companions) =>
             handleSetCompanions(activeContract.id, companions)
           }
           onSetAreaTaxa={(taxaDiferente) =>
             handleSetAreaTaxa(activeContract.id, taxaDiferente)
           }
-          onRemoveArea={() => handleRemoveArea(activeContract.id)}
           onAddEquipment={() => handleAddEquipment(activeContract.id)}
           onSetEquipmentTaxa={(taxaDiferente) =>
             handleSetEquipmentTaxa(activeContract.id, taxaDiferente)

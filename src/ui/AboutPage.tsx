@@ -48,7 +48,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           o saguão de embarque e desembarque — e a natureza (doméstico,
           internacional ou, nos saguões de embarque, de desembarque e de
           embarque e desembarque, no check-in e na sala de desembarque, misto).
-          Área é requisito opcional em todos os tipos. Equipamentos são
+          A área entra com o componente, em todos os tipos. Equipamentos são
           opcionais só nos processadores (check-in, inspeção, emigração,
           imigração e aduana). Saguões e salas não têm equipamentos. A sala de
           desembarque tem comprimento mínimo de esteira opcional. Na tabela
@@ -62,8 +62,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
           hoje. A lista segue a jornada — Embarque, Desembarque e Outros — com
           um cartão por componente. O cartão mostra Atende / Não atende em área
           e, quando o requisito existe, em equipamentos ou, na sala de
-          desembarque, na esteira. Sem requisito, o cartão diz “Sem requisitos”
-          e a tabela mostra “—”. Sala de embarque de outra conta aparece como
+          desembarque, na esteira. Sem equipamentos ou esteira, a tabela
+          mostra “—”. Sala de embarque de outra conta aparece como
           “Não vale para este contrato”; os dois Excel ficam desligados até ela
           ser apagada ou o aeroporto voltar à conta em que ela nasceu. O único
           botão <strong>Carregar exemplo fictício</strong> fica nesta aba e

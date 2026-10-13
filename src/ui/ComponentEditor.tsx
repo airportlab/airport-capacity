@@ -26,7 +26,6 @@ import {
   organAllowsCompanions,
   organAllowsEquipment,
   organNatureLabel,
-  suggestedCompanions,
   templateForEntry,
   type OrganNature,
 } from "../domain/templates/organs";
@@ -320,10 +319,8 @@ interface ComponentEditorProps {
   onTitleChange: (title: string) => void;
   onObservacoesChange: (raw: string) => void;
   onRemove: () => void;
-  onAddArea: (companions: boolean) => void;
   onSetCompanions: (companions: boolean) => void;
   onSetAreaTaxa: (taxaDiferente: boolean) => void;
-  onRemoveArea: () => void;
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
@@ -354,10 +351,8 @@ export function ComponentEditor({
   onTitleChange,
   onObservacoesChange,
   onRemove,
-  onAddArea,
   onSetCompanions,
   onSetAreaTaxa,
-  onRemoveArea,
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
@@ -469,7 +464,6 @@ export function ComponentEditor({
           ) === index,
       )
     : flowMeta;
-  const empty = !area && !equipment && !esteira;
   const loungeInvalid = loungeInvalidForAirport(entry, airport);
 
   function renderSizing(fields: ComponentContract["params"]) {
@@ -709,26 +703,8 @@ export function ComponentEditor({
             Remover componente
           </button>
         </div>
-        {empty ? (
-          <p className="panel-lead">
-            {arrivalsHall
-              ? "Área e tamanho mínimo de esteira são opcionais. Adicione o que este componente operacional precisa."
-              : allowsEquipment
-                ? "Área e equipamentos são opcionais. Adicione o que este componente operacional precisa."
-                : "Área é opcional. Adicione o que este componente operacional precisa."}
-          </p>
-        ) : null}
-        {!area || (arrivalsHall ? !esteira : allowsEquipment && !equipment) ? (
+        {(arrivalsHall && !esteira) || (allowsEquipment && !equipment) ? (
           <div className="requirement-add">
-            {!area ? (
-              <button
-                type="button"
-                className="accent"
-                onClick={() => onAddArea(suggestedCompanions(template))}
-              >
-                Adicionar requisito de área
-              </button>
-            ) : null}
             {arrivalsHall && !esteira ? (
               <button type="button" className="accent" onClick={onAddEsteira}>
                 Adicionar requisito de tamanho mínimo de esteira
@@ -878,11 +854,6 @@ export function ComponentEditor({
           ) : (
             renderSizing(sizingFields)
           )}
-          <div className="actions">
-            <button type="button" className="ghost" onClick={onRemoveArea}>
-              Remover área
-            </button>
-          </div>
         </section>
       ) : null}
 
