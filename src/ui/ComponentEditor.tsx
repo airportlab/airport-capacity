@@ -29,6 +29,7 @@ import {
   templateForEntry,
   type OrganNature,
 } from "../domain/templates/organs";
+import type { BoardingPlaceFilter } from "../dhp/duckdb";
 import type {
   BoardingConnectionPair,
   ComponentContract,
@@ -337,6 +338,8 @@ interface ComponentEditorProps {
   onApplyDemands: (values: Partial<Record<ComponentParamId, number>>) => void;
   dhpStamp: BoardingDhpStamp | null;
   onDhpStamp: (stamp: BoardingDhpStamp) => void;
+  dhpPlaces: BoardingPlaceFilter;
+  onDhpPlacesChange: (places: BoardingPlaceFilter) => void;
 }
 
 export function ComponentEditor({
@@ -369,6 +372,8 @@ export function ComponentEditor({
   onApplyDemands,
   dhpStamp,
   onDhpStamp,
+  dhpPlaces,
+  onDhpPlacesChange,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
@@ -391,7 +396,7 @@ export function ComponentEditor({
   );
   const dhpMark =
     entry.kind === "saguao-embarque"
-      ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts)
+      ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts, dhpPlaces)
       : null;
   const dhpIds = dhpStamp
     ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
@@ -689,6 +694,8 @@ export function ComponentEditor({
             entry={entry}
             drafts={drafts}
             mark={dhpMark}
+            places={dhpPlaces}
+            onPlacesChange={onDhpPlacesChange}
             onApply={onApplyDemands}
             onStamp={onDhpStamp}
           />

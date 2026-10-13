@@ -593,6 +593,23 @@ button.pmd-card.empty {
 .dhp-actions {
   margin-top: 0;
   margin-bottom: 16px;
+  align-items: center;
+}
+
+button.dhp-gear {
+  display: inline-grid;
+  place-items: center;
+  padding: 10px;
+}
+
+button.dhp-gear svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.dhp-filtro {
+  white-space: pre-line;
 }
 
 .dhp-table {
@@ -1227,6 +1244,24 @@ fieldset.field {
 
 .modal-dhp {
   width: min(72rem, calc(100vw - 32px));
+}
+
+.modal.modal-dhp-matriz {
+  width: min(48rem, calc(100vw - 32px));
+}
+
+.modal-dhp-matriz h3.field-label {
+  margin: 16px 0 8px;
+}
+
+.dhp-place-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 4px 16px;
+}
+
+.dhp-place-row .choice {
+  margin: 0;
 }
 
 .modal-dhp-tabela {

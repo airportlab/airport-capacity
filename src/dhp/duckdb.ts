@@ -27,6 +27,8 @@ const REQUIRED_COLUMNS = [
   "QT_PAX_CONEXAO_DOMESTICO",
   "QT_PAX_CONEXAO_INTERNACIONAL",
 ] as const;
+const PLACE_COLUMNS = ["NR_BOX", "NR_TERMINAL"] as const;
+const MISSING_PLACE = "O arquivo não tem NR_BOX e NR_TERMINAL.";
 
 const MONTH_CODES = [
   "JAN",
@@ -69,6 +71,20 @@ export interface BoardingDhpResult {
   coverage: DhpCoverage;
 }
 
+export interface BoardingPlaceFilter {
+  boxes: readonly string[];
+  terminals: readonly string[];
+}
+
+export interface BoardingPlaceCatalog {
+  boxes: string[];
+  terminals: string[];
+}
+
+export function boardingPlaceActive(filter: BoardingPlaceFilter | undefined): boolean {
+  return !!filter && (filter.boxes.length > 0 || filter.terminals.length > 0);
+}
+
 const FLOW_SQL: Record<BoardingFlowKey, string> = {
   origemDom: "origem_dom",
   origemInt: "origem_int",
@@ -100,6 +116,7 @@ let state: MovimentoState = {
   erro: null,
 };
 let session: Session | null = null;
+const placeCaches = new Map<string, BoardingPlaceCatalog>();
 let tail: Promise<void> = Promise.resolve();
 let restoring: Promise<void> | null = null;
 let queries = 0;
@@ -182,6 +199,7 @@ async function createDb(): Promise<duckdb.AsyncDuckDB> {
 
 async function closeSession(): Promise<void> {
   await idle;
+  placeCaches.clear();
   const current = session;
   session = null;
   if (!current) return;
@@ -193,7 +211,9 @@ function columnName(record: Record<string, unknown>): string | null {
   return typeof value === "string" ? value : null;
 }
 
-async function assertColumns(conn: duckdb.AsyncDuckDBConnection): Promise<void> {
+async function parquetColumns(
+  conn: duckdb.AsyncDuckDBConnection,
+): Promise<Set<string>> {
   let rows: Record<string, unknown>[];
   try {
     const table = await conn.query(
@@ -203,15 +223,26 @@ async function assertColumns(conn: duckdb.AsyncDuckDBConnection): Promise<void> 
   } catch {
     throw new Error(UNREADABLE);
   }
-  const present = new Set(
+  return new Set(
     rows.flatMap((row) => {
       const name = columnName(row);
       return name ? [name] : [];
     }),
   );
+}
+
+async function assertColumns(conn: duckdb.AsyncDuckDBConnection): Promise<void> {
+  const present = await parquetColumns(conn);
   const missing = REQUIRED_COLUMNS.filter((name) => !present.has(name));
   if (missing.length > 0) {
     throw new Error(`Faltam colunas: ${missing.join(", ")}.`);
+  }
+}
+
+async function assertPlaceColumns(conn: duckdb.AsyncDuckDBConnection): Promise<void> {
+  const present = await parquetColumns(conn);
+  if (!PLACE_COLUMNS.every((name) => present.has(name))) {
+    throw new Error(MISSING_PLACE);
   }
 }
 
@@ -457,11 +488,54 @@ function windowRecord(record: Record<string, unknown>): boolean {
 
 function searchFailure(error: unknown): Error {
   if (error instanceof Error && error.message === MISSING_FILE) return error;
+  if (error instanceof Error && error.message === MISSING_PLACE) return error;
   const detail = error instanceof Error ? error.message : "";
   if (/404|Not Found|HTTP Error|failed to fetch|NetworkError/i.test(detail)) {
     return new Error(UNREADABLE);
   }
   return new Error("Não foi possível consultar as janelas.");
+}
+
+function sqlLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+
+function comparePlace(a: string, b: string): number {
+  return a.localeCompare(b, "pt", { numeric: true, sensitivity: "base" });
+}
+
+function placeFilterSql(filter: BoardingPlaceFilter | undefined): string {
+  if (!boardingPlaceActive(filter) || !filter) return "";
+  const parts: string[] = [];
+  if (filter.boxes.length > 0) {
+    parts.push(
+      `AND TRIM(CAST(NR_BOX AS VARCHAR)) IN (${filter.boxes.map(sqlLiteral).join(", ")})`,
+    );
+  }
+  if (filter.terminals.length > 0) {
+    parts.push(
+      `AND TRIM(CAST(NR_TERMINAL AS VARCHAR)) IN (${filter.terminals.map(sqlLiteral).join(", ")})`,
+    );
+  }
+  return `\n        ${parts.join("\n        ")}`;
+}
+
+function placeText(value: unknown): string | null {
+  if (typeof value === "string") return textOrNull(value);
+  if (typeof value === "number" || typeof value === "bigint") {
+    const text = String(value).trim();
+    return text === "" ? null : text;
+  }
+  return null;
+}
+
+function distinctPlaces(rows: Record<string, unknown>[], key: string): string[] {
+  const values = new Set<string>();
+  for (const row of rows) {
+    const value = placeText(row[key]);
+    if (value) values.add(value);
+  }
+  return [...values].sort(comparePlace);
 }
 
 function rankLimit(value: number): number {
@@ -474,6 +548,7 @@ function boardingQuery(
   icao: string,
   pesos: BoardingPonderation,
   limit = BOARDING_RANK_LIMIT,
+  filter?: BoardingPlaceFilter,
 ): string {
   const weight = Object.fromEntries(
     BOARDING_FLOW_KEYS.map((key) => [key, sqlWeight(pesos[key])]),
@@ -496,7 +571,7 @@ movimentos AS (
     WHERE
         NR_AEROPORTO_REFERENCIA = '${icao}'
         AND NR_MOVIMENTO_TIPO IN ('D', 'P')
-        ${periodFilter()}
+        ${periodFilter()}${placeFilterSql(filter)}
 ),
 classificados AS (
     SELECT
@@ -574,17 +649,70 @@ function countsFrom(record: Record<string, unknown>): BoardingHourCounts {
   ) as BoardingHourCounts;
 }
 
+function placesQuery(icao: string): string {
+  return `
+WITH ${coverageCte(icao)}
+SELECT DISTINCT
+    NULLIF(TRIM(CAST(NR_BOX AS VARCHAR)), '') AS box,
+    NULLIF(TRIM(CAST(NR_TERMINAL AS VARCHAR)), '') AS terminal
+FROM read_parquet('${PARQUET_NAME}')
+CROSS JOIN periodo
+WHERE
+    NR_AEROPORTO_REFERENCIA = '${icao}'
+    AND NR_MOVIMENTO_TIPO IN ('D', 'P')
+    ${periodFilter()}
+`;
+}
+
+export async function listBoardingPlaces(icao: string): Promise<BoardingPlaceCatalog> {
+  const code = catalogIcao(icao);
+  if (!code) throw new Error("Aeroporto fora do catálogo.");
+  const arquivo = state.nome;
+  if (!arquivo) throw new Error(MISSING_FILE);
+  const key = `${arquivo}\n${code}`;
+  const cached = placeCaches.get(key);
+  if (cached) return cached;
+  try {
+    const catalog = await withConnection(async (conn) => {
+      await assertPlaceColumns(conn);
+      const table = await conn.query(placesQuery(code));
+      const rows = table.toArray() as Record<string, unknown>[];
+      return {
+        boxes: distinctPlaces(rows, "box"),
+        terminals: distinctPlaces(rows, "terminal"),
+      };
+    });
+    if (state.nome === arquivo) placeCaches.set(key, catalog);
+    return catalog;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === MISSING_FILE ||
+        error.message === MISSING_PLACE ||
+        error.message === UNREADABLE)
+    ) {
+      throw error;
+    }
+    throw new Error("Não foi possível ler os boxes e os terminais.");
+  }
+}
+
 export async function searchBoardingDhp(
   icao: string,
   pesos: BoardingPonderation,
   limit = BOARDING_RANK_LIMIT,
+  filter?: BoardingPlaceFilter,
 ): Promise<BoardingDhpResult> {
   const code = catalogIcao(icao);
   if (!code) throw new Error("Aeroporto fora do catálogo.");
   for (const key of BOARDING_FLOW_KEYS) sqlWeight(pesos[key]);
+  const advanced = boardingPlaceActive(filter);
   try {
     return await withConnection(async (conn) => {
-      const table = await conn.query(boardingQuery(code, pesos, limit));
+      if (advanced) await assertPlaceColumns(conn);
+      const table = await conn.query(
+        boardingQuery(code, pesos, limit, advanced ? filter : undefined),
+      );
       const rows = table.toArray() as Record<string, unknown>[];
       const coverage = coverageFrom(rows[0]);
       const ranked = rows.filter(windowRecord);

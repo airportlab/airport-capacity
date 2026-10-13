@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { restoreMovimento } from "../dhp/duckdb";
+import { restoreMovimento, type BoardingPlaceFilter } from "../dhp/duckdb";
 import {
   airportById,
   shouldReplaceAirportName,
@@ -77,7 +77,10 @@ import { AboutPage } from "./AboutPage";
 import { CirculationsTab } from "./CirculationsTab";
 import { DhpSearchPage } from "./DhpSearchPage";
 import { ComponentEditor } from "./ComponentEditor";
-import type { BoardingDhpStamp } from "./BoardingDhpButton";
+import {
+  EMPTY_BOARDING_PLACES,
+  type BoardingDhpStamp,
+} from "./BoardingDhpButton";
 import {
   formatAirportName,
   formatEditable,
@@ -115,6 +118,9 @@ export function AirportEditor() {
   );
   const [dhpStamps, setDhpStamps] = useState<
     Partial<Record<ComponentId, BoardingDhpStamp>>
+  >({});
+  const [dhpPlaces, setDhpPlaces] = useState<
+    Partial<Record<ComponentId, Partial<Record<string, BoardingPlaceFilter>>>>
   >({});
   useEffect(() => {
     void restoreMovimento();
@@ -1108,6 +1114,18 @@ export function AirportEditor() {
             setDhpStamps((current) => ({
               ...current,
               [activeContract.id]: stamp,
+            }))
+          }
+          dhpPlaces={
+            dhpPlaces[activeContract.id]?.[airport.icao] ?? EMPTY_BOARDING_PLACES
+          }
+          onDhpPlacesChange={(places) =>
+            setDhpPlaces((current) => ({
+              ...current,
+              [activeContract.id]: {
+                ...current[activeContract.id],
+                [airport.icao]: places,
+              },
             }))
           }
         />
