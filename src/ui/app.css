@@ -585,6 +585,10 @@ button.pmd-card.empty {
   font-weight: 600;
 }
 
+.field.field-inline input.dhp-calculado {
+  border: 2px solid var(--ok);
+}
+
 .dhp-actions {
   margin-top: 0;
   margin-bottom: 16px;
@@ -833,6 +837,10 @@ button.dhp-gear svg {
 
 .balloon .fields {
   gap: 28px;
+}
+
+.balloon > .field + .fields {
+  margin-top: 10px;
 }
 
 .balloon .fields + .fields,
