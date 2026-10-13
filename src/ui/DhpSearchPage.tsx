@@ -14,6 +14,19 @@ const EMPTY_COVERAGE: DhpCoverage = {
   periodoFim: null,
 };
 
+const PARQUET_URL = import.meta.env.VITE_PARQUET_URL?.trim() ?? "";
+const DOWNLOAD_ERROR = "Não foi possível baixar a movimentação.";
+
+function parquetFileName(url: string): string {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    if (name.toLowerCase().endsWith(".parquet")) return name;
+  } catch {
+    // An invalid URL uses the default name.
+  }
+  return "movimentacoes.parquet";
+}
+
 interface DhpSearchPageProps {
   airportId: AirportId;
 }
@@ -23,6 +36,7 @@ export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
   const movimento = useMovimento();
   const [coverage, setCoverage] = useState<DhpCoverage>(EMPTY_COVERAGE);
   const [reading, setReading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const airport = airportById(airportId);
   const ocupado = movimento.restaurando || movimento.enviando;
@@ -62,6 +76,27 @@ export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
     };
   }, [airport.icao, movimento.nome, ocupado]);
 
+  async function handleLatest() {
+    if (!PARQUET_URL) return;
+    setError(null);
+    setDownloading(true);
+    try {
+      let response: Response;
+      try {
+        response = await fetch(PARQUET_URL, { cache: "no-store" });
+      } catch {
+        throw new Error(DOWNLOAD_ERROR);
+      }
+      if (!response.ok) throw new Error(DOWNLOAD_ERROR);
+      const blob = await response.blob();
+      await loadMovimento(new File([blob], parquetFileName(PARQUET_URL)));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : DOWNLOAD_ERROR);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -85,6 +120,11 @@ export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
         O navegador guarda este arquivo até um envio novo.
       </p>
       <p className="dhp-meta">{dhpCoverageText(coverage)}</p>
+      <p className="dhp-meta">
+        {movimento.restaurando || (!movimento.nome && movimento.erro)
+          ? arquivoTexto(movimento, "")
+          : `Nome do arquivo de movimentações: ${movimento.nome ?? "—"}`}
+      </p>
       <div className="actions dhp-actions">
         <input
           ref={fileRef}
@@ -96,14 +136,21 @@ export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={ocupado || reading}
+          disabled={ocupado || reading || downloading}
         >
-          {movimento.enviando ? "A enviar…" : "Enviar movimentação"}
+          {movimento.enviando && !downloading ? "A enviar…" : "Enviar movimentação"}
         </button>
-        <p className="dhp-meta dhp-arquivo">
-          {arquivoTexto(movimento, "Nenhum arquivo de movimentação.")}
-        </p>
+        <button
+          type="button"
+          onClick={() => void handleLatest()}
+          disabled={!PARQUET_URL || ocupado || reading || downloading}
+        >
+          {downloading ? "A carregar…" : "Carregar dados mais atualizados"}
+        </button>
       </div>
+      {PARQUET_URL ? null : (
+        <p className="panel-lead">O endereço da movimentação não está configurado.</p>
+      )}
       {error ? <p className="panel-lead">{error}</p> : null}
     </section>
   );
