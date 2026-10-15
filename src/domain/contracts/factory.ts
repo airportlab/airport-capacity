@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import {
   boardingConnectionSpec,
+  enabledArrivalsConnections,
   enabledBoardingConnections,
   hasEquipment,
   hasEsteira,
@@ -146,6 +147,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const connection = connectionAreaParams(entry);
   const connections = connectionFlows(entry);
   const boardingPairs = enabledBoardingConnections(entry);
+  const arrivalsPairs = enabledArrivalsConnections(entry);
   const rawTerms = equipmentTerms(entry);
   const splitCheckin = isSplitCheckinEquipment(rawTerms);
   const terms = splitCheckin && includeEquipmentTaxa
@@ -250,9 +252,12 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           companions,
           flows.length,
           includeAreaTaxa,
-          connections.length > 0 && boardingPairs.length === 0,
+          arrivalsOnly
+            ? arrivalsPairs.length > 0
+            : connections.length > 0 && boardingPairs.length === 0,
           arrivalsOnly,
           boardingPairs,
+          arrivalsPairs,
         )
     : dualFlows
       ? dualAreaFormulaDisplay(
@@ -360,6 +365,28 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             },
             demandaPicoEmbarqueInternacional: {
               label: "Demanda hora pico(Origem INT)",
+            },
+          }
+        : {}),
+      ...(entry.kind === "saguao-desembarque" && !mixedNature
+        ? {
+            demandaPico: {
+              label: internationalHall
+                ? "Demanda hora pico(Destino INT)"
+                : "Demanda hora pico(Destino DOM)",
+              origem: internationalHall
+                ? "Atributo do fluxo de destino internacional."
+                : "Atributo do fluxo de destino doméstico.",
+            },
+          }
+        : {}),
+      ...(entry.kind === "saguao-desembarque" && mixedNature
+        ? {
+            demandaPicoDesembarqueDomestico: {
+              label: "Demanda hora pico(Destino DOM)",
+            },
+            demandaPicoDesembarqueInternacional: {
+              label: "Demanda hora pico(Destino INT)",
             },
           }
         : {}),

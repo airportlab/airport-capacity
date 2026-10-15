@@ -56,6 +56,9 @@ import type {
   RegistryEntry,
 } from "../domain/types";
 import {
+  allowsArrivalsConnection,
+  arrivalsConnectionPairs,
+  arrivalsConnectionsAllOn,
   boardingConnectionPairsFor,
   boardingConnectionsAllOn,
 } from "../domain/types";
@@ -419,8 +422,9 @@ export function AirportEditor() {
       "demandaPicoConexaoIntDom",
       "demandaPicoConexaoDomInt",
       "demandaPicoConexaoIntInt",
-      "demandaPicoConexaoDesembarqueDomestico",
-      "demandaPicoConexaoDesembarqueInternacional",
+      "demandaPicoConexaoDesembarqueDomInt",
+      "demandaPicoConexaoDesembarqueIntDom",
+      "demandaPicoConexaoDesembarqueIntInt",
     ]);
     const sources = resolvedSources(entry);
     for (const field of contract.params) {
@@ -476,8 +480,9 @@ export function AirportEditor() {
       params.demandaPicoConexaoIntDom = 0;
       params.demandaPicoConexaoDomInt = 0;
       params.demandaPicoConexaoIntInt = 0;
-      params.demandaPicoConexaoDesembarqueDomestico = 0;
-      params.demandaPicoConexaoDesembarqueInternacional = 0;
+      params.demandaPicoConexaoDesembarqueDomInt = 0;
+      params.demandaPicoConexaoDesembarqueIntDom = 0;
+      params.demandaPicoConexaoDesembarqueIntInt = 0;
       params.areaMedida = 0;
     }
     for (const field of contract.params) {
@@ -599,6 +604,13 @@ export function AirportEditor() {
       if (!hasConnection) {
         return { ...entry, hasConnection: undefined, conexoes: undefined };
       }
+      if (entry.kind === "saguao-desembarque") {
+        return {
+          ...entry,
+          hasConnection: true,
+          conexoes: arrivalsConnectionsAllOn(),
+        };
+      }
       const nature = natureOfEntry(entry);
       return {
         ...entry,
@@ -616,7 +628,9 @@ export function AirportEditor() {
     enabled: boolean,
   ) {
     updateRequirements(id, (entry) => {
-      const possible = boardingConnectionPairsFor(entry);
+      const possible = allowsArrivalsConnection(entry)
+        ? arrivalsConnectionPairs()
+        : boardingConnectionPairsFor(entry);
       const current =
         entry.conexoes ??
         Object.fromEntries(possible.map((item) => [item, true]));

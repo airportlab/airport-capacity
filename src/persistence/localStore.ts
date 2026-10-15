@@ -104,6 +104,17 @@ function copyLegacyAreaTaxa(
   }
 }
 
+/** O DHp antigo de DOM/INT vira DOM-INT. O internacional era a soma e não se reparte. */
+function copyLegacyArrivalsConnection(
+  raw: Record<string, unknown>,
+  params: ComponentParams,
+): void {
+  if (isFiniteNumber(raw.demandaPicoConexaoDesembarqueDomInt)) return;
+  if (!isFiniteNumber(raw.demandaPicoConexaoDesembarqueDomestico)) return;
+  params.demandaPicoConexaoDesembarqueDomInt =
+    raw.demandaPicoConexaoDesembarqueDomestico;
+}
+
 function copyLegacyEquipmentTaxa(
   entry: RegistryEntry,
   raw: Record<string, unknown>,
@@ -326,6 +337,10 @@ function overlayComponents(
         );
         copyLegacyEquipmentTaxa(
           entry,
+          rawComponents[entry.id] as Record<string, unknown>,
+          components[entry.id],
+        );
+        copyLegacyArrivalsConnection(
           rawComponents[entry.id] as Record<string, unknown>,
           components[entry.id],
         );

@@ -9,7 +9,9 @@ import type {
   SizingParamId,
 } from "../types";
 import {
+  ARRIVALS_CONNECTION_CATALOG,
   boardingConnectionSpec,
+  enabledArrivalsConnections,
   enabledBoardingConnections,
   hasArrivalsConnection,
   hasBoardingConnection,
@@ -125,10 +127,7 @@ export function identityParamIds(entry: RegistryEntry): ComponentParamId[] {
     }
   }
   if (hasArrivalsConnection(entry)) {
-    ids.push(
-      "demandaPicoConexaoDesembarqueDomestico",
-      "demandaPicoConexaoDesembarqueInternacional",
-    );
+    for (const flow of connectionFlows(entry)) ids.push(flow.demanda);
   }
   return ids;
 }
@@ -172,33 +171,28 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
     });
   }
   if (!hasArrivalsConnection(entry)) return [];
+  const enabled = new Set(enabledArrivalsConnections(entry));
   const flows = entryFlowParams(entry);
-  const list: FlowParamIds[] = [];
   const domestico = flows.find(
     (flow) => flow.demanda === "demandaPicoDesembarqueDomestico",
   );
   const internacional = flows.find(
     (flow) => flow.demanda === "demandaPicoDesembarqueInternacional",
   );
-  if (domestico) {
-    list.push({
-      demanda: "demandaPicoConexaoDesembarqueDomestico",
-      emp: domestico.emp,
-      toi: domestico.toi,
-      va: domestico.va,
-      area: "areaMinimaConexaoDomestico",
-    });
-  }
-  if (internacional) {
-    list.push({
-      demanda: "demandaPicoConexaoDesembarqueInternacional",
-      emp: internacional.emp,
-      toi: internacional.toi,
-      va: internacional.va,
-      area: "areaMinimaConexaoInternacional",
-    });
-  }
-  return list;
+  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
+    if (!enabled.has(spec.pair)) return [];
+    const sizing = spec.pair === "domInt" ? domestico : internacional;
+    if (!sizing) return [];
+    return [
+      {
+        demanda: spec.demanda,
+        emp: sizing.emp,
+        toi: sizing.toi,
+        va: sizing.va,
+        area: spec.area,
+      },
+    ];
+  });
 }
 
 export function connectionAreaParams(

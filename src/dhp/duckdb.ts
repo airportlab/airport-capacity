@@ -94,6 +94,9 @@ const FLOW_SQL: Record<BoardingFlowKey, string> = {
   conexaoIntDom: "conexao_int_dom",
   conexaoDomInt: "conexao_dom_int",
   conexaoIntInt: "conexao_int_int",
+  chegadaDomInt: "chegada_dom_int",
+  chegadaIntDom: "chegada_int_dom",
+  chegadaIntInt: "chegada_int_int",
 };
 
 export interface MovimentoState {
@@ -583,7 +586,10 @@ classificados AS (
         CASE WHEN embarque AND natureza = 'D' THEN conexao_dom ELSE 0 END AS conexao_dom_dom,
         CASE WHEN embarque AND natureza = 'D' THEN conexao_int ELSE 0 END AS conexao_int_dom,
         CASE WHEN embarque AND natureza = 'I' THEN conexao_dom ELSE 0 END AS conexao_dom_int,
-        CASE WHEN embarque AND natureza = 'I' THEN conexao_int ELSE 0 END AS conexao_int_int
+        CASE WHEN embarque AND natureza = 'I' THEN conexao_int ELSE 0 END AS conexao_int_int,
+        CASE WHEN NOT embarque AND natureza = 'I' THEN conexao_dom ELSE 0 END AS chegada_dom_int,
+        CASE WHEN NOT embarque AND natureza = 'D' THEN conexao_int ELSE 0 END AS chegada_int_dom,
+        CASE WHEN NOT embarque AND natureza = 'I' THEN conexao_int ELSE 0 END AS chegada_int_int
     FROM movimentos
 ),
 janelas AS (
@@ -598,6 +604,9 @@ janelas AS (
         SUM(conexao_int_dom) AS conexao_int_dom,
         SUM(conexao_dom_int) AS conexao_dom_int,
         SUM(conexao_int_int) AS conexao_int_int,
+        SUM(chegada_dom_int) AS chegada_dom_int,
+        SUM(chegada_int_dom) AS chegada_int_dom,
+        SUM(chegada_int_int) AS chegada_int_int,
         SUM(
             ${demanda}
         ) AS demanda_ponderada
@@ -618,7 +627,10 @@ SELECT
     ranqueadas.conexao_dom_dom,
     ranqueadas.conexao_int_dom,
     ranqueadas.conexao_dom_int,
-    ranqueadas.conexao_int_int
+    ranqueadas.conexao_int_int,
+    ranqueadas.chegada_dom_int,
+    ranqueadas.chegada_int_dom,
+    ranqueadas.chegada_int_int
 FROM periodo
 LEFT JOIN (
     SELECT
@@ -632,6 +644,9 @@ LEFT JOIN (
         conexao_int_dom,
         conexao_dom_int,
         conexao_int_int,
+        chegada_dom_int,
+        chegada_int_dom,
+        chegada_int_int,
         demanda_ponderada,
         COUNT(*) OVER () AS quantidade_janelas,
         ROW_NUMBER() OVER (
@@ -639,7 +654,7 @@ LEFT JOIN (
         ) AS posicao
     FROM janelas
 ) AS ranqueadas ON ranqueadas.posicao <= ${rankLimit(limit)}
-ORDER BY ranqueadas.demanda_ponderada ASC, ranqueadas.inicio
+ORDER BY ranqueadas.posicao DESC
 `;
 }
 

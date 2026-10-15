@@ -81,7 +81,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "desembarque", rowId: "saguao-desembarque" }],
     detail:
-      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional no misto: DOM/INT na conta doméstica e INT/DOM + INT/INT na internacional, sem acompanhante.",
+      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional no misto, um DHp e uma área por fluxo ligado: DOM-INT com Emp/Toi domésticos; INT-DOM e INT-INT, cada um com Emp/Toi internacionais, sem acompanhante. Fluxo desligado não entra.",
   },
   {
     kind: "saguao-embarque-desembarque",

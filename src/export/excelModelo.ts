@@ -369,10 +369,12 @@ function flowLabel(id: ComponentParamId): string {
       return "conexão DOM-INT";
     case "demandaPicoConexaoIntInt":
       return "conexão INT-INT";
-    case "demandaPicoConexaoDesembarqueDomestico":
-      return "conexão DOM/INT";
-    case "demandaPicoConexaoDesembarqueInternacional":
-      return "conexão INT/DOM + INT/INT";
+    case "demandaPicoConexaoDesembarqueDomInt":
+      return "conexão DOM-INT";
+    case "demandaPicoConexaoDesembarqueIntDom":
+      return "conexão INT-DOM";
+    case "demandaPicoConexaoDesembarqueIntInt":
+      return "conexão INT-INT";
     default:
       return id;
   }
@@ -1882,8 +1884,9 @@ const CONNECTION_DEMANDS = new Set<ComponentParamId>([
   "demandaPicoConexaoIntDom",
   "demandaPicoConexaoDomInt",
   "demandaPicoConexaoIntInt",
-  "demandaPicoConexaoDesembarqueDomestico",
-  "demandaPicoConexaoDesembarqueInternacional",
+  "demandaPicoConexaoDesembarqueDomInt",
+  "demandaPicoConexaoDesembarqueIntDom",
+  "demandaPicoConexaoDesembarqueIntInt",
 ]);
 
 function isFlowBody(id: ComponentParamId): boolean {
@@ -1913,6 +1916,21 @@ function memoryFlowLabel(
   id: ComponentParamId,
   entry: RegistryEntry | undefined,
 ): string {
+  if (entry?.kind === "saguao-desembarque") {
+    const nature = natureOfEntry(entry);
+    if (
+      id === "demandaPicoDesembarqueDomestico" ||
+      (id === "demandaPico" && nature !== "internacional")
+    ) {
+      return "Demanda hora pico(Destino DOM)";
+    }
+    if (
+      id === "demandaPicoDesembarqueInternacional" ||
+      (id === "demandaPico" && nature === "internacional")
+    ) {
+      return "Demanda hora pico(Destino INT)";
+    }
+  }
   if (entry?.kind === "saguao-embarque") {
     const nature = natureOfEntry(entry);
     if (

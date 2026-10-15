@@ -179,7 +179,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
   demandaPicoDesembarqueDomestico: {
     id: "demandaPicoDesembarqueDomestico",
     kind: "attribute",
-    label: "DHp (Destino Doméstico)",
+    label: "DHp (Destino DOM)",
     unit: "pax/h",
     defaultValue: 400,
     origem: "Atributo do fluxo de destino doméstico.",
@@ -187,7 +187,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
   demandaPicoDesembarqueInternacional: {
     id: "demandaPicoDesembarqueInternacional",
     kind: "attribute",
-    label: "DHp (Destino Internacional)",
+    label: "DHp (Destino INT)",
     unit: "pax/h",
     defaultValue: 400,
     origem: "Atributo do fluxo de destino internacional.",
@@ -253,23 +253,32 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     origem:
       "Embarque via conexão com origem e destino internacionais. Sem acompanhante.",
   },
-  demandaPicoConexaoDesembarqueDomestico: {
-    id: "demandaPicoConexaoDesembarqueDomestico",
+  demandaPicoConexaoDesembarqueDomInt: {
+    id: "demandaPicoConexaoDesembarqueDomInt",
     kind: "attribute",
-    label: "DHp conexão de desembarque doméstico (DOM/INT)",
+    label: "DHp conexão DOM-INT",
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Conexão de desembarque com origem doméstica e destino internacional. Usa Emp e Toi do desembarque doméstico, sem acompanhante.",
+      "Desembarque via conexão com origem doméstica e destino internacional. Usa Emp e Toi do desembarque doméstico, sem acompanhante.",
   },
-  demandaPicoConexaoDesembarqueInternacional: {
-    id: "demandaPicoConexaoDesembarqueInternacional",
+  demandaPicoConexaoDesembarqueIntDom: {
+    id: "demandaPicoConexaoDesembarqueIntDom",
     kind: "attribute",
-    label: "DHp conexão de desembarque internacional (INT/DOM + INT/INT)",
+    label: "DHp conexão INT-DOM",
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Conexões de desembarque com origem internacional (INT/DOM e INT/INT), numa demanda só. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
+      "Desembarque via conexão com origem internacional e destino doméstico. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
+  },
+  demandaPicoConexaoDesembarqueIntInt: {
+    id: "demandaPicoConexaoDesembarqueIntInt",
+    kind: "attribute",
+    label: "DHp conexão INT-INT",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Desembarque via conexão com origem e destino internacionais. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
   },
   espacoMinimoPorPassageiroEmbarqueDomestico: {
     id: "espacoMinimoPorPassageiroEmbarqueDomestico",

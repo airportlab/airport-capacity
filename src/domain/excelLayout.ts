@@ -14,6 +14,7 @@ import type {
   ResultId,
 } from "./types";
 import {
+  ARRIVALS_CONNECTION_CATALOG,
   BOARDING_CONNECTION_CATALOG,
   hasEquipment,
   hasEsteira,
@@ -525,25 +526,10 @@ export function getNatureSheetLayout(
           });
           row += 1;
         }
-        if (
-          contract.params.some(
-            (field) => field.id === "demandaPicoConexaoDesembarqueDomestico",
-          )
-        ) {
-          const arrivalsConnections = [
-            {
-              demanda: "demandaPicoConexaoDesembarqueDomestico",
-              emp: "espacoMinimoPorPassageiroDesembarqueDomestico",
-              toi: "tempoDeOcupacaoDesembarqueDomestico",
-              area: "areaMinimaConexaoDomestico",
-            },
-            {
-              demanda: "demandaPicoConexaoDesembarqueInternacional",
-              emp: "espacoMinimoPorPassageiroDesembarqueInternacional",
-              toi: "tempoDeOcupacaoDesembarqueInternacional",
-              area: "areaMinimaConexaoInternacional",
-            },
-          ] as const;
+        const arrivalsConnections = ARRIVALS_CONNECTION_CATALOG.filter((spec) =>
+          contract.params.some((field) => field.id === spec.demanda),
+        );
+        if (arrivalsConnections.length > 0) {
           for (const spec of arrivalsConnections) {
             const r = row;
             totalInputs[spec.demanda] = `B${r}`;

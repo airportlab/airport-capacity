@@ -6,14 +6,17 @@ import type {
   ResolvedInputs,
 } from "./types";
 import {
+  ARRIVALS_CONNECTION_CATALOG,
   BOARDING_CONNECTION_CATALOG,
+  enabledArrivalsConnections,
+  hasArrivalsConnection,
   hasBoardingConnection,
   isMixedNature,
   natureOfEntry,
   usesAreaTaxa,
 } from "./types";
 
-/** Fluxo da hora. Destino existe na consulta; o saguão de embarque não o usa. */
+/** Fluxo da hora. Embarque usa origem; desembarque usa destino. O outro lado fica em 0. */
 export type BoardingFlowKey =
   | "origemDom"
   | "origemInt"
@@ -22,7 +25,10 @@ export type BoardingFlowKey =
   | "conexaoDomDom"
   | "conexaoIntDom"
   | "conexaoDomInt"
-  | "conexaoIntInt";
+  | "conexaoIntInt"
+  | "chegadaDomInt"
+  | "chegadaIntDom"
+  | "chegadaIntInt";
 
 export const BOARDING_FLOW_KEYS: readonly BoardingFlowKey[] = [
   "origemDom",
@@ -33,6 +39,9 @@ export const BOARDING_FLOW_KEYS: readonly BoardingFlowKey[] = [
   "conexaoIntDom",
   "conexaoDomInt",
   "conexaoIntInt",
+  "chegadaDomInt",
+  "chegadaIntDom",
+  "chegadaIntInt",
 ];
 
 export interface BoardingFlowWeight {
@@ -65,7 +74,81 @@ const CONNECTION_FLOW_KEY: Record<
   intInt: "conexaoIntInt",
 };
 
+function arrivalWeightSpecs(entry: RegistryEntry): WeightSpec[] | null {
+  if (entry.kind !== "saguao-desembarque" || !entry.requirements.area) return null;
+  const nature = natureOfEntry(entry);
+  if (!nature) return null;
+  const companions = entry.requirements.area.companions === true;
+  const specs: WeightSpec[] = [];
+  if (isMixedNature(entry)) {
+    for (const flow of entryFlowParams(entry)) {
+      if (flow.demanda === "demandaPicoDesembarqueDomestico") {
+        specs.push({
+          demanda: flow.demanda,
+          label: "destino DOM",
+          key: "destinoDom",
+          emp: flow.emp,
+          toi: flow.toi,
+          va: companions ? flow.va : undefined,
+        });
+      }
+      if (flow.demanda === "demandaPicoDesembarqueInternacional") {
+        specs.push({
+          demanda: flow.demanda,
+          label: "destino INT",
+          key: "destinoInt",
+          emp: flow.emp,
+          toi: flow.toi,
+          va: companions ? flow.va : undefined,
+        });
+      }
+    }
+  } else {
+    const international = nature === "internacional";
+    const arrivals = entryFlowParams(entry).find(
+      (flow) => flow.area === "areaMinimaDesembarque",
+    );
+    specs.push({
+      demanda: arrivals?.demanda ?? "demandaPico",
+      label: international ? "destino INT" : "destino DOM",
+      key: international ? "destinoInt" : "destinoDom",
+      emp: arrivals?.emp ?? "espacoMinimoPorPassageiro",
+      toi: arrivals?.toi ?? "tempoDeOcupacao",
+      va: companions ? (arrivals?.va ?? "va") : undefined,
+    });
+  }
+  if (hasArrivalsConnection(entry)) {
+    const enabled = new Set(enabledArrivalsConnections(entry));
+    const flows = entryFlowParams(entry);
+    const domestico = flows.find(
+      (flow) => flow.demanda === "demandaPicoDesembarqueDomestico",
+    );
+    const internacional = flows.find(
+      (flow) => flow.demanda === "demandaPicoDesembarqueInternacional",
+    );
+    for (const spec of ARRIVALS_CONNECTION_CATALOG) {
+      if (!enabled.has(spec.pair)) continue;
+      const sizing = spec.pair === "domInt" ? domestico : internacional;
+      if (!sizing) continue;
+      specs.push({
+        demanda: spec.demanda,
+        label: `conexão ${spec.label}`,
+        key:
+          spec.pair === "domInt"
+            ? "chegadaDomInt"
+            : spec.pair === "intDom"
+              ? "chegadaIntDom"
+              : "chegadaIntInt",
+        emp: sizing.emp,
+        toi: sizing.toi,
+      });
+    }
+  }
+  return specs.length > 0 ? specs : null;
+}
+
 function weightSpecs(entry: RegistryEntry): WeightSpec[] | null {
+  if (entry.kind === "saguao-desembarque") return arrivalWeightSpecs(entry);
   if (entry.kind !== "saguao-embarque" || !entry.requirements.area) return null;
   const nature = natureOfEntry(entry);
   if (!nature) return null;
@@ -142,7 +225,7 @@ export function boardingWeightInputIds(
   return [...ids];
 }
 
-/** Peso de cada fluxo do saguão de embarque: coeficiente da área, sem o DHp. */
+/** Peso de cada fluxo ligado do saguão: coeficiente da área, sem o DHp. */
 export function boardingFlowWeights(
   entry: RegistryEntry,
   inputs: ResolvedInputs,
@@ -169,14 +252,14 @@ export function boardingPonderation(
   return pesos;
 }
 
-/** Contagem da 30ª hora. Cada par de conexão ligado grava o seu DHp. */
+/** Contagem da 30ª hora. INT/DOM e INT/INT do desembarque somam no mesmo DHp. */
 export function boardingDemandsFromHour(
   flows: readonly BoardingFlowWeight[],
   hour: BoardingHourCounts,
 ): Partial<Record<ComponentParamId, number>> {
   const values: Partial<Record<ComponentParamId, number>> = {};
   for (const flow of flows) {
-    values[flow.demanda] = hour[flow.key];
+    values[flow.demanda] = (values[flow.demanda] ?? 0) + hour[flow.key];
   }
   return values;
 }

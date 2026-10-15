@@ -44,10 +44,13 @@ import type {
 import {
   allowsArrivalsConnection,
   allowsBoardingConnection,
-  hasArrivalsConnection,
+  arrivalsConnectionPairs,
+  ARRIVALS_CONNECTION_LABEL,
   boardingConnectionPairsFor,
   boardingConnectionSpec,
+  enabledArrivalsConnections,
   enabledBoardingConnections,
+  hasArrivalsConnection,
   hasBoardingConnection,
   hasEquipment,
   hasEsteira,
@@ -394,10 +397,11 @@ export function ComponentEditor({
   const boardingIdentityFields = identityFields.filter(
     (field) => !field.id.startsWith("demandaPicoConexao"),
   );
-  const dhpMark =
-    entry.kind === "saguao-embarque"
-      ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts, dhpPlaces)
-      : null;
+  const dhpHall =
+    entry.kind === "saguao-embarque" || entry.kind === "saguao-desembarque";
+  const dhpMark = dhpHall
+    ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts, dhpPlaces)
+    : null;
   const dhpIds = dhpStamp
     ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
     : undefined;
@@ -435,6 +439,7 @@ export function ComponentEditor({
   );
   const sizingFields = contract.params.filter((field) => isSizingParam(field.id));
   const connectionPairs = enabledBoardingConnections(entry);
+  const arrivalsPairs = enabledArrivalsConnections(entry);
   const mixed = isMixedNature(entry) || isMixedNatureContract(contract);
   const singleFunctionMixed = isSingleFunctionMixedContract(contract);
   const mixedGroups = singleFunctionMixed
@@ -447,7 +452,12 @@ export function ComponentEditor({
           ["Origem DOM", "EmbarqueDomestico"],
           ["Origem INT", "EmbarqueInternacional"],
         ] as const)
-      : MIXED_GROUPS;
+      : entry.kind === "saguao-desembarque"
+        ? ([
+            ["Destino DOM", "DesembarqueDomestico"],
+            ["Destino INT", "DesembarqueInternacional"],
+          ] as const)
+        : MIXED_GROUPS;
   const dual = isDualFunction(entry) || isDualContract(contract);
   const sources = resolvedSources(entry);
   const template = templateForEntry(entry);
@@ -593,6 +603,8 @@ export function ComponentEditor({
                       origens={origens}
                       onValueChange={onValueChange}
                       onOrigemChange={onOrigemChange}
+                      dhpMark={dhpMark}
+                      dhpIds={dhpIds}
                     />
                   </div>
                 );
@@ -669,6 +681,22 @@ export function ComponentEditor({
             Há desembarque via conexão
           </label>
         ) : null}
+        {hasArrivalsConnection(entry) ? (
+          <div className="connection-pairs">
+            {arrivalsConnectionPairs().map((pair) => (
+              <label className="choice" key={pair}>
+                <input
+                  type="checkbox"
+                  checked={enabledArrivalsConnections(entry).includes(pair)}
+                  onChange={(event) =>
+                    onSetConnectionPair(pair, event.target.checked)
+                  }
+                />
+                Conexão {ARRIVALS_CONNECTION_LABEL[pair]}
+              </label>
+            ))}
+          </div>
+        ) : null}
         {connectionFields.length > 0 ? (
           <>
             <h3 className="field-label">
@@ -687,7 +715,7 @@ export function ComponentEditor({
             />
           </>
         ) : null}
-        {entry.kind === "saguao-embarque" ? (
+        {dhpHall ? (
           <BoardingDhpButton
             icao={airport.icao}
             airportName={airport.name}
@@ -747,10 +775,9 @@ export function ComponentEditor({
                 (entry.flows?.every((flow) => flow.role === "desembarque") ??
                   false)
               }
-              hasConnection={
-                connectionPairs.length > 0 || hasArrivalsConnection(entry)
-              }
+              hasConnection={connectionPairs.length > 0 || arrivalsPairs.length > 0}
               connectionPairs={connectionPairs}
+              arrivalsPairs={arrivalsPairs}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }

@@ -1,4 +1,5 @@
 import type {
+  ArrivalsConnectionPair,
   BoardingConnectionPair,
   ComponentParamId,
   ContractFormula,
@@ -7,7 +8,7 @@ import type {
   ResolvedInputs,
   ResultId,
 } from "../types";
-import { BOARDING_CONNECTION_CATALOG } from "../types";
+import { ARRIVALS_CONNECTION_CATALOG, BOARDING_CONNECTION_CATALOG } from "../types";
 import type { FlowParamIds } from "./flowParams";
 import {
   demandSum,
@@ -310,17 +311,19 @@ function boardingPairOfArea(area: ResultId): BoardingConnectionPair | null {
   );
 }
 
+function arrivalsPairOfArea(area: ResultId): ArrivalsConnectionPair | null {
+  return (
+    ARRIVALS_CONNECTION_CATALOG.find((item) => item.area === area)?.pair ?? null
+  );
+}
+
 function connectionExpression(
   item: FlowParamIds,
   mixedNature: boolean,
   includeTaxa: boolean,
 ): string {
-  if (item.area === "areaMinimaConexaoDomestico") {
-    return arrivalsConnectionAreaDisplay("dom", includeTaxa);
-  }
-  if (item.area === "areaMinimaConexaoInternacional") {
-    return arrivalsConnectionAreaDisplay("int", includeTaxa);
-  }
+  const arrival = arrivalsPairOfArea(item.area);
+  if (arrival) return arrivalsConnectionAreaDisplay(arrival, includeTaxa);
   const pair = boardingPairOfArea(item.area);
   const empSuffix = mixedNature ? "_e,dom" : "_e";
   if (pair) return boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix);
@@ -328,11 +331,10 @@ function connectionExpression(
 }
 
 function connectionLabel(item: FlowParamIds): string {
-  if (item.area === "areaMinimaConexaoDomestico") {
-    return "Área mínima de conexão de desembarque doméstico (Ad_c,dom)";
-  }
-  if (item.area === "areaMinimaConexaoInternacional") {
-    return "Área mínima de conexão de desembarque internacional (Ad_c,int)";
+  const arrival = arrivalsPairOfArea(item.area);
+  if (arrival) {
+    const spec = ARRIVALS_CONNECTION_CATALOG.find((item) => item.pair === arrival);
+    return `Área mínima de conexão ${spec?.label ?? arrival} (${spec?.areaSymbol ?? "Ad_c"})`;
   }
   const pair = boardingPairOfArea(item.area);
   if (pair) {
@@ -545,10 +547,19 @@ export function capacityFormulas(copy: {
     const arrivalsOnly = isArrivalsOnlyMixed(flows);
     const pairs = boardingPairsOf(connections);
     const genericConnection = pairs.length === 0 && connections.length > 0;
+    const arrivalPairs = ARRIVALS_CONNECTION_CATALOG.filter((item) =>
+      connections.some((flow) => flow.area === item.area),
+    ).map((item) => item.pair);
     const sumDisplay = singleFunctionMixed
       ? singleFunctionMixedSumDisplay()
       : mixedNature
-        ? mixedAreaSumDisplay(flows.length, genericConnection, arrivalsOnly, pairs)
+        ? mixedAreaSumDisplay(
+            flows.length,
+            genericConnection,
+            arrivalsOnly,
+            pairs,
+            arrivalPairs,
+          )
         : dualAreaSumDisplay(connections.length > 0, pairs);
     formulas.push({
       id: "areaMinima",

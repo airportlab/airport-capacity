@@ -1,5 +1,10 @@
-import type { BoardingConnectionPair, ComponentParamId, EquipmentTerm } from "../types";
-import { boardingConnectionSpec } from "../types";
+import type {
+  ArrivalsConnectionPair,
+  BoardingConnectionPair,
+  ComponentParamId,
+  EquipmentTerm,
+} from "../types";
+import { arrivalsConnectionSpec, boardingConnectionSpec } from "../types";
 
 export const AREA_NOTATIONS = [
   { symbol: "Ad", meaning: "Área mínima necessária", unit: "m²" },
@@ -114,11 +119,14 @@ export function mixedAreaSumDisplay(
   hasConnection = false,
   arrivalsOnly = false,
   pairs: readonly BoardingConnectionPair[] = [],
+  arrivalsPairs: readonly ArrivalsConnectionPair[] = [],
 ): string {
   if (arrivalsOnly) {
-    return hasConnection
-      ? "Ad = Ad_d,dom + Ad_d,int + Ad_c,dom + Ad_c,int"
-      : "Ad = Ad_d,dom + Ad_d,int";
+    const parts = ["Ad_d,dom", "Ad_d,int"];
+    for (const pair of arrivalsPairs) {
+      parts.push(arrivalsConnectionSpec(pair).areaSymbol);
+    }
+    return `Ad = ${parts.join(" + ")}`;
   }
   const base =
     flowCount <= 2
@@ -135,6 +143,7 @@ export function mixedAreaFormulaDisplay(
   hasConnection = false,
   arrivalsOnly = false,
   pairs: readonly BoardingConnectionPair[] = [],
+  arrivalsPairs: readonly ArrivalsConnectionPair[] = [],
 ): string {
   const rhs = areaFormulaRhs(companions, includeTaxa);
   const connection =
@@ -144,10 +153,10 @@ export function mixedAreaFormulaDisplay(
         ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e,dom")};`
         : "";
   if (arrivalsOnly) {
-    const arrivals = hasConnection
-      ? ` ${arrivalsConnectionAreaDisplay("dom", includeTaxa)}; ${arrivalsConnectionAreaDisplay("int", includeTaxa)};`
-      : "";
-    return `Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${arrivals} ${mixedAreaSumDisplay(2, hasConnection, true)}`;
+    const arrivals = arrivalsPairs
+      .map((pair) => ` ${arrivalsConnectionAreaDisplay(pair, includeTaxa)};`)
+      .join("");
+    return `Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${arrivals} ${mixedAreaSumDisplay(2, arrivalsPairs.length > 0, true, [], arrivalsPairs)}`;
   }
   if (flowCount <= 2) {
     return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs};${connection} ${mixedAreaSumDisplay(2, hasConnection, false, pairs)}`;
@@ -156,23 +165,20 @@ export function mixedAreaFormulaDisplay(
 }
 
 export function arrivalsConnectionNumerator(
-  kind: "dom" | "int",
+  pair: ArrivalsConnectionPair,
   includeTaxa = false,
 ): string {
-  const demand = withTu(
-    kind === "dom" ? "DHp_c,dom" : "DHp_c,int",
-    includeTaxa,
-  );
-  const suffix = kind === "dom" ? "_d,dom" : "_d,int";
-  return `${demand} × Emp${suffix} × Toi${suffix}`;
+  const spec = arrivalsConnectionSpec(pair);
+  const demand = withTu(spec.dhpSymbol, includeTaxa);
+  return `${demand} × Emp${spec.empSuffix} × Toi${spec.empSuffix}`;
 }
 
 export function arrivalsConnectionAreaDisplay(
-  kind: "dom" | "int",
+  pair: ArrivalsConnectionPair,
   includeTaxa = false,
 ): string {
-  const lhs = kind === "dom" ? "Ad_c,dom" : "Ad_c,int";
-  return `${lhs} = (${arrivalsConnectionNumerator(kind, includeTaxa)}) / 60`;
+  const spec = arrivalsConnectionSpec(pair);
+  return `${spec.areaSymbol} = (${arrivalsConnectionNumerator(pair, includeTaxa)}) / 60`;
 }
 
 export function connectionAreaNumerator(
@@ -274,10 +280,12 @@ export function demandSymbol(id: ComponentParamId): string {
       return "DHp_c,DomInt";
     case "demandaPicoConexaoIntInt":
       return "DHp_c,IntInt";
-    case "demandaPicoConexaoDesembarqueDomestico":
-      return "DHp_c,dom";
-    case "demandaPicoConexaoDesembarqueInternacional":
-      return "DHp_c,int";
+    case "demandaPicoConexaoDesembarqueDomInt":
+      return "DHp_c,DomInt";
+    case "demandaPicoConexaoDesembarqueIntDom":
+      return "DHp_c,IntDom";
+    case "demandaPicoConexaoDesembarqueIntInt":
+      return "DHp_c,IntInt";
     default:
       return "DHp";
   }

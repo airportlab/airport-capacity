@@ -371,8 +371,9 @@ function writeDashOrNumber(
 }
 
 const CONNECTION_DEMAND_IDS: ComponentParamId[] = [
-  "demandaPicoConexaoDesembarqueDomestico",
-  "demandaPicoConexaoDesembarqueInternacional",
+  "demandaPicoConexaoDesembarqueDomInt",
+  "demandaPicoConexaoDesembarqueIntDom",
+  "demandaPicoConexaoDesembarqueIntInt",
   "demandaPicoConexaoDomDom",
   "demandaPicoConexaoIntDom",
   "demandaPicoConexaoDomInt",
@@ -381,8 +382,9 @@ const CONNECTION_DEMAND_IDS: ComponentParamId[] = [
 ];
 
 const CONNECTION_RESULT_IDS = [
-  "areaMinimaConexaoDomestico",
-  "areaMinimaConexaoInternacional",
+  "areaMinimaConexaoDesembarqueDomInt",
+  "areaMinimaConexaoDesembarqueIntDom",
+  "areaMinimaConexaoDesembarqueIntInt",
   "areaMinimaConexaoDomDom",
   "areaMinimaConexaoIntDom",
   "areaMinimaConexaoDomInt",
@@ -407,10 +409,12 @@ function connectionRowLabel(
   demandId: ComponentParamId | undefined,
 ): string {
   switch (demandId) {
-    case "demandaPicoConexaoDesembarqueDomestico":
-      return `${title} · conexão DOM/INT`;
-    case "demandaPicoConexaoDesembarqueInternacional":
-      return `${title} · conexão INT/DOM + INT/INT`;
+    case "demandaPicoConexaoDesembarqueDomInt":
+      return `${title} · conexão DOM-INT`;
+    case "demandaPicoConexaoDesembarqueIntDom":
+      return `${title} · conexão INT-DOM`;
+    case "demandaPicoConexaoDesembarqueIntInt":
+      return `${title} · conexão INT-INT`;
     case "demandaPicoConexaoDomDom":
       return `${title} · conexão DOM-DOM`;
     case "demandaPicoConexaoIntDom":

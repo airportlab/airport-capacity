@@ -82,8 +82,9 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoConexaoIntDom",
   "demandaPicoConexaoDomInt",
   "demandaPicoConexaoIntInt",
-  "demandaPicoConexaoDesembarqueDomestico",
-  "demandaPicoConexaoDesembarqueInternacional",
+  "demandaPicoConexaoDesembarqueDomInt",
+  "demandaPicoConexaoDesembarqueIntDom",
+  "demandaPicoConexaoDesembarqueIntInt",
   "taxaDeUsoArea",
   "taxaDeUsoAreaDomestico",
   "taxaDeUsoAreaInternacional",
@@ -227,6 +228,34 @@ export function hasArrivalsConnection(entry: RegistryEntry): boolean {
   return allowsArrivalsConnection(entry) && entry.hasConnection === true;
 }
 
+/** Fluxos de desembarque via conexão. DOM-DOM não entra. */
+export type ArrivalsConnectionPair = "domInt" | "intDom" | "intInt";
+
+export const ARRIVALS_CONNECTION_PAIRS: readonly ArrivalsConnectionPair[] = [
+  "domInt",
+  "intDom",
+  "intInt",
+];
+
+export function arrivalsConnectionPairs(): ArrivalsConnectionPair[] {
+  return [...ARRIVALS_CONNECTION_PAIRS];
+}
+
+export function arrivalsConnectionsAllOn(): BoardingConnections {
+  return { domInt: true, intDom: true, intInt: true };
+}
+
+/** Fluxos ligados. Sem `conexoes`, o arquivo antigo liga os três. */
+export function enabledArrivalsConnections(
+  entry: RegistryEntry,
+): ArrivalsConnectionPair[] {
+  if (!hasArrivalsConnection(entry)) return [];
+  if (!entry.conexoes) return arrivalsConnectionPairs();
+  return arrivalsConnectionPairs().filter(
+    (pair) => entry.conexoes?.[pair] === true,
+  );
+}
+
 export function isDualFunction(entry: RegistryEntry): boolean {
   const roles = new Set(entry.flows?.map((flow) => flow.role) ?? []);
   return roles.has("embarque") && roles.has("desembarque");
@@ -264,8 +293,9 @@ export type ResultId =
   | "areaMinimaConexaoIntDom"
   | "areaMinimaConexaoDomInt"
   | "areaMinimaConexaoIntInt"
-  | "areaMinimaConexaoDomestico"
-  | "areaMinimaConexaoInternacional"
+  | "areaMinimaConexaoDesembarqueDomInt"
+  | "areaMinimaConexaoDesembarqueIntDom"
+  | "areaMinimaConexaoDesembarqueIntInt"
   | "areaMinima"
   | "assentosMinimos"
   | "numeroMinimoEquipamentos"
@@ -322,6 +352,66 @@ export function boardingConnectionSpec(
 ): (typeof BOARDING_CONNECTION_CATALOG)[number] {
   const spec = BOARDING_CONNECTION_CATALOG.find((item) => item.pair === pair);
   if (!spec) return BOARDING_CONNECTION_CATALOG[0];
+  return spec;
+}
+
+/** Um DHp e uma área por par. DOM-INT usa Emp/Toi do desembarque doméstico; os outros, do internacional. */
+export const ARRIVALS_CONNECTION_CATALOG: readonly {
+  pair: ArrivalsConnectionPair;
+  demanda: ComponentParamId;
+  area: ResultId;
+  label: string;
+  dhpSymbol: string;
+  areaSymbol: string;
+  empSuffix: "_d,dom" | "_d,int";
+  emp: ComponentParamId;
+  toi: ComponentParamId;
+}[] = [
+  {
+    pair: "domInt",
+    demanda: "demandaPicoConexaoDesembarqueDomInt",
+    area: "areaMinimaConexaoDesembarqueDomInt",
+    label: "DOM-INT",
+    dhpSymbol: "DHp_c,DomInt",
+    areaSymbol: "Ad_c,DomInt",
+    empSuffix: "_d,dom",
+    emp: "espacoMinimoPorPassageiroDesembarqueDomestico",
+    toi: "tempoDeOcupacaoDesembarqueDomestico",
+  },
+  {
+    pair: "intDom",
+    demanda: "demandaPicoConexaoDesembarqueIntDom",
+    area: "areaMinimaConexaoDesembarqueIntDom",
+    label: "INT-DOM",
+    dhpSymbol: "DHp_c,IntDom",
+    areaSymbol: "Ad_c,IntDom",
+    empSuffix: "_d,int",
+    emp: "espacoMinimoPorPassageiroDesembarqueInternacional",
+    toi: "tempoDeOcupacaoDesembarqueInternacional",
+  },
+  {
+    pair: "intInt",
+    demanda: "demandaPicoConexaoDesembarqueIntInt",
+    area: "areaMinimaConexaoDesembarqueIntInt",
+    label: "INT-INT",
+    dhpSymbol: "DHp_c,IntInt",
+    areaSymbol: "Ad_c,IntInt",
+    empSuffix: "_d,int",
+    emp: "espacoMinimoPorPassageiroDesembarqueInternacional",
+    toi: "tempoDeOcupacaoDesembarqueInternacional",
+  },
+];
+
+export const ARRIVALS_CONNECTION_LABEL: Record<ArrivalsConnectionPair, string> =
+  Object.fromEntries(
+    ARRIVALS_CONNECTION_CATALOG.map((item) => [item.pair, item.label]),
+  ) as Record<ArrivalsConnectionPair, string>;
+
+export function arrivalsConnectionSpec(
+  pair: ArrivalsConnectionPair,
+): (typeof ARRIVALS_CONNECTION_CATALOG)[number] {
+  const spec = ARRIVALS_CONNECTION_CATALOG.find((item) => item.pair === pair);
+  if (!spec) return ARRIVALS_CONNECTION_CATALOG[0];
   return spec;
 }
 

@@ -570,7 +570,10 @@ export function BoardingDhpButton({
     stored && signature === stored.signature ? stored.janelas : null;
   const quantidadeJanelas =
     stored && signature === stored.signature ? stored.quantidadeJanelas : 0;
-  const tabela = janelas?.filter((item) => item.posicao <= 30) ?? null;
+  const tabela =
+    janelas
+      ?.filter((item) => item.posicao <= 30)
+      .sort((a, b) => b.posicao - a.posicao) ?? null;
   const shownCoverage = coverage?.icao === icao ? coverage.value : null;
   const periodRange = shownCoverage ? dhpPeriodRange(shownCoverage) : null;
   const tituloJanelas = janelasTitulo(periodRange, airportName);

@@ -20,11 +20,12 @@ import {
 } from "../domain/contracts/notations";
 import { isSplitCheckinEquipment } from "../domain/contracts/flowParams";
 import type {
+  ArrivalsConnectionPair,
   BoardingConnectionPair,
   ComponentContract,
   EquipmentTerm,
 } from "../domain/types";
-import { boardingConnectionSpec } from "../domain/types";
+import { arrivalsConnectionSpec, boardingConnectionSpec } from "../domain/types";
 
 export function TexText({ text }: { text: string }) {
   const parts: ReactNode[] = [];
@@ -458,11 +459,13 @@ export function MixedNatureAreaFormulaCard({
   connectionPairs = [],
   singleFunction = false,
   arrivalsOnly = false,
+  arrivalsPairs = [],
   afterEquation,
 }: DualFormulaCardProps & {
   flowCount?: number;
   singleFunction?: boolean;
   arrivalsOnly?: boolean;
+  arrivalsPairs?: readonly ArrivalsConnectionPair[];
 }) {
   if (singleFunction) {
     const sum = singleFunctionMixedSumDisplay();
@@ -516,6 +519,7 @@ export function MixedNatureAreaFormulaCard({
     hasConnection && connectionPairs.length === 0,
     arrivalsOnly,
     connectionPairs,
+    arrivalsPairs,
   );
   const sumBody = sum.replace("Ad = ", "");
   return (
@@ -583,22 +587,17 @@ export function MixedNatureAreaFormulaCard({
           empSuffix="_e,dom"
         />
       ) : null}
-      {arrivalsOnly && hasConnection ? (
-        <>
-          <AreaEquation
-            companions={false}
-            includeTaxa={includeTaxa}
-            lhs="Ad_c,dom"
-            numerator={arrivalsConnectionNumerator("dom", includeTaxa)}
-          />
-          <AreaEquation
-            companions={false}
-            includeTaxa={includeTaxa}
-            lhs="Ad_c,int"
-            numerator={arrivalsConnectionNumerator("int", includeTaxa)}
-          />
-        </>
-      ) : null}
+      {arrivalsOnly
+        ? arrivalsPairs.map((pair) => (
+            <AreaEquation
+              key={pair}
+              companions={false}
+              includeTaxa={includeTaxa}
+              lhs={arrivalsConnectionSpec(pair).areaSymbol}
+              numerator={arrivalsConnectionNumerator(pair, includeTaxa)}
+            />
+          ))
+        : null}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>
         <span className="tex-eq">=</span>
