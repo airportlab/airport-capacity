@@ -1508,7 +1508,8 @@ function writeBeltBlock(
     }
 
     const row = sheet.getRow(block.row);
-    row.getCell(1).value = contract.title;
+    row.getCell(1).value =
+      flows.length > 0 ? `${contract.title} · total` : contract.title;
     if (flows.length > 0) {
       row.getCell(2).value = "—";
       row.getCell(6).value = "—";

@@ -3,6 +3,7 @@ import {
   defaultAirport,
   parseAirportId,
   type AirportId,
+  type AirportSource,
 } from "../domain/airports";
 import {
   parseCirculations,
@@ -15,15 +16,19 @@ import {
   origensFromRegistry,
   paramsFromRegistry,
 } from "../domain/contracts/catalog";
+import { isTaxaParam } from "../domain/contracts/fields";
 import { exampleStudy } from "../domain/exampleStudy";
 import { makeContract } from "../domain/contracts/factory";
 import {
   organAllowsCompanions,
   organAllowsEquipment,
+  rebindOrganNature,
+  remapDemandaOnNatureChange,
 } from "../domain/templates/organs";
 import {
   applyPmdRequirements,
   normalizePmdBinding,
+  overlaySizingSources,
   type RoundId,
 } from "../domain/pmd";
 import type {
@@ -46,6 +51,7 @@ import {
   COMPONENT_PARAM_IDS,
   JUSTIFICATIVA_IDS,
   SIZING_PARAM_IDS,
+  isMixedNature,
   natureOfEntry,
   type BoardingConnections,
   type JustificativaId,
@@ -393,11 +399,66 @@ function parseJustificativas(
   return next;
 }
 
+/** Sala mista gravada reabre na natureza do pmd. O DHp dessa coluna permanece. */
+function collapseMixedArrivalsHall(entry: RegistryEntry): RegistryEntry {
+  if (entry.kind !== "sala-desembarque" || !isMixedNature(entry)) return entry;
+  const nature =
+    entry.pmd?.nature === "internacional" ? "internacional" : "domestico";
+  return rebindOrganNature(entry, nature);
+}
+
+function restoreCollapsedArrivals(
+  from: RegistryEntry,
+  to: RegistryEntry,
+  rawParams: Record<string, unknown> | undefined,
+  rawOrigens: Record<string, unknown> | undefined,
+  source: AirportSource,
+): { params: ComponentParams; origens: Record<ComponentParamId, string> } {
+  const contract = makeContract(to);
+  const previous = makeContract(from);
+  const params = defaultComponentParams(contract);
+  const origens = defaultComponentOrigens(contract);
+  const keep = new Set(previous.params.map((field) => field.id));
+  const picked = rawParams
+    ? pickNumbers(rawParams, COMPONENT_PARAM_IDS, params)
+    : params;
+  if (rawParams) {
+    for (const field of contract.params) {
+      if (keep.has(field.id) || isTaxaParam(field.id)) {
+        params[field.id] = picked[field.id];
+      }
+    }
+    const remapped = remapDemandaOnNatureChange(from, to, picked);
+    for (const id of Object.keys(remapped) as ComponentParamId[]) {
+      const value = remapped[id];
+      if (value != null) params[id] = value;
+    }
+  }
+  if (rawOrigens) {
+    const pickedOrigens = pickStrings(
+      rawOrigens,
+      COMPONENT_PARAM_IDS,
+      origens,
+    );
+    for (const field of contract.params) {
+      if (!keep.has(field.id)) continue;
+      const origem = pickedOrigens[field.id];
+      if (origem) origens[field.id] = origem;
+    }
+  }
+  return overlaySizingSources(to, params, origens, source);
+}
+
 export function parsePersistedState(raw: unknown): PersistedAirportState | null {
   if (!isRecord(raw) || typeof raw.savedAt !== "string") return null;
   const parsed = parseRegistry(raw.registry);
   if (parsed === null) return null;
-  const registry = parsed.map((entry) => applyPmdRequirements(entry));
+  const collapsedFrom = new Map<ComponentId, RegistryEntry>();
+  const registry = parsed.map((entry) => {
+    const collapsed = collapseMixedArrivalsHall(entry);
+    if (collapsed !== entry) collapsedFrom.set(entry.id, entry);
+    return applyPmdRequirements(collapsed);
+  });
   const airport = airportById(parseAirportId(raw.airportId));
   const overlaid = overlayComponents(
     registry,
@@ -405,6 +466,23 @@ export function parsePersistedState(raw: unknown): PersistedAirportState | null 
     raw.componentOrigens,
     airport,
   );
+  const rawComponents = isRecord(raw.components) ? raw.components : undefined;
+  const rawOrigens = isRecord(raw.componentOrigens)
+    ? raw.componentOrigens
+    : undefined;
+  for (const [id, from] of collapsedFrom) {
+    const to = registry.find((entry) => entry.id === id);
+    if (!to) continue;
+    const restored = restoreCollapsedArrivals(
+      from,
+      to,
+      rawComponents && isRecord(rawComponents[id]) ? rawComponents[id] : undefined,
+      rawOrigens && isRecord(rawOrigens[id]) ? rawOrigens[id] : undefined,
+      airport,
+    );
+    overlaid.components[id] = restored.params;
+    overlaid.componentOrigens[id] = restored.origens;
+  }
 
   return {
     savedAt: raw.savedAt,

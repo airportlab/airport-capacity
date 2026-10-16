@@ -131,8 +131,9 @@ export function RegisterComponent({
         <h2 id="cadastrar-titulo">Cadastrar componente</h2>
         <p className="panel-lead">
           O tipo do PMD é o componente operacional. Saguão de embarque,
-          saguão de desembarque, sala de desembarque, saguão combinado e
-          check-in admitem natureza mista. Emp, Toi, v.a. e assentos
+          saguão de desembarque, saguão combinado e check-in admitem
+          natureza mista. A sala de desembarque fica em doméstico ou
+          internacional. Emp, Toi, v.a. e assentos
           ficam ligados a essa fonte. A área entra com o componente.
           Equipamentos, só nos processadores (check-in, inspeção,
           emigração, imigração e aduana), pelo botão no editor.

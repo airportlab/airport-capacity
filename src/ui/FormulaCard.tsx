@@ -12,8 +12,10 @@ import {
   equipmentToiSymbol,
   splitEquipmentSymbol,
   arrivalsConnectionNumerator,
+  beltConnectionNumerator,
+  beltConnectionSymbol,
   beltNumerator,
-  beltSumDisplay,
+  salaArrivalsSumDisplay,
   mixedAreaSumDisplay,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
@@ -325,6 +327,7 @@ interface FormulaCardProps {
   includeTaxa?: boolean;
   hasConnection?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
+  arrivalsPairs?: readonly ArrivalsConnectionPair[];
   includeSeats?: boolean;
   afterEquation?: ReactNode;
 }
@@ -334,9 +337,45 @@ export function FormulaCard({
   includeTaxa = false,
   hasConnection = false,
   connectionPairs = [],
+  arrivalsPairs = [],
   includeSeats = false,
   afterEquation,
 }: FormulaCardProps) {
+  if (arrivalsPairs.length > 0) {
+    const sum = salaArrivalsSumDisplay(arrivalsPairs);
+    const sumBody = sum.replace("Ad = ", "");
+    return (
+      <div className="formula-card">
+        <p className="formula-kicker">Fórmulas de desembarque e conexão</p>
+        <AreaEquation
+          companions={false}
+          includeTaxa={includeTaxa}
+          lhs="Ad_d"
+        />
+        {arrivalsPairs.map((pair) => (
+          <AreaEquation
+            key={pair}
+            companions={false}
+            includeTaxa={includeTaxa}
+            lhs={arrivalsConnectionSpec(pair).areaSymbol}
+            numerator={arrivalsConnectionNumerator(pair, includeTaxa)}
+          />
+        ))}
+        <div className="tex" role="img" aria-label={sum}>
+          <span className="tex-lhs">Ad</span>
+          <span className="tex-eq">=</span>
+          <span>
+            <TexText text={sumBody} />
+          </span>
+        </div>
+        {afterEquation}
+        <p className="origem">
+          Uma área medida. Atende se a área medida for maior ou igual à soma das
+          contas. Conexões sem acompanhante.
+        </p>
+      </div>
+    );
+  }
   const linked = hasConnection || connectionPairs.length > 0;
   const sum = simpleConnectionSumDisplay(connectionPairs);
   const sumBody =
@@ -682,56 +721,47 @@ export function EquipmentEquation({
 }
 
 export function BeltFormulaCard({
-  mixed = false,
   includeTaxa = false,
+  arrivalsPairs = [],
   afterEquation,
 }: {
-  mixed?: boolean;
   includeTaxa?: boolean;
+  arrivalsPairs?: readonly ArrivalsConnectionPair[];
   afterEquation?: ReactNode;
 }) {
-  if (mixed) {
-    const sum = beltSumDisplay();
-    return (
-      <div className="formula-card">
-        <p className="formula-kicker">
-          Fórmula do tamanho mínimo de esteira
-        </p>
+  const linked = arrivalsPairs.length > 0;
+  const sumBody = linked
+    ? `C_d + ${arrivalsPairs.map(beltConnectionSymbol).join(" + ")}`
+    : "";
+  return (
+    <div className="formula-card">
+      <p className="formula-kicker">
+        {linked
+          ? "Fórmulas do tamanho mínimo de esteira"
+          : "Fórmula do tamanho mínimo de esteira"}
+      </p>
+      <AreaEquation
+        companions={false}
+        lhs={linked ? "C_d" : "C"}
+        numerator={beltNumerator(includeTaxa)}
+      />
+      {arrivalsPairs.map((pair) => (
         <AreaEquation
+          key={pair}
           companions={false}
-          lhs="C_d,dom"
-          numerator={beltNumerator("_d,dom", includeTaxa)}
+          lhs={beltConnectionSymbol(pair)}
+          numerator={beltConnectionNumerator(pair, includeTaxa)}
         />
-        <AreaEquation
-          companions={false}
-          lhs="C_d,int"
-          numerator={beltNumerator("_d,int", includeTaxa)}
-        />
-        <div className="tex" role="img" aria-label={sum}>
+      ))}
+      {linked ? (
+        <div className="tex" role="img" aria-label={`C = ${sumBody}`}>
           <span className="tex-lhs">C</span>
           <span className="tex-eq">=</span>
           <span>
-            <TexText text="C_d,dom + C_d,int" />
+            <TexText text={sumBody} />
           </span>
         </div>
-        {afterEquation}
-        <p className="origem">
-          Manual de Anteprojeto. Um Tr e um Lmp da sala; cada fluxo entra com o
-          seu DHp e o seu Toi. Atende se o comprimento somado das esteiras for
-          maior ou igual a C. Taxa de recirculação padrão 30%; valor diferente
-          pede justificativa. Lmp mínimo 0,9 m.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="formula-card">
-      <p className="formula-kicker">Fórmula do tamanho mínimo de esteira</p>
-      <AreaEquation
-        companions={false}
-        lhs="C"
-        numerator={beltNumerator("", includeTaxa)}
-      />
+      ) : null}
       {afterEquation}
       <p className="origem">
         Manual de Anteprojeto. Atende se o comprimento somado das esteiras for

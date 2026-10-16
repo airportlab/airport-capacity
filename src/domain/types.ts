@@ -221,6 +221,7 @@ export function hasBoardingConnection(entry: RegistryEntry): boolean {
 }
 
 export function allowsArrivalsConnection(entry: RegistryEntry): boolean {
+  if (entry.kind === "sala-desembarque") return true;
   return entry.kind === "saguao-desembarque" && isMixedNature(entry);
 }
 
@@ -303,6 +304,10 @@ export type ResultId =
   | "numeroMinimoEquipamentosInternacional"
   | "comprimentoMinimoDesembarqueDomestico"
   | "comprimentoMinimoDesembarqueInternacional"
+  | "comprimentoMinimoDesembarque"
+  | "comprimentoMinimoConexaoDesembarqueDomInt"
+  | "comprimentoMinimoConexaoDesembarqueIntDom"
+  | "comprimentoMinimoConexaoDesembarqueIntInt"
   | "comprimentoMinimoEsteira";
 
 export const BOARDING_CONNECTION_CATALOG: readonly {
@@ -406,6 +411,17 @@ export const ARRIVALS_CONNECTION_LABEL: Record<ArrivalsConnectionPair, string> =
   Object.fromEntries(
     ARRIVALS_CONNECTION_CATALOG.map((item) => [item.pair, item.label]),
   ) as Record<ArrivalsConnectionPair, string>;
+
+export function salaBeltPartialId(pair: ArrivalsConnectionPair): ResultId {
+  switch (pair) {
+    case "domInt":
+      return "comprimentoMinimoConexaoDesembarqueDomInt";
+    case "intDom":
+      return "comprimentoMinimoConexaoDesembarqueIntDom";
+    case "intInt":
+      return "comprimentoMinimoConexaoDesembarqueIntInt";
+  }
+}
 
 export function arrivalsConnectionSpec(
   pair: ArrivalsConnectionPair,

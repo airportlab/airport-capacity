@@ -810,6 +810,7 @@ export function ComponentEditor({
               includeTaxa={areaTaxa}
               hasConnection={connectionPairs.length > 0}
               connectionPairs={connectionPairs}
+              arrivalsPairs={arrivalsHall ? arrivalsPairs : []}
               includeSeats={contract.formulas.some(
                 (formula) => formula.id === "assentosMinimos",
               )}
@@ -1001,8 +1002,8 @@ export function ComponentEditor({
         >
           <h2 id={`${contract.id}-esteira`}>Tamanho mínimo de esteira</h2>
           <BeltFormulaCard
-            mixed={mixed}
             includeTaxa={esteiraTaxa}
+            arrivalsPairs={arrivalsHall ? arrivalsPairs : []}
             afterEquation={
               <EsteiraResults contract={contract} evaluation={evaluation} />
             }

@@ -41,6 +41,7 @@ import {
   splitLoungeFormulaDisplay,
   dualAreaFormulaDisplay,
   mixedAreaFormulaDisplay,
+  salaArrivalsFormulaDisplay,
   simpleConnectionFormulaDisplay,
   singleFunctionMixedFormulaDisplay,
 } from "./notations";
@@ -197,6 +198,12 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
               ] as const)
             : []),
         ];
+  if (area) {
+    for (const item of connections) {
+      if (!areaIds.includes(item.emp)) areaIds.push(item.emp);
+      if (!areaIds.includes(item.toi)) areaIds.push(item.toi);
+    }
+  }
 
   const paramIds: ComponentParamId[] = [
     ...demandIds,
@@ -266,13 +273,15 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
           Boolean(connection) && boardingPairs.length === 0,
           boardingPairs,
         )
-      : connection
-        ? simpleConnectionFormulaDisplay(
-            companions,
-            includeAreaTaxa,
-            boardingPairs,
-          )
-        : areaFormulaDisplay(companions, includeAreaTaxa);
+      : entry.kind === "sala-desembarque" && arrivalsPairs.length > 0
+        ? salaArrivalsFormulaDisplay(includeAreaTaxa, arrivalsPairs)
+        : connection
+          ? simpleConnectionFormulaDisplay(
+              companions,
+              includeAreaTaxa,
+              boardingPairs,
+            )
+          : areaFormulaDisplay(companions, includeAreaTaxa);
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
   if (area && equipment && seats) {
@@ -330,6 +339,28 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       espacoMinimoPorPassageiroDesembarqueInternacional: {
         unit: empUnitDesembarque,
       },
+      ...(entry.kind === "sala-desembarque"
+        ? {
+            espacoMinimoPorPassageiroDesembarqueDomestico: {
+              unit: empUnit,
+              label: "Emp · coluna doméstica",
+              origem: "PMD da sala de desembarque, coluna doméstica.",
+            },
+            tempoDeOcupacaoDesembarqueDomestico: {
+              label: "Toi · coluna doméstica",
+              origem: "PMD da sala de desembarque, coluna doméstica.",
+            },
+            espacoMinimoPorPassageiroDesembarqueInternacional: {
+              unit: empUnit,
+              label: "Emp · coluna internacional",
+              origem: "PMD da sala de desembarque, coluna internacional.",
+            },
+            tempoDeOcupacaoDesembarqueInternacional: {
+              label: "Toi · coluna internacional",
+              origem: "PMD da sala de desembarque, coluna internacional.",
+            },
+          }
+        : {}),
       espacoMinimoPorPassageiroDomestico: {
         unit: empUnit,
       },

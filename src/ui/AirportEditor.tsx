@@ -604,7 +604,10 @@ export function AirportEditor() {
       if (!hasConnection) {
         return { ...entry, hasConnection: undefined, conexoes: undefined };
       }
-      if (entry.kind === "saguao-desembarque") {
+      if (
+        entry.kind === "saguao-desembarque" ||
+        entry.kind === "sala-desembarque"
+      ) {
         return {
           ...entry,
           hasConnection: true,

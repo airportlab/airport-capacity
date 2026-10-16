@@ -10,7 +10,11 @@ import {
   resolveContracts,
 } from "./contracts/catalog";
 import { isSizingParam, isTsecParam } from "./contracts/fields";
-import { entryFlowParams, tsecTargets } from "./contracts/flowParams";
+import {
+  connectionFlows,
+  entryFlowParams,
+  tsecTargets,
+} from "./contracts/flowParams";
 import { beltTermValue } from "./contracts/formulas";
 import { pmdValueFor, resolvedSources, standardTsecForParam } from "./pmd";
 import {
@@ -61,7 +65,6 @@ const EXTRA_INSTANCES: ReadonlyArray<{
   { kind: "saguao-embarque", nature: "misto" },
   { kind: "saguao-desembarque", nature: "misto" },
   { kind: "checkin-bagagens", nature: "misto" },
-  { kind: "sala-desembarque", nature: "misto" },
   { kind: "saguao-embarque-desembarque", nature: "domestico" },
   { kind: "saguao-embarque-desembarque", nature: "misto" },
 ];
@@ -85,7 +88,6 @@ const PROCESS_CODE: Record<string, string> = {
   "sala-embarque-remotas-sentado:domestico": "EX-027",
   "salas-embarque:domestico": "EX-028",
   "sala-desembarque:domestico": "EX-029",
-  "sala-desembarque:misto": "EX-030",
 };
 
 /** Estudo ilustrativo do aeroporto selecionado. Não é a semente de migração. */
@@ -145,13 +147,14 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
     const note = observation(template.kind, nature);
     registry.push({
       ...created,
-      requirements: exampleRequirements(template, nature),
+      requirements: exampleRequirements(template),
       ...(note ? { observacoes: note } : {}),
       ...(exampleConnection(template.kind, nature)
         ? {
             hasConnection: true,
             conexoes:
-              template.kind === "saguao-desembarque"
+              template.kind === "saguao-desembarque" ||
+              template.kind === "sala-desembarque"
                 ? arrivalsConnectionsAllOn()
                 : boardingConnectionsAllOn(nature),
           }
@@ -161,10 +164,7 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
   return registry;
 }
 
-function exampleRequirements(
-  template: OrganTemplate,
-  nature: OrganNature,
-): ComponentRequirements {
+function exampleRequirements(template: OrganTemplate): ComponentRequirements {
   const requirements = requirementsFromPreset(template.preset);
   if (requirements.area && template.preset === "areaCompanions") {
     requirements.area = { companions: true, taxaDiferente: true };
@@ -173,8 +173,7 @@ function exampleRequirements(
     requirements.equipment = { taxaDiferente: true };
   }
   if (template.kind === "sala-desembarque") {
-    requirements.esteira =
-      nature === "domestico" ? { taxaDiferente: true } : {};
+    requirements.esteira = { taxaDiferente: true };
   }
   return requirements;
 }
@@ -183,6 +182,7 @@ function exampleConnection(kind: OrganKind, nature: OrganNature): boolean {
   if (kind === "saguao-embarque" || kind === "saguao-embarque-desembarque") {
     return true;
   }
+  if (kind === "sala-desembarque" && nature === "domestico") return true;
   return kind === "saguao-desembarque" && nature === "misto";
 }
 
@@ -202,7 +202,6 @@ const COMPONENT_NOTES: Record<string, string> = {
   "sala-embarque-pontes:domestico": "Apenas piso superior",
   "sala-embarque-pontes-sentado:domestico": "Apenas piso superior",
   "salas-embarque:domestico": "Foi considerado sem conexão",
-  "sala-desembarque:misto": "Visualizado fora do horário pico",
   "saguao-embarque-desembarque:domestico": "Apenas piso superior",
 };
 
@@ -361,19 +360,11 @@ function applyBelt(
   just: ComponentJustificativas,
 ): void {
   if (entry.kind !== "sala-desembarque") return;
-  const meets = natureOfEntry(entry) !== "misto";
   const comment = alteration(processCode(entry));
-  if (meets) {
-    params.taxaRetiradaBagagem = 40;
-    just.taxaRetiradaBagagem = comment;
-  } else {
-    params.comprimentoLinearPassageiro = 1.1;
-    just.comprimentoLinearPassageiro = comment;
-  }
+  params.taxaRetiradaBagagem = 40;
+  just.taxaRetiradaBagagem = comment;
   const required = beltRequired(entry, params);
-  params.comprimentoEsteiras = meets
-    ? Math.ceil(required + 15)
-    : Math.max(0, Math.floor(required * 0.4));
+  params.comprimentoEsteiras = Math.ceil(required + 15);
 }
 
 function beltRequired(entry: RegistryEntry, params: ComponentParams): number {
@@ -381,12 +372,17 @@ function beltRequired(entry: RegistryEntry, params: ComponentParams): number {
     ? "taxaDeUsoEsteira"
     : null;
   const flows = entryFlowParams(entry);
-  if (flows.length === 0) {
-    return beltTermValue(params, "demandaPico", "tempoDeOcupacao", taxaId);
-  }
-  return flows.reduce(
+  const hall =
+    flows.length === 0
+      ? beltTermValue(params, "demandaPico", "tempoDeOcupacao", taxaId)
+      : flows.reduce(
+          (sum, flow) =>
+            sum + beltTermValue(params, flow.demanda, flow.toi, taxaId),
+          0,
+        );
+  return connectionFlows(entry).reduce(
     (sum, flow) => sum + beltTermValue(params, flow.demanda, flow.toi, taxaId),
-    0,
+    hall,
   );
 }
 

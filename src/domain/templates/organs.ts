@@ -184,11 +184,11 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
   {
     kind: "sala-desembarque",
     title: "Sala de desembarque",
-    natures: ["domestico", "internacional", "misto"],
+    natures: ["domestico", "internacional"],
     preset: "area",
     flows: [{ role: "desembarque", rowId: "sala-desembarque" }],
     detail:
-      "Desembarque da aeronave. Toi vem da tabela do aeroporto. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Sem acompanhante e sem N. O requisito opcional é o comprimento mínimo de esteira.",
+      "Desembarque da aeronave. Toi vem da tabela do aeroporto. Um DHp, doméstico ou internacional. Conexão opcional: DOM-INT, INT-DOM e INT-INT, sem acompanhante. Sem N. O requisito opcional é o comprimento mínimo de esteira.",
   },
 ];
 
@@ -391,7 +391,10 @@ export function rebindOrganNature(
     requirements: entry.requirements,
     observacoes: entry.observacoes,
     hasConnection: entry.hasConnection,
-    conexoes: reconcileBoardingConnections(entry, nature),
+    conexoes:
+      entry.kind === "sala-desembarque"
+        ? entry.conexoes
+        : reconcileBoardingConnections(entry, nature),
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

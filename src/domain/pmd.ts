@@ -17,7 +17,12 @@ import type {
   SizingSources,
 } from "./types";
 import { isMixedNature, natureOfEntry } from "./types";
-import { flowParamIds, tsecTargets, type TsecTarget } from "./contracts/flowParams";
+import {
+  flowParamIds,
+  salaConnectionSources,
+  tsecTargets,
+  type TsecTarget,
+} from "./contracts/flowParams";
 
 export type { PeakNature, RoundId };
 export type { AirportSource };
@@ -622,13 +627,19 @@ export function sizingSourcesFromFlows(flows: RegistryFlow[]): SizingSources {
 }
 
 export function resolvedSources(entry: RegistryEntry): SizingSources {
-  if (entry.sizingSources && Object.keys(entry.sizingSources).length > 0) {
-    return entry.sizingSources;
+  const stored =
+    entry.sizingSources && Object.keys(entry.sizingSources).length > 0
+      ? entry.sizingSources
+      : entry.flows && entry.flows.length > 0
+        ? sizingSourcesFromFlows(entry.flows)
+        : sizingSourcesFromBinding(entry.pmd);
+  const extra = salaConnectionSources(entry);
+  if (Object.keys(extra).length === 0) return stored;
+  const next: SizingSources = { ...stored };
+  for (const id of Object.keys(extra) as SizingParamId[]) {
+    if (!next[id]) next[id] = extra[id];
   }
-  if (entry.flows && entry.flows.length > 0) {
-    return sizingSourcesFromFlows(entry.flows);
-  }
-  return sizingSourcesFromBinding(entry.pmd);
+  return next;
 }
 
 export function overlaySizingSources(

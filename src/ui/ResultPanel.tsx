@@ -20,11 +20,7 @@ function isEquipmentFormula(id: ResultId): boolean {
 }
 
 function isBeltFormula(id: ResultId): boolean {
-  return (
-    id === "comprimentoMinimoEsteira" ||
-    id === "comprimentoMinimoDesembarqueDomestico" ||
-    id === "comprimentoMinimoDesembarqueInternacional"
-  );
+  return id.startsWith("comprimentoMinimo");
 }
 
 function ResultValues({

@@ -1,12 +1,15 @@
 import type {
+  ArrivalsConnectionPair,
   ComponentParamId,
   EquipmentTerm,
   OrganFunctionRole,
+  PeakNature,
   RegistryEntry,
   RegistryFlow,
   ResolvedInputs,
   ResultId,
   SizingParamId,
+  SizingSources,
 } from "../types";
 import {
   ARRIVALS_CONNECTION_CATALOG,
@@ -16,6 +19,7 @@ import {
   hasArrivalsConnection,
   hasBoardingConnection,
   isMixedNature,
+  natureOfEntry,
 } from "../types";
 
 export interface FlowParamIds {
@@ -156,6 +160,52 @@ function boardingSizing(
   };
 }
 
+function salaHallNature(entry: RegistryEntry): PeakNature {
+  return natureOfEntry(entry) === "internacional"
+    ? "internacional"
+    : "domestico";
+}
+
+function salaColumnOf(pair: ArrivalsConnectionPair): PeakNature {
+  return pair === "domInt" ? "domestico" : "internacional";
+}
+
+function salaConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
+  const hall = salaHallNature(entry);
+  const enabled = new Set(enabledArrivalsConnections(entry));
+  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
+    if (!enabled.has(spec.pair)) return [];
+    const own = salaColumnOf(spec.pair) === hall;
+    return [
+      {
+        demanda: spec.demanda,
+        emp: (own
+          ? "espacoMinimoPorPassageiro"
+          : spec.emp) as SizingParamId,
+        toi: (own ? "tempoDeOcupacao" : spec.toi) as SizingParamId,
+        va: "va",
+        area: spec.area,
+      },
+    ];
+  });
+}
+
+/** Emp e Toi da coluna que não é a da sala, lidos do PMD dessa coluna. */
+export function salaConnectionSources(entry: RegistryEntry): SizingSources {
+  if (entry.kind !== "sala-desembarque" || !entry.pmd?.rowId) return {};
+  const sources: SizingSources = {};
+  for (const flow of salaConnectionFlows(entry)) {
+    if (flow.emp === "espacoMinimoPorPassageiro") continue;
+    const nature: PeakNature = String(flow.emp).includes("Internacional")
+      ? "internacional"
+      : "domestico";
+    const binding = { rowId: entry.pmd.rowId, nature };
+    sources[flow.emp] = binding;
+    sources[flow.toi] = binding;
+  }
+  return sources;
+}
+
 export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
   const sizing = boardingSizing(entry);
   if (sizing) {
@@ -171,6 +221,7 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
     });
   }
   if (!hasArrivalsConnection(entry)) return [];
+  if (entry.kind === "sala-desembarque") return salaConnectionFlows(entry);
   const enabled = new Set(enabledArrivalsConnections(entry));
   const flows = entryFlowParams(entry);
   const domestico = flows.find(

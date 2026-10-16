@@ -8,7 +8,11 @@ import type {
   ResolvedInputs,
   ResultId,
 } from "../types";
-import { ARRIVALS_CONNECTION_CATALOG, BOARDING_CONNECTION_CATALOG } from "../types";
+import {
+  ARRIVALS_CONNECTION_CATALOG,
+  BOARDING_CONNECTION_CATALOG,
+  salaBeltPartialId,
+} from "../types";
 import type { FlowParamIds } from "./flowParams";
 import {
   demandSum,
@@ -20,10 +24,11 @@ import {
 import {
   areaFormulaDisplay,
   arrivalsConnectionAreaDisplay,
-  beltSuffix,
-  beltSumDisplay,
-  beltTermDisplay,
+  beltConnectionNumerator,
+  beltConnectionSymbol,
   beltTermRhs,
+  salaArrivalsSumDisplay,
+  salaBeltFormulaDisplay,
   boardingConnectionAreaDisplay,
   connectionAreaDisplay,
   dualAreaSumDisplay,
@@ -99,18 +104,6 @@ function beltTermExcel(
   const lmp = `MAX(${requiredCell(cells, "comprimentoLinearPassageiro")},${BELT_LMP_MIN})`;
   const demand = usedDemandExcel(cells, demanda, taxaId);
   return `(${demand}*(${tr})*${lmp}*${requiredCell(cells, toi)})/60`;
-}
-
-function beltPartialResult(
-  area: FlowParamIds["area"],
-): "comprimentoMinimoDesembarqueDomestico" | "comprimentoMinimoDesembarqueInternacional" | null {
-  if (area === "areaMinimaDesembarqueDomestico") {
-    return "comprimentoMinimoDesembarqueDomestico";
-  }
-  if (area === "areaMinimaDesembarqueInternacional") {
-    return "comprimentoMinimoDesembarqueInternacional";
-  }
-  return null;
 }
 
 function ceilCount(value: number): number {
@@ -622,7 +615,124 @@ export function capacityFormulas(copy: {
     });
   } else if (includeArea) {
     const looseConnections = connections.length > 0 ? connections : connection ? [connection] : [];
-    if (looseConnections.length > 0) {
+    const arrivalsLoose = looseConnections.filter((item) =>
+      arrivalsPairOfArea(item.area),
+    );
+    if (arrivalsLoose.length > 0 && flows.length === 0) {
+      const hallExpression = areaFormulaDisplay(false, includeAreaTaxa).replace(
+        "Ad = ",
+        "Ad_d = ",
+      );
+      formulas.push({
+        id: "areaMinimaDesembarque",
+        label: "Área mínima de desembarque (Ad_d)",
+        unit: "m²",
+        origem: hallExpression,
+        expression: hallExpression,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            undefined,
+            areaTaxaId,
+          ),
+        toExcel: (cells) =>
+          areaExcel(
+            cells,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            undefined,
+            areaTaxaId,
+          ),
+      });
+      for (const item of arrivalsLoose) {
+        const expression = connectionExpression(item, false, includeAreaTaxa);
+        formulas.push({
+          id: item.area,
+          label: connectionLabel(item),
+          unit: "m²",
+          origem: `${expression}. Conexões sem acompanhante.`,
+          expression,
+          evaluate: (inputs) =>
+            areaValue(
+              inputs,
+              item.demanda,
+              item.emp,
+              item.toi,
+              undefined,
+              areaTaxaId,
+            ),
+          toExcel: (cells) =>
+            areaExcel(
+              cells,
+              item.demanda,
+              item.emp,
+              item.toi,
+              undefined,
+              areaTaxaId,
+            ),
+        });
+      }
+      const sumDisplay = salaArrivalsSumDisplay(
+        arrivalsLoose.flatMap((item) => {
+          const pair = arrivalsPairOfArea(item.area);
+          return pair ? [pair] : [];
+        }),
+      );
+      formulas.push({
+        id: "areaMinima",
+        label: "Área mínima necessária (Ad)",
+        unit: "m²",
+        origem: `${sumDisplay}. Uma área medida do recinto contra a soma das contas.`,
+        expression: sumDisplay,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            undefined,
+            areaTaxaId,
+          ) +
+          arrivalsLoose.reduce(
+            (sum, item) =>
+              sum +
+              areaValue(
+                inputs,
+                item.demanda,
+                item.emp,
+                item.toi,
+                undefined,
+                areaTaxaId,
+              ),
+            0,
+          ),
+        toExcel: (cells) =>
+          [
+            areaExcel(
+              cells,
+              "demandaPico",
+              "espacoMinimoPorPassageiro",
+              "tempoDeOcupacao",
+              undefined,
+              areaTaxaId,
+            ),
+            ...arrivalsLoose.map((item) =>
+              areaExcel(
+                cells,
+                item.demanda,
+                item.emp,
+                item.toi,
+                undefined,
+                areaTaxaId,
+              ),
+            ),
+          ].join("+"),
+      });
+    } else if (looseConnections.length > 0) {
       const originExpression = `Ad_e = ${areaFormulaDisplay(companions, includeAreaTaxa).replace("Ad = ", "")}`;
       formulas.push({
         id: "areaMinimaEmbarque",
@@ -876,66 +986,77 @@ export function capacityFormulas(copy: {
   }
 
   if (includeBelt) {
-    const beltFlows =
-      flows.length > 0
-        ? flows.map((flow) => ({
-            demanda: flow.demanda,
-            toi: flow.toi,
-            area: flow.area,
-          }))
-        : [
-            {
-              demanda: demandIds[0] ?? "demandaPico",
-              toi: "tempoDeOcupacao" as ComponentParamId,
-              area: "areaMinima" as FlowParamIds["area"],
-            },
-          ];
-    const partials = beltFlows.flatMap((flow) => {
-      const id = beltPartialResult(flow.area);
-      return id ? [{ ...flow, id, suffix: beltSuffix(flow.area) }] : [];
+    const demanda = demandIds[0] ?? "demandaPico";
+    const toi: ComponentParamId = "tempoDeOcupacao";
+    const beltPairs = connections.flatMap((item) => {
+      const pair = arrivalsPairOfArea(item.area);
+      return pair ? [{ item, pair }] : [];
     });
-    if (beltFlows.length > 1 && partials.length === beltFlows.length) {
-      for (const flow of partials) {
-        const expression = beltTermDisplay(flow.suffix, includeBeltTaxa);
+    const beltOrigem =
+      "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.";
+    if (beltPairs.length > 0) {
+      const hallExpression = `C_d = ${beltTermRhs(includeBeltTaxa)}`;
+      formulas.push({
+        id: "comprimentoMinimoDesembarque",
+        label: "Comprimento mínimo de desembarque (C_d)",
+        unit: "m",
+        origem: hallExpression,
+        expression: hallExpression,
+        evaluate: (inputs) => beltTermValue(inputs, demanda, toi, beltTaxaId),
+        toExcel: (cells) => beltTermExcel(cells, demanda, toi, beltTaxaId),
+      });
+      for (const { item, pair } of beltPairs) {
+        const symbol = beltConnectionSymbol(pair);
+        const expression = `${symbol} = (${beltConnectionNumerator(pair, includeBeltTaxa)}) / 60`;
         formulas.push({
-          id: flow.id,
-          label:
-            flow.suffix === "_d,int"
-              ? "Comprimento mínimo da esteira · desembarque internacional (C_d,int)"
-              : "Comprimento mínimo da esteira · desembarque doméstico (C_d,dom)",
+          id: salaBeltPartialId(pair),
+          label: `Comprimento mínimo de conexão ${ARRIVALS_CONNECTION_CATALOG.find((spec) => spec.pair === pair)?.label ?? pair} (${symbol})`,
           unit: "m",
           origem: expression,
           expression,
           evaluate: (inputs) =>
-            beltTermValue(inputs, flow.demanda, flow.toi, beltTaxaId),
+            beltTermValue(inputs, item.demanda, item.toi, beltTaxaId),
           toExcel: (cells) =>
-            beltTermExcel(cells, flow.demanda, flow.toi, beltTaxaId),
+            beltTermExcel(cells, item.demanda, item.toi, beltTaxaId),
         });
       }
+      const expression = salaBeltFormulaDisplay(
+        includeBeltTaxa,
+        beltPairs.map((item) => item.pair),
+      );
+      formulas.push({
+        id: "comprimentoMinimoEsteira",
+        label: "Comprimento mínimo da esteira (C)",
+        unit: "m",
+        origem: beltOrigem,
+        expression,
+        evaluate: (inputs) =>
+          beltTermValue(inputs, demanda, toi, beltTaxaId) +
+          beltPairs.reduce(
+            (sum, { item }) =>
+              sum + beltTermValue(inputs, item.demanda, item.toi, beltTaxaId),
+            0,
+          ),
+        toExcel: (cells) =>
+          [
+            beltTermExcel(cells, demanda, toi, beltTaxaId),
+            ...beltPairs.map(({ item }) =>
+              beltTermExcel(cells, item.demanda, item.toi, beltTaxaId),
+            ),
+          ].join("+"),
+      });
+    } else {
+      const expression = `C = ${beltTermRhs(includeBeltTaxa)}`;
+      formulas.push({
+        id: "comprimentoMinimoEsteira",
+        label: "Comprimento mínimo da esteira (C)",
+        unit: "m",
+        origem: beltOrigem,
+        expression,
+        evaluate: (inputs) => beltTermValue(inputs, demanda, toi, beltTaxaId),
+        toExcel: (cells) => beltTermExcel(cells, demanda, toi, beltTaxaId),
+      });
     }
-    const singleSuffix = beltSuffix(beltFlows[0]?.area ?? "areaMinima");
-    const expression =
-      beltFlows.length > 1
-        ? beltSumDisplay()
-        : `C = ${beltTermRhs(singleSuffix, includeBeltTaxa)}`;
-    formulas.push({
-      id: "comprimentoMinimoEsteira",
-      label: "Comprimento mínimo da esteira (C)",
-      unit: "m",
-      origem:
-        "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.",
-      expression,
-      evaluate: (inputs) =>
-        beltFlows.reduce(
-          (sum, flow) =>
-            sum + beltTermValue(inputs, flow.demanda, flow.toi, beltTaxaId),
-          0,
-        ),
-      toExcel: (cells) =>
-        beltFlows
-          .map((flow) => beltTermExcel(cells, flow.demanda, flow.toi, beltTaxaId))
-          .join("+"),
-    });
   }
 
   return formulas;

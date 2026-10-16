@@ -47,7 +47,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           criação escolhe um tipo da lista do PMD do aeroporto selecionado — ou
           o saguão de embarque e desembarque — e a natureza (doméstico,
           internacional ou, nos saguões de embarque, de desembarque e de
-          embarque e desembarque, no check-in e na sala de desembarque, misto).
+          embarque e desembarque e no check-in, misto).
           A área entra com o componente, em todos os tipos. Equipamentos são
           opcionais só nos processadores (check-in, inspeção, emigração,
           imigração e aduana). Saguões e salas não têm equipamentos. A sala de
@@ -92,8 +92,8 @@ export function AboutPage({ onBack }: AboutPageProps) {
           desembarque já aberta conserva o Toi absorvido. Nas entradas do
           componente a natureza
           (doméstico, internacional ou, nos saguões de embarque, de desembarque
-          e de embarque e desembarque, no check-in e na sala de desembarque,
-          misto) pode ser alterada depois. Meio-fio e sala de embarque e
+          e de embarque e desembarque e no check-in, misto) pode ser alterada
+          depois. Meio-fio e sala de embarque e
           desembarque combinada não entram na criação.
         </p>
         <p>
@@ -104,7 +104,9 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Manual de Anteprojeto quando o fluxo tem esse padrão; valor diferente
           pede justificativa. Sem padrão, o campo nasce em 0. Saguões e salas
           não têm N. Na sala de desembarque o requisito opcional é o comprimento
-          mínimo de esteira. Com vários DHp no mesmo recinto, as contas somam; a
+          mínimo de esteira. A marcação de desembarque via conexão abre os
+          pares DOM-INT, INT-DOM e INT-INT; a área e a esteira somam cada par
+          ligado. Com vários DHp no mesmo recinto, as contas somam; a
           fórmula fica no próprio componente, junto do requisito. A saturação
           compara a demanda com o que a área ou os equipamentos podem atender. A
           aba <strong>Parâmetros</strong> consulta a tabela PMD da fonte

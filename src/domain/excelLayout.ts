@@ -1,6 +1,6 @@
 import { defaultAirport, type AirportSource } from "./airports";
 import { pmdMetrics, pmdRows } from "./pmd";
-import { mixedFlowLabel, mixedSpecsForParams } from "./contracts/flowParams";
+import { mixedSpecsForParams } from "./contracts/flowParams";
 import {
   contractHasConnection,
   isMixedNatureContract,
@@ -16,6 +16,7 @@ import type {
 import {
   ARRIVALS_CONNECTION_CATALOG,
   BOARDING_CONNECTION_CATALOG,
+  salaBeltPartialId,
   hasEquipment,
   hasEsteira,
   usesAreaTaxa,
@@ -361,21 +362,6 @@ function beltTermsOf(contract: ComponentContract): {
   partial: ResultId | null;
   label: string;
 }[] {
-  if (isMixedNatureContract(contract)) {
-    return mixedSpecsForParams(contract.params)
-      .filter((spec) => spec.demanda.includes("Desembarque"))
-      .map((spec) => ({
-        demanda: spec.demanda,
-        toi: spec.toi,
-        partial:
-          spec.area === "areaMinimaDesembarqueDomestico"
-            ? "comprimentoMinimoDesembarqueDomestico"
-            : spec.area === "areaMinimaDesembarqueInternacional"
-              ? "comprimentoMinimoDesembarqueInternacional"
-              : null,
-        label: mixedFlowLabel(spec),
-      }));
-  }
   const demanda: ComponentParamId = contract.params.some(
     (field) => field.id === "demandaPicoDesembarque",
   )
@@ -386,7 +372,28 @@ function beltTermsOf(contract: ComponentContract): {
   )
     ? "tempoDeOcupacaoDesembarque"
     : "tempoDeOcupacao";
-  return [{ demanda, toi, partial: null, label: contract.title }];
+  const arrivals = ARRIVALS_CONNECTION_CATALOG.filter((spec) =>
+    contract.params.some((field) => field.id === spec.demanda),
+  );
+  if (arrivals.length === 0) {
+    return [{ demanda, toi, partial: null, label: contract.title }];
+  }
+  return [
+    {
+      demanda,
+      toi,
+      partial: "comprimentoMinimoDesembarque" as ResultId,
+      label: contract.title,
+    },
+    ...arrivals.map((spec) => ({
+      demanda: spec.demanda,
+      toi: contract.params.some((field) => field.id === spec.toi)
+        ? spec.toi
+        : toi,
+      partial: salaBeltPartialId(spec.pair),
+      label: `${contract.title} · conexão ${spec.label}`,
+    })),
+  ];
 }
 
 function layoutBeltBlock(
@@ -593,6 +600,51 @@ export function getNatureSheetLayout(
             layoutConnectionAreaRow(contract, row, spec.demanda, spec.area),
           );
           connectionInputs[spec.demanda] = `B${row}`;
+          connectionResults[spec.area] = `N${row}`;
+          row += 1;
+        }
+      }
+      const arrivalSpecs = ARRIVALS_CONNECTION_CATALOG.filter((spec) =>
+        contract.params.some((field) => field.id === spec.demanda),
+      );
+      if (arrivalSpecs.length > 0) {
+        const hallRow = row + arrivalSpecs.length;
+        const hallTaxa = usesAreaTaxa(contract.requirements)
+          ? `R${hallRow}`
+          : undefined;
+        const sharedCells = new Map<string, { emp: string; toi: string }>();
+        for (const spec of arrivalSpecs) {
+          const foreignEmp = contract.params.some(
+            (field) => field.id === spec.emp,
+          );
+          const foreignToi = contract.params.some(
+            (field) => field.id === spec.toi,
+          );
+          const empId = foreignEmp ? spec.emp : "espacoMinimoPorPassageiro";
+          const toiId = foreignToi ? spec.toi : "tempoDeOcupacao";
+          const key = `${empId}|${toiId}`;
+          let cells = sharedCells.get(key);
+          if (!cells) {
+            cells = {
+              emp: foreignEmp ? `D${row}` : `D${hallRow}`,
+              toi: foreignToi ? `F${row}` : `F${hallRow}`,
+            };
+            sharedCells.set(key, cells);
+          }
+          collected.push({
+            row,
+            inputs: {
+              [spec.demanda]: `B${row}`,
+              [empId]: cells.emp,
+              [toiId]: cells.toi,
+              ...(hallTaxa ? { taxaDeUsoArea: hallTaxa } : {}),
+            },
+            results: { [spec.area]: `N${row}` },
+            statusCell: `P${row}`,
+          });
+          connectionInputs[spec.demanda] = `B${row}`;
+          connectionInputs[empId] = cells.emp;
+          connectionInputs[toiId] = cells.toi;
           connectionResults[spec.area] = `N${row}`;
           row += 1;
         }

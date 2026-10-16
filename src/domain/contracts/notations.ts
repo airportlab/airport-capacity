@@ -181,6 +181,53 @@ export function arrivalsConnectionAreaDisplay(
   return `${spec.areaSymbol} = (${arrivalsConnectionNumerator(pair, includeTaxa)}) / 60`;
 }
 
+export function salaArrivalsSumDisplay(
+  pairs: readonly ArrivalsConnectionPair[],
+): string {
+  const parts = pairs.map((pair) => arrivalsConnectionSpec(pair).areaSymbol);
+  return `Ad = Ad_d + ${parts.join(" + ")}`;
+}
+
+export function salaArrivalsFormulaDisplay(
+  includeTaxa: boolean,
+  pairs: readonly ArrivalsConnectionPair[],
+): string {
+  const hall = areaFormulaDisplay(false, includeTaxa).replace(
+    "Ad = ",
+    "Ad_d = ",
+  );
+  const pieces = pairs.map((pair) =>
+    arrivalsConnectionAreaDisplay(pair, includeTaxa),
+  );
+  return `${hall}; ${pieces.join("; ")}; ${salaArrivalsSumDisplay(pairs)}`;
+}
+
+export function beltConnectionSymbol(pair: ArrivalsConnectionPair): string {
+  return arrivalsConnectionSpec(pair).areaSymbol.replace(/^Ad/, "C");
+}
+
+export function beltConnectionNumerator(
+  pair: ArrivalsConnectionPair,
+  includeTaxa = false,
+): string {
+  const spec = arrivalsConnectionSpec(pair);
+  const demand = includeTaxa ? `${spec.dhpSymbol} × Tu` : spec.dhpSymbol;
+  return `${demand} × Tr × Lmp × Toi${spec.empSuffix}`;
+}
+
+export function salaBeltFormulaDisplay(
+  includeTaxa: boolean,
+  pairs: readonly ArrivalsConnectionPair[],
+): string {
+  if (pairs.length === 0) return `C = ${beltTermRhs(includeTaxa)}`;
+  const hall = `C_d = ${beltTermRhs(includeTaxa)}`;
+  const pieces = pairs.map(
+    (pair) =>
+      `${beltConnectionSymbol(pair)} = (${beltConnectionNumerator(pair, includeTaxa)}) / 60`,
+  );
+  return `C = C_d + ${pairs.map(beltConnectionSymbol).join(" + ")}; ${hall}; ${pieces.join("; ")}`;
+}
+
 export function connectionAreaNumerator(
   includeTaxa = false,
   empSuffix = "",
@@ -398,42 +445,13 @@ const SINGLE_EQUIPMENT_TERM: EquipmentTerm = {
   tsec: "tsec",
 };
 
-export function beltSuffix(area: string): string {
-  switch (area) {
-    case "areaMinimaDesembarqueDomestico":
-      return "_d,dom";
-    case "areaMinimaDesembarqueInternacional":
-      return "_d,int";
-    case "areaMinimaDesembarque":
-      return "_d";
-    default:
-      return "";
-  }
+export function beltNumerator(includeTaxa = false): string {
+  const demand = includeTaxa ? "DHp × Tu" : "DHp";
+  return `${demand} × Tr × Lmp × Toi`;
 }
 
-export function beltNumerator(suffix = "", includeTaxa = false): string {
-  const dhp = suffix ? `DHp${suffix}` : "DHp";
-  const toi = suffix ? `Toi${suffix}` : "Toi";
-  const demand = includeTaxa ? `${dhp} × Tu` : dhp;
-  return `${demand} × Tr × Lmp × ${toi}`;
-}
-
-export function beltTermRhs(suffix = "", includeTaxa = false): string {
-  return `(${beltNumerator(suffix, includeTaxa)}) / 60`;
-}
-
-export function beltLhs(suffix: string): string {
-  if (suffix === "_d,dom") return "C_d,dom";
-  if (suffix === "_d,int") return "C_d,int";
-  return "C";
-}
-
-export function beltTermDisplay(suffix: string, includeTaxa = false): string {
-  return `${beltLhs(suffix)} = ${beltTermRhs(suffix, includeTaxa)}`;
-}
-
-export function beltSumDisplay(): string {
-  return "C = C_d,dom + C_d,int";
+export function beltTermRhs(includeTaxa = false): string {
+  return `(${beltNumerator(includeTaxa)}) / 60`;
 }
 
 export function equipmentFormulaDisplay(
