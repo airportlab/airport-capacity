@@ -72,7 +72,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "embarque", rowId: "saguao-embarque" }],
     detail:
-      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: um DHp por par ligado (DOM-DOM, INT-DOM, DOM-INT, INT-INT).",
+      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: um DHp por par ligado. DOM-DOM e INT-DOM usam Emp/Toi do embarque doméstico; DOM-INT e INT-INT, do embarque internacional. Sem acompanhante.",
   },
   {
     kind: "saguao-desembarque",

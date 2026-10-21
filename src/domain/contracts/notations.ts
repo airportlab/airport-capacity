@@ -136,6 +136,29 @@ export function mixedAreaSumDisplay(
   return hasConnection ? `${base} + Ad_c` : base;
 }
 
+/** No saguão de embarque misto, DOM-INT e INT-INT usam a coluna internacional. */
+export function mixedBoardingConnectionEmpSuffix(
+  pair: BoardingConnectionPair,
+): "_e,dom" | "_e,int" {
+  return pair === "domInt" || pair === "intInt" ? "_e,int" : "_e,dom";
+}
+
+function mixedBoardingConnectionAreasClause(
+  pairs: readonly BoardingConnectionPair[],
+  includeTaxa: boolean,
+  perPair: boolean,
+): string {
+  return `${pairs
+    .map((pair) =>
+      boardingConnectionAreaDisplay(
+        pair,
+        includeTaxa,
+        perPair ? mixedBoardingConnectionEmpSuffix(pair) : "_e,dom",
+      ),
+    )
+    .join("; ")};`;
+}
+
 export function mixedAreaFormulaDisplay(
   companions: boolean,
   flowCount = 4,
@@ -148,7 +171,7 @@ export function mixedAreaFormulaDisplay(
   const rhs = areaFormulaRhs(companions, includeTaxa);
   const connection =
     pairs.length > 0
-      ? ` ${boardingConnectionAreasClause(pairs, includeTaxa, "_e,dom")}`
+      ? ` ${mixedBoardingConnectionAreasClause(pairs, includeTaxa, flowCount <= 2)}`
       : hasConnection
         ? ` Ad_c = ${connectionAreaRhs(includeTaxa, "_e,dom")};`
         : "";

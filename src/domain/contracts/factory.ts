@@ -1,4 +1,5 @@
 import type {
+  BoardingConnectionPair,
   ComponentContract,
   ComponentId,
   ComponentParamId,
@@ -104,10 +105,17 @@ export function contractHasConnection(contract: ComponentContract): boolean {
   return contract.params.some((field) => field.id.startsWith("demandaPicoConexao"));
 }
 
-/** Emp e Toi da conexão vêm do embarque: no misto e no doméstico, da coluna doméstica. */
-export function connectionDemandOrigem(entry: RegistryEntry): string {
+/** Emp e Toi da conexão vêm do embarque. No saguão misto, DOM-INT e INT-INT usam a coluna internacional. */
+export function connectionDemandOrigem(
+  entry: RegistryEntry,
+  pair?: BoardingConnectionPair,
+): string {
+  const internationalPair =
+    entry.kind === "saguao-embarque" &&
+    isMixedNature(entry) &&
+    (pair === "domInt" || pair === "intInt");
   const nature = natureOfEntry(entry);
-  if (nature === "internacional") {
+  if (internationalPair || nature === "internacional") {
     return "Emp e Toi usados nesta conta são os do embarque internacional. Sem acompanhante.";
   }
   return "Emp e Toi usados nesta conta são os do embarque doméstico. Sem acompanhante.";
@@ -455,7 +463,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
             spec.demanda,
             {
               label: `DHp conexão ${spec.label}`,
-              origem: connectionDemandOrigem(entry),
+              origem: connectionDemandOrigem(entry, pair),
             },
           ];
         }),

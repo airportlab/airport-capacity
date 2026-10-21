@@ -1,5 +1,6 @@
 import type {
   ArrivalsConnectionPair,
+  BoardingConnectionPair,
   ComponentParamId,
   EquipmentTerm,
   OrganFunctionRole,
@@ -206,18 +207,36 @@ export function salaConnectionSources(entry: RegistryEntry): SizingSources {
   return sources;
 }
 
+function boardingColumnSizing(
+  entry: RegistryEntry,
+  pair: BoardingConnectionPair,
+  shared: Pick<FlowParamIds, "emp" | "toi" | "va">,
+): Pick<FlowParamIds, "emp" | "toi" | "va"> | null {
+  if (entry.kind !== "saguao-embarque" || !isMixedNature(entry)) return shared;
+  if (pair !== "domInt" && pair !== "intInt") return shared;
+  const boarding = entryFlowParams(entry).find(
+    (flow) => flow.demanda === "demandaPicoEmbarqueInternacional",
+  );
+  if (!boarding) return null;
+  return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+}
+
 export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
   const sizing = boardingSizing(entry);
   if (sizing) {
-    return enabledBoardingConnections(entry).map((pair) => {
+    return enabledBoardingConnections(entry).flatMap((pair) => {
+      const column = boardingColumnSizing(entry, pair, sizing);
+      if (!column) return [];
       const spec = boardingConnectionSpec(pair);
-      return {
-        demanda: spec.demanda,
-        emp: sizing.emp,
-        toi: sizing.toi,
-        va: sizing.va,
-        area: spec.area,
-      };
+      return [
+        {
+          demanda: spec.demanda,
+          emp: column.emp,
+          toi: column.toi,
+          va: column.va,
+          area: spec.area,
+        },
+      ];
     });
   }
   if (!hasArrivalsConnection(entry)) return [];

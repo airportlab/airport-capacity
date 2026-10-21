@@ -330,6 +330,27 @@ function boardingConnectionRows(contract: ComponentContract) {
   );
 }
 
+function boardingOnlyMixed(contract: ComponentContract): boolean {
+  const ids = new Set(contract.params.map((field) => field.id));
+  return (
+    ids.has("espacoMinimoPorPassageiroEmbarqueInternacional") &&
+    !ids.has("espacoMinimoPorPassageiroDesembarqueDomestico")
+  );
+}
+
+function boardingConnectionColumn(
+  contract: ComponentContract,
+  pair: (typeof BOARDING_CONNECTION_CATALOG)[number]["pair"],
+): { emp: ComponentParamId; toi: ComponentParamId } {
+  if (boardingOnlyMixed(contract) && (pair === "domInt" || pair === "intInt")) {
+    return {
+      emp: "espacoMinimoPorPassageiroEmbarqueInternacional",
+      toi: "tempoDeOcupacaoEmbarqueInternacional",
+    };
+  }
+  return connectionSizing(contract);
+}
+
 function layoutConnectionAreaRow(
   contract: ComponentContract,
   r: number,
@@ -337,8 +358,9 @@ function layoutConnectionAreaRow(
   area: ResultId,
   empCell?: string,
   toiCell?: string,
+  column?: { emp: ComponentParamId; toi: ComponentParamId },
 ): NatureAreaRowLayout {
-  const sizing = connectionSizing(contract);
+  const sizing = column ?? connectionSizing(contract);
   return {
     row: r,
     inputs: {
@@ -559,15 +581,16 @@ export function getNatureSheetLayout(
             row += 1;
           }
         } else if (contractHasConnection(contract)) {
-          const sizing = connectionSizing(contract);
           for (const spec of boardingConnectionRows(contract)) {
+            const column = boardingConnectionColumn(contract, spec.pair);
             const connectionRow = layoutConnectionAreaRow(
               contract,
               row,
               spec.demanda,
               spec.area,
-              totalInputs[sizing.emp],
-              totalInputs[sizing.toi],
+              totalInputs[column.emp],
+              totalInputs[column.toi],
+              column,
             );
             totalInputs[spec.demanda] = `B${row}`;
             totalResults[spec.area] = `N${row}`;

@@ -318,9 +318,18 @@ function connectionExpression(
   const arrival = arrivalsPairOfArea(item.area);
   if (arrival) return arrivalsConnectionAreaDisplay(arrival, includeTaxa);
   const pair = boardingPairOfArea(item.area);
-  const empSuffix = mixedNature ? "_e,dom" : "_e";
+  const empSuffix = connectionEmpSuffix(item.emp, mixedNature);
   if (pair) return boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix);
   return connectionAreaDisplay(includeTaxa, empSuffix);
+}
+
+function connectionEmpSuffix(
+  emp: FlowParamIds["emp"],
+  mixedNature: boolean,
+): string {
+  if (emp === "espacoMinimoPorPassageiroEmbarqueInternacional") return "_e,int";
+  if (emp === "espacoMinimoPorPassageiroEmbarqueDomestico") return "_e,dom";
+  return mixedNature ? "_e,dom" : "_e";
 }
 
 function connectionLabel(item: FlowParamIds): string {

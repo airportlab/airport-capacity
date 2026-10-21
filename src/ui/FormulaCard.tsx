@@ -17,6 +17,7 @@ import {
   beltNumerator,
   salaArrivalsSumDisplay,
   mixedAreaSumDisplay,
+  mixedBoardingConnectionEmpSuffix,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
 } from "../domain/contracts/notations";
@@ -200,10 +201,12 @@ function BoardingConnectionEquations({
   pairs,
   includeTaxa,
   empSuffix,
+  empSuffixOf,
 }: {
   pairs: readonly BoardingConnectionPair[];
   includeTaxa: boolean;
   empSuffix: string;
+  empSuffixOf?: (pair: BoardingConnectionPair) => string;
 }) {
   return (
     <>
@@ -211,7 +214,7 @@ function BoardingConnectionEquations({
         <ConnectionEquation
           key={pair}
           includeTaxa={includeTaxa}
-          empSuffix={empSuffix}
+          empSuffix={empSuffixOf?.(pair) ?? empSuffix}
           pair={pair}
         />
       ))}
@@ -624,6 +627,7 @@ export function MixedNatureAreaFormulaCard({
           pairs={connectionPairs}
           includeTaxa={includeTaxa}
           empSuffix="_e,dom"
+          empSuffixOf={boardingOnly ? mixedBoardingConnectionEmpSuffix : undefined}
         />
       ) : null}
       {arrivalsOnly
