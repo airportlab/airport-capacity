@@ -8,12 +8,12 @@ import type {
 import {
   ARRIVALS_CONNECTION_CATALOG,
   BOARDING_CONNECTION_CATALOG,
-  enabledArrivalsConnections,
   hasArrivalsConnection,
   hasBoardingConnection,
   isMixedNature,
   natureOfEntry,
   usesAreaTaxa,
+  type ArrivalsConnectionPair,
 } from "./types";
 
 /** Fluxo da hora. Embarque usa origem; desembarque usa destino. O outro lado fica em 0. */
@@ -26,6 +26,7 @@ export type BoardingFlowKey =
   | "conexaoIntDom"
   | "conexaoDomInt"
   | "conexaoIntInt"
+  | "chegadaDomDom"
   | "chegadaDomInt"
   | "chegadaIntDom"
   | "chegadaIntInt";
@@ -39,6 +40,7 @@ export const BOARDING_FLOW_KEYS: readonly BoardingFlowKey[] = [
   "conexaoIntDom",
   "conexaoDomInt",
   "conexaoIntInt",
+  "chegadaDomDom",
   "chegadaDomInt",
   "chegadaIntDom",
   "chegadaIntInt",
@@ -72,6 +74,13 @@ const CONNECTION_FLOW_KEY: Record<
   intDom: "conexaoIntDom",
   domInt: "conexaoDomInt",
   intInt: "conexaoIntInt",
+};
+
+const ARRIVAL_FLOW_KEY: Record<ArrivalsConnectionPair, BoardingFlowKey> = {
+  domDom: "chegadaDomDom",
+  domInt: "chegadaDomInt",
+  intDom: "chegadaIntDom",
+  intInt: "chegadaIntInt",
 };
 
 function arrivalWeightSpecs(entry: RegistryEntry): WeightSpec[] | null {
@@ -118,29 +127,17 @@ function arrivalWeightSpecs(entry: RegistryEntry): WeightSpec[] | null {
     });
   }
   if (hasArrivalsConnection(entry)) {
-    const enabled = new Set(enabledArrivalsConnections(entry));
-    const flows = entryFlowParams(entry);
-    const domestico = flows.find(
-      (flow) => flow.demanda === "demandaPicoDesembarqueDomestico",
-    );
-    const internacional = flows.find(
-      (flow) => flow.demanda === "demandaPicoDesembarqueInternacional",
-    );
-    for (const spec of ARRIVALS_CONNECTION_CATALOG) {
-      if (!enabled.has(spec.pair)) continue;
-      const sizing = spec.pair === "domInt" ? domestico : internacional;
-      if (!sizing) continue;
+    for (const item of connectionFlows(entry)) {
+      const spec = ARRIVALS_CONNECTION_CATALOG.find(
+        (pair) => pair.demanda === item.demanda,
+      );
+      if (!spec) continue;
       specs.push({
-        demanda: spec.demanda,
+        demanda: item.demanda,
         label: `conexão ${spec.label}`,
-        key:
-          spec.pair === "domInt"
-            ? "chegadaDomInt"
-            : spec.pair === "intDom"
-              ? "chegadaIntDom"
-              : "chegadaIntInt",
-        emp: sizing.emp,
-        toi: sizing.toi,
+        key: ARRIVAL_FLOW_KEY[spec.pair],
+        emp: item.emp,
+        toi: item.toi,
       });
     }
   }

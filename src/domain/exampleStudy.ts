@@ -155,7 +155,7 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
             conexoes:
               template.kind === "saguao-desembarque" ||
               template.kind === "sala-desembarque"
-                ? arrivalsConnectionsAllOn()
+                ? arrivalsConnectionsAllOn(created)
                 : boardingConnectionsAllOn(nature),
           }
         : {}),

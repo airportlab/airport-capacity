@@ -316,7 +316,20 @@ function connectionExpression(
   includeTaxa: boolean,
 ): string {
   const arrival = arrivalsPairOfArea(item.area);
-  if (arrival) return arrivalsConnectionAreaDisplay(arrival, includeTaxa);
+  if (arrival) {
+    const suffix =
+      item.emp === "espacoMinimoPorPassageiroDesembarqueInternacional"
+        ? "_d,int"
+        : item.emp === "espacoMinimoPorPassageiroDesembarqueDomestico"
+          ? "_d,dom"
+          : item.emp === "espacoMinimoPorPassageiroDesembarque"
+            ? "_d"
+            : item.emp === "espacoMinimoPorPassageiro" &&
+                item.va === "vaDesembarque"
+              ? ""
+              : undefined;
+    return arrivalsConnectionAreaDisplay(arrival, includeTaxa, suffix);
+  }
   const pair = boardingPairOfArea(item.area);
   const empSuffix = connectionEmpSuffix(item.emp, mixedNature);
   if (pair) return boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix);
@@ -552,6 +565,12 @@ export function capacityFormulas(copy: {
     const arrivalPairs = ARRIVALS_CONNECTION_CATALOG.filter((item) =>
       connections.some((flow) => flow.area === item.area),
     ).map((item) => item.pair);
+    const singleArrivals =
+      !singleFunctionMixed &&
+      !mixedNature &&
+      flows.length === 1 &&
+      flows[0]?.area === "areaMinimaDesembarque" &&
+      arrivalPairs.length > 0;
     const sumDisplay = singleFunctionMixed
       ? singleFunctionMixedSumDisplay()
       : mixedNature
@@ -562,7 +581,9 @@ export function capacityFormulas(copy: {
             pairs,
             arrivalPairs,
           )
-        : dualAreaSumDisplay(connections.length > 0, pairs);
+        : singleArrivals
+          ? salaArrivalsSumDisplay(arrivalPairs)
+          : dualAreaSumDisplay(connections.length > 0, pairs);
     formulas.push({
       id: "areaMinima",
       label: "Área mínima necessária (Ad)",
@@ -628,7 +649,8 @@ export function capacityFormulas(copy: {
       arrivalsPairOfArea(item.area),
     );
     if (arrivalsLoose.length > 0 && flows.length === 0) {
-      const hallExpression = areaFormulaDisplay(false, includeAreaTaxa).replace(
+      const hallVa = companions ? "va" : undefined;
+      const hallExpression = areaFormulaDisplay(companions, includeAreaTaxa).replace(
         "Ad = ",
         "Ad_d = ",
       );
@@ -644,7 +666,7 @@ export function capacityFormulas(copy: {
             "demandaPico",
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
-            undefined,
+            hallVa,
             areaTaxaId,
           ),
         toExcel: (cells) =>
@@ -653,7 +675,7 @@ export function capacityFormulas(copy: {
             "demandaPico",
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
-            undefined,
+            hallVa,
             areaTaxaId,
           ),
       });
@@ -703,7 +725,7 @@ export function capacityFormulas(copy: {
             "demandaPico",
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
-            undefined,
+            hallVa,
             areaTaxaId,
           ) +
           arrivalsLoose.reduce(
@@ -726,7 +748,7 @@ export function capacityFormulas(copy: {
               "demandaPico",
               "espacoMinimoPorPassageiro",
               "tempoDeOcupacao",
-              undefined,
+              hallVa,
               areaTaxaId,
             ),
             ...arrivalsLoose.map((item) =>

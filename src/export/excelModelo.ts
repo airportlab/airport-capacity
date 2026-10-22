@@ -369,6 +369,8 @@ function flowLabel(id: ComponentParamId): string {
       return "conexão DOM-INT";
     case "demandaPicoConexaoIntInt":
       return "conexão INT-INT";
+    case "demandaPicoConexaoDesembarqueDomDom":
+      return "conexão DOM-DOM";
     case "demandaPicoConexaoDesembarqueDomInt":
       return "conexão DOM-INT";
     case "demandaPicoConexaoDesembarqueIntDom":
@@ -1884,6 +1886,7 @@ const CONNECTION_DEMANDS = new Set<ComponentParamId>([
   "demandaPicoConexaoIntDom",
   "demandaPicoConexaoDomInt",
   "demandaPicoConexaoIntInt",
+  "demandaPicoConexaoDesembarqueDomDom",
   "demandaPicoConexaoDesembarqueDomInt",
   "demandaPicoConexaoDesembarqueIntDom",
   "demandaPicoConexaoDesembarqueIntInt",

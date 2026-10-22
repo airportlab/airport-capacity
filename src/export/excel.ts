@@ -371,6 +371,7 @@ function writeDashOrNumber(
 }
 
 const CONNECTION_DEMAND_IDS: ComponentParamId[] = [
+  "demandaPicoConexaoDesembarqueDomDom",
   "demandaPicoConexaoDesembarqueDomInt",
   "demandaPicoConexaoDesembarqueIntDom",
   "demandaPicoConexaoDesembarqueIntInt",
@@ -382,6 +383,7 @@ const CONNECTION_DEMAND_IDS: ComponentParamId[] = [
 ];
 
 const CONNECTION_RESULT_IDS = [
+  "areaMinimaConexaoDesembarqueDomDom",
   "areaMinimaConexaoDesembarqueDomInt",
   "areaMinimaConexaoDesembarqueIntDom",
   "areaMinimaConexaoDesembarqueIntInt",
@@ -409,6 +411,8 @@ function connectionRowLabel(
   demandId: ComponentParamId | undefined,
 ): string {
   switch (demandId) {
+    case "demandaPicoConexaoDesembarqueDomDom":
+      return `${title} · conexão DOM-DOM`;
     case "demandaPicoConexaoDesembarqueDomInt":
       return `${title} · conexão DOM-INT`;
     case "demandaPicoConexaoDesembarqueIntDom":

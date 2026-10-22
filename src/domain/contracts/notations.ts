@@ -187,21 +187,26 @@ export function mixedAreaFormulaDisplay(
   return `Ad_e,dom = ${rhs}; Ad_e,int = ${rhs}; Ad_d,dom = ${rhs}; Ad_d,int = ${rhs};${connection} ${mixedAreaSumDisplay(4, hasConnection, false, pairs)}`;
 }
 
+export type ArrivalsEmpSuffix = "" | "_d" | "_d,dom" | "_d,int";
+
 export function arrivalsConnectionNumerator(
   pair: ArrivalsConnectionPair,
   includeTaxa = false,
+  empSuffix?: ArrivalsEmpSuffix,
 ): string {
   const spec = arrivalsConnectionSpec(pair);
+  const suffix = empSuffix ?? spec.empSuffix;
   const demand = withTu(spec.dhpSymbol, includeTaxa);
-  return `${demand} × Emp${spec.empSuffix} × Toi${spec.empSuffix}`;
+  return `${demand} × Emp${suffix} × Toi${suffix}`;
 }
 
 export function arrivalsConnectionAreaDisplay(
   pair: ArrivalsConnectionPair,
   includeTaxa = false,
+  empSuffix?: ArrivalsEmpSuffix,
 ): string {
   const spec = arrivalsConnectionSpec(pair);
-  return `${spec.areaSymbol} = (${arrivalsConnectionNumerator(pair, includeTaxa)}) / 60`;
+  return `${spec.areaSymbol} = (${arrivalsConnectionNumerator(pair, includeTaxa, empSuffix)}) / 60`;
 }
 
 export function salaArrivalsSumDisplay(
@@ -350,6 +355,8 @@ export function demandSymbol(id: ComponentParamId): string {
       return "DHp_c,DomInt";
     case "demandaPicoConexaoIntInt":
       return "DHp_c,IntInt";
+    case "demandaPicoConexaoDesembarqueDomDom":
+      return "DHp_c,DomDom";
     case "demandaPicoConexaoDesembarqueDomInt":
       return "DHp_c,DomInt";
     case "demandaPicoConexaoDesembarqueIntDom":

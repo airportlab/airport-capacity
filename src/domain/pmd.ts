@@ -19,6 +19,7 @@ import type {
 import { isMixedNature, natureOfEntry } from "./types";
 import {
   flowParamIds,
+  hallArrivalsConnectionSources,
   salaConnectionSources,
   tsecTargets,
   type TsecTarget,
@@ -633,7 +634,10 @@ export function resolvedSources(entry: RegistryEntry): SizingSources {
       : entry.flows && entry.flows.length > 0
         ? sizingSourcesFromFlows(entry.flows)
         : sizingSourcesFromBinding(entry.pmd);
-  const extra = salaConnectionSources(entry);
+  const extra = {
+    ...salaConnectionSources(entry),
+    ...hallArrivalsConnectionSources(entry),
+  };
   if (Object.keys(extra).length === 0) return stored;
   const next: SizingSources = { ...stored };
   for (const id of Object.keys(extra) as SizingParamId[]) {

@@ -57,7 +57,7 @@ import type {
 } from "../domain/types";
 import {
   allowsArrivalsConnection,
-  arrivalsConnectionPairs,
+  arrivalsConnectionPairsFor,
   arrivalsConnectionsAllOn,
   boardingConnectionPairsFor,
   boardingConnectionsAllOn,
@@ -422,6 +422,7 @@ export function AirportEditor() {
       "demandaPicoConexaoIntDom",
       "demandaPicoConexaoDomInt",
       "demandaPicoConexaoIntInt",
+      "demandaPicoConexaoDesembarqueDomDom",
       "demandaPicoConexaoDesembarqueDomInt",
       "demandaPicoConexaoDesembarqueIntDom",
       "demandaPicoConexaoDesembarqueIntInt",
@@ -480,6 +481,7 @@ export function AirportEditor() {
       params.demandaPicoConexaoIntDom = 0;
       params.demandaPicoConexaoDomInt = 0;
       params.demandaPicoConexaoIntInt = 0;
+      params.demandaPicoConexaoDesembarqueDomDom = 0;
       params.demandaPicoConexaoDesembarqueDomInt = 0;
       params.demandaPicoConexaoDesembarqueIntDom = 0;
       params.demandaPicoConexaoDesembarqueIntInt = 0;
@@ -611,7 +613,7 @@ export function AirportEditor() {
         return {
           ...entry,
           hasConnection: true,
-          conexoes: arrivalsConnectionsAllOn(),
+          conexoes: arrivalsConnectionsAllOn(entry),
         };
       }
       const nature = natureOfEntry(entry);
@@ -632,7 +634,7 @@ export function AirportEditor() {
   ) {
     updateRequirements(id, (entry) => {
       const possible = allowsArrivalsConnection(entry)
-        ? arrivalsConnectionPairs()
+        ? arrivalsConnectionPairsFor(entry)
         : boardingConnectionPairsFor(entry);
       const current =
         entry.conexoes ??

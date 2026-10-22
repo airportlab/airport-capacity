@@ -12,6 +12,7 @@ import {
   equipmentToiSymbol,
   splitEquipmentSymbol,
   arrivalsConnectionNumerator,
+  type ArrivalsEmpSuffix,
   beltConnectionNumerator,
   beltConnectionSymbol,
   beltNumerator,
@@ -331,6 +332,7 @@ interface FormulaCardProps {
   hasConnection?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
+  arrivalsEmpSuffix?: (pair: ArrivalsConnectionPair) => ArrivalsEmpSuffix;
   includeSeats?: boolean;
   afterEquation?: ReactNode;
 }
@@ -341,6 +343,7 @@ export function FormulaCard({
   hasConnection = false,
   connectionPairs = [],
   arrivalsPairs = [],
+  arrivalsEmpSuffix,
   includeSeats = false,
   afterEquation,
 }: FormulaCardProps) {
@@ -351,7 +354,7 @@ export function FormulaCard({
       <div className="formula-card">
         <p className="formula-kicker">Fórmulas de desembarque e conexão</p>
         <AreaEquation
-          companions={false}
+          companions={companions}
           includeTaxa={includeTaxa}
           lhs="Ad_d"
         />
@@ -361,7 +364,11 @@ export function FormulaCard({
             companions={false}
             includeTaxa={includeTaxa}
             lhs={arrivalsConnectionSpec(pair).areaSymbol}
-            numerator={arrivalsConnectionNumerator(pair, includeTaxa)}
+            numerator={arrivalsConnectionNumerator(
+              pair,
+              includeTaxa,
+              arrivalsEmpSuffix?.(pair),
+            )}
           />
         ))}
         <div className="tex" role="img" aria-label={sum}>
