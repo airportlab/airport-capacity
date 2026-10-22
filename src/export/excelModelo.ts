@@ -1643,6 +1643,7 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     areaPainel.areaCell = `G${rowNumber}`;
     areaPainel.areaMeets = meetsText(check);
     band(row, PAGE_START, PAGE_END, "data", areaRow % 2 === 0);
+    verified.font = { bold: true, color: { argb: INK } };
     areaRow += 1;
     row.getCell(3).alignment = {
       horizontal: "left",
@@ -1746,6 +1747,7 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     equipmentPainel.equipmentCell = `G${rowNumber}`;
     equipmentPainel.equipmentMeets = meetsText(check);
     band(row, PAGE_START, PAGE_END, "data", equipmentRow % 2 === 0);
+    verified.font = { bold: true, color: { argb: INK } };
     equipmentRow += 1;
     row.getCell(3).alignment = {
       horizontal: "left",
@@ -2171,6 +2173,7 @@ function writeMemoryAccount(
   const verified = sheet.getRow(first).getCell(COL_VERIFIED);
   verified.value = Number.isFinite(measured) ? measured : null;
   verified.numFmt = kind === "area" ? "#,##0.00" : "#,##0";
+  verified.font = { bold: true, color: { argb: INK } };
   const minimumCell = `${columnName(COL_MINIMUM)}${first}`;
   const verifiedCell = `${columnName(COL_VERIFIED)}${first}`;
   const check = kind === "area" ? evaluation.areaCheck : evaluation.equipmentCheck;
