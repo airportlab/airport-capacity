@@ -82,6 +82,7 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoConexaoIntDom",
   "demandaPicoConexaoDomInt",
   "demandaPicoConexaoIntInt",
+  "demandaPicoConexaoDesembarqueDomDom",
   "demandaPicoConexaoDesembarqueDomInt",
   "demandaPicoConexaoDesembarqueIntDom",
   "demandaPicoConexaoDesembarqueIntInt",
@@ -221,40 +222,98 @@ export function hasBoardingConnection(entry: RegistryEntry): boolean {
 }
 
 export function allowsArrivalsConnection(entry: RegistryEntry): boolean {
-  if (entry.kind === "sala-desembarque") return true;
-  return entry.kind === "saguao-desembarque" && isMixedNature(entry);
+  return (
+    entry.kind === "sala-desembarque" || entry.kind === "saguao-desembarque"
+  );
 }
 
 export function hasArrivalsConnection(entry: RegistryEntry): boolean {
   return allowsArrivalsConnection(entry) && entry.hasConnection === true;
 }
 
-/** Fluxos de desembarque via conexão. DOM-DOM não entra. */
-export type ArrivalsConnectionPair = "domInt" | "intDom" | "intInt";
+/** Fluxos de desembarque via conexão. A sala não usa DOM-DOM. */
+export type ArrivalsConnectionPair = "domDom" | "domInt" | "intDom" | "intInt";
 
-export const ARRIVALS_CONNECTION_PAIRS: readonly ArrivalsConnectionPair[] = [
+/** Arquivo antigo sem `conexoes` liga estes três. DOM-DOM não entra sozinho. */
+const LEGACY_ARRIVALS_PAIRS: readonly ArrivalsConnectionPair[] = [
   "domInt",
   "intDom",
   "intInt",
 ];
 
-export function arrivalsConnectionPairs(): ArrivalsConnectionPair[] {
-  return [...ARRIVALS_CONNECTION_PAIRS];
+const SALA_ARRIVALS_PAIRS: readonly ArrivalsConnectionPair[] = [
+  "domInt",
+  "intDom",
+  "intInt",
+];
+
+/** Doméstico: quem veio de voo doméstico. Internacional: quem veio de voo internacional. */
+export function arrivalsConnectionPairsForNature(
+  nature: PeakNature | "misto" | undefined,
+): ArrivalsConnectionPair[] {
+  if (nature === "internacional") return ["intDom", "intInt"];
+  if (nature === "misto") return ["domDom", "domInt", "intDom", "intInt"];
+  return ["domDom", "domInt"];
 }
 
-export function arrivalsConnectionsAllOn(): BoardingConnections {
-  return { domInt: true, intDom: true, intInt: true };
+/** Sala: os três pares, nas duas naturezas. Saguão: os pares da origem. */
+export function arrivalsConnectionPairsFor(
+  entry: RegistryEntry,
+): ArrivalsConnectionPair[] {
+  if (entry.kind === "sala-desembarque") return [...SALA_ARRIVALS_PAIRS];
+  return arrivalsConnectionPairsForNature(natureOfEntry(entry));
 }
 
-/** Fluxos ligados. Sem `conexoes`, o arquivo antigo liga os três. */
+export function arrivalsConnectionsAllOn(
+  entry: RegistryEntry,
+): BoardingConnections {
+  return Object.fromEntries(
+    arrivalsConnectionPairsFor(entry).map((pair) => [pair, true]),
+  );
+}
+
+/** Fluxos ligados. Sem `conexoes`, o arquivo antigo liga os três possíveis. */
 export function enabledArrivalsConnections(
   entry: RegistryEntry,
 ): ArrivalsConnectionPair[] {
   if (!hasArrivalsConnection(entry)) return [];
-  if (!entry.conexoes) return arrivalsConnectionPairs();
-  return arrivalsConnectionPairs().filter(
-    (pair) => entry.conexoes?.[pair] === true,
-  );
+  const possible = arrivalsConnectionPairsFor(entry);
+  if (!entry.conexoes) {
+    return possible.filter((pair) => LEGACY_ARRIVALS_PAIRS.includes(pair));
+  }
+  return possible.filter((pair) => entry.conexoes?.[pair] === true);
+}
+
+/** Troca de natureza do saguão: par novo nasce ligado; par que saiu sai do registro. */
+export function reconcileArrivalsConnections(
+  entry: RegistryEntry,
+  nature: PeakNature | "misto",
+): BoardingConnections | undefined {
+  if (entry.hasConnection !== true || entry.kind !== "saguao-desembarque") {
+    return undefined;
+  }
+  const possible = arrivalsConnectionPairsForNature(nature);
+  const previous = new Set(arrivalsConnectionPairsFor(entry));
+  const next: BoardingConnections = {};
+  for (const pair of possible) {
+    const explicit = entry.conexoes?.[pair];
+    const wasPossible = previous.has(pair);
+    if (!entry.conexoes) {
+      next[pair] =
+        !wasPossible || LEGACY_ARRIVALS_PAIRS.includes(pair);
+      continue;
+    }
+    if (explicit === false) next[pair] = false;
+    else next[pair] = explicit === true || !wasPossible;
+  }
+  return next;
+}
+
+/** Primeira letra, a origem. A sala usa esta coluna. */
+export function arrivalsConnectionColumn(
+  pair: ArrivalsConnectionPair,
+): PeakNature {
+  return pair === "domDom" || pair === "domInt" ? "domestico" : "internacional";
 }
 
 export function isDualFunction(entry: RegistryEntry): boolean {
@@ -294,6 +353,7 @@ export type ResultId =
   | "areaMinimaConexaoIntDom"
   | "areaMinimaConexaoDomInt"
   | "areaMinimaConexaoIntInt"
+  | "areaMinimaConexaoDesembarqueDomDom"
   | "areaMinimaConexaoDesembarqueDomInt"
   | "areaMinimaConexaoDesembarqueIntDom"
   | "areaMinimaConexaoDesembarqueIntInt"
@@ -305,6 +365,7 @@ export type ResultId =
   | "comprimentoMinimoDesembarqueDomestico"
   | "comprimentoMinimoDesembarqueInternacional"
   | "comprimentoMinimoDesembarque"
+  | "comprimentoMinimoConexaoDesembarqueDomDom"
   | "comprimentoMinimoConexaoDesembarqueDomInt"
   | "comprimentoMinimoConexaoDesembarqueIntDom"
   | "comprimentoMinimoConexaoDesembarqueIntInt"
@@ -360,7 +421,7 @@ export function boardingConnectionSpec(
   return spec;
 }
 
-/** Um DHp e uma área por par. DOM-INT usa Emp/Toi do desembarque doméstico; os outros, do internacional. */
+/** Um DHp e uma área por par. O Emp gravado é o da origem. A sala e o saguão de desembarque usam essa coluna. */
 export const ARRIVALS_CONNECTION_CATALOG: readonly {
   pair: ArrivalsConnectionPair;
   demanda: ComponentParamId;
@@ -372,6 +433,17 @@ export const ARRIVALS_CONNECTION_CATALOG: readonly {
   emp: ComponentParamId;
   toi: ComponentParamId;
 }[] = [
+  {
+    pair: "domDom",
+    demanda: "demandaPicoConexaoDesembarqueDomDom",
+    area: "areaMinimaConexaoDesembarqueDomDom",
+    label: "DOM-DOM",
+    dhpSymbol: "DHp_c,DomDom",
+    areaSymbol: "Ad_c,DomDom",
+    empSuffix: "_d,dom",
+    emp: "espacoMinimoPorPassageiroDesembarqueDomestico",
+    toi: "tempoDeOcupacaoDesembarqueDomestico",
+  },
   {
     pair: "domInt",
     demanda: "demandaPicoConexaoDesembarqueDomInt",
@@ -414,6 +486,8 @@ export const ARRIVALS_CONNECTION_LABEL: Record<ArrivalsConnectionPair, string> =
 
 export function salaBeltPartialId(pair: ArrivalsConnectionPair): ResultId {
   switch (pair) {
+    case "domDom":
+      return "comprimentoMinimoConexaoDesembarqueDomDom";
     case "domInt":
       return "comprimentoMinimoConexaoDesembarqueDomInt";
     case "intDom":

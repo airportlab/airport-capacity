@@ -233,7 +233,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Embarque via conexão com origem internacional e destino doméstico. Sem acompanhante.",
+      "Embarque via conexão com origem internacional e destino doméstico. No saguão misto, usa Emp e Toi do embarque doméstico, sem acompanhante.",
   },
   demandaPicoConexaoDomInt: {
     id: "demandaPicoConexaoDomInt",
@@ -242,7 +242,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Embarque via conexão com origem doméstica e destino internacional. Sem acompanhante.",
+      "Embarque via conexão com origem doméstica e destino internacional. No saguão misto, usa Emp e Toi do embarque internacional, sem acompanhante.",
   },
   demandaPicoConexaoIntInt: {
     id: "demandaPicoConexaoIntInt",
@@ -253,6 +253,15 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     origem:
       "Embarque via conexão com origem e destino internacionais. Sem acompanhante.",
   },
+  demandaPicoConexaoDesembarqueDomDom: {
+    id: "demandaPicoConexaoDesembarqueDomDom",
+    kind: "attribute",
+    label: "DHp conexão DOM-DOM",
+    unit: "pax/h",
+    defaultValue: 0,
+    origem:
+      "Desembarque via conexão com origem e destino domésticos. No saguão, usa Emp e Toi do desembarque doméstico, sem acompanhante.",
+  },
   demandaPicoConexaoDesembarqueDomInt: {
     id: "demandaPicoConexaoDesembarqueDomInt",
     kind: "attribute",
@@ -260,7 +269,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Desembarque via conexão com origem doméstica e destino internacional. Usa Emp e Toi do desembarque doméstico, sem acompanhante.",
+      "Desembarque via conexão com origem doméstica e destino internacional. No saguão, usa Emp e Toi do desembarque doméstico, sem acompanhante.",
   },
   demandaPicoConexaoDesembarqueIntDom: {
     id: "demandaPicoConexaoDesembarqueIntDom",
@@ -269,7 +278,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Desembarque via conexão com origem internacional e destino doméstico. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
+      "Desembarque via conexão com origem internacional e destino doméstico. No saguão, usa Emp e Toi do desembarque internacional, sem acompanhante.",
   },
   demandaPicoConexaoDesembarqueIntInt: {
     id: "demandaPicoConexaoDesembarqueIntInt",
@@ -278,7 +287,7 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     unit: "pax/h",
     defaultValue: 0,
     origem:
-      "Desembarque via conexão com origem e destino internacionais. Usa Emp e Toi do desembarque internacional, sem acompanhante.",
+      "Desembarque via conexão com origem e destino internacionais. No saguão, usa Emp e Toi do desembarque internacional, sem acompanhante.",
   },
   espacoMinimoPorPassageiroEmbarqueDomestico: {
     id: "espacoMinimoPorPassageiroEmbarqueDomestico",

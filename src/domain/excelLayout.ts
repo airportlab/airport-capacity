@@ -636,21 +636,46 @@ export function getNatureSheetLayout(
           ? `R${hallRow}`
           : undefined;
         const sharedCells = new Map<string, { emp: string; toi: string }>();
+        const hallEmpId = contract.params.some(
+          (field) => field.id === "espacoMinimoPorPassageiroDesembarque",
+        )
+          ? "espacoMinimoPorPassageiroDesembarque"
+          : "espacoMinimoPorPassageiro";
+        const hallToiId = contract.params.some(
+          (field) => field.id === "tempoDeOcupacaoDesembarque",
+        )
+          ? "tempoDeOcupacaoDesembarque"
+          : "tempoDeOcupacao";
+        const salaColumn = contract.params.some(
+          (field) =>
+            field.label === "Emp · coluna doméstica" ||
+            field.label === "Emp · coluna internacional",
+        );
         for (const spec of arrivalSpecs) {
-          const foreignEmp = contract.params.some(
-            (field) => field.id === spec.emp,
-          );
-          const foreignToi = contract.params.some(
-            (field) => field.id === spec.toi,
-          );
-          const empId = foreignEmp ? spec.emp : "espacoMinimoPorPassageiro";
-          const toiId = foreignToi ? spec.toi : "tempoDeOcupacao";
+          const columnEmp = spec.emp;
+          const columnToi = spec.toi;
+          const foreignEmp =
+            salaColumn &&
+            contract.params.some((field) => field.id === columnEmp);
+          const foreignToi =
+            salaColumn &&
+            contract.params.some((field) => field.id === columnToi);
+          const empId = foreignEmp ? columnEmp : hallEmpId;
+          const toiId = foreignToi ? columnToi : hallToiId;
           const key = `${empId}|${toiId}`;
           let cells = sharedCells.get(key);
           if (!cells) {
             cells = {
-              emp: foreignEmp ? `D${row}` : `D${hallRow}`,
-              toi: foreignToi ? `F${row}` : `F${hallRow}`,
+              emp: foreignEmp
+                ? `D${row}`
+                : empId === "espacoMinimoPorPassageiroDesembarque"
+                  ? `I${hallRow}`
+                  : `D${hallRow}`,
+              toi: foreignToi
+                ? `F${row}`
+                : toiId === "tempoDeOcupacaoDesembarque"
+                  ? `J${hallRow}`
+                  : `F${hallRow}`,
             };
             sharedCells.set(key, cells);
           }

@@ -10,6 +10,7 @@ import {
 } from "../pmd";
 import {
   natureOfEntry,
+  reconcileArrivalsConnections,
   reconcileBoardingConnections,
   type ComponentId,
   type ComponentParamId,
@@ -81,7 +82,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "desembarque", rowId: "saguao-desembarque" }],
     detail:
-      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional no misto, um DHp e uma área por fluxo ligado: DOM-INT com Emp/Toi domésticos; INT-DOM e INT-INT, cada um com Emp/Toi internacionais, sem acompanhante. Fluxo desligado não entra.",
+      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional nas três naturezas: doméstico, DOM-DOM e DOM-INT; internacional, INT-DOM e INT-INT; misto, os quatro. DOM-DOM e DOM-INT usam Emp/Toi domésticos; INT-DOM e INT-INT, internacionais, sem acompanhante. No saguão de uma natureza só, os dois pares usam o Emp e o Toi do saguão. Par desligado não entra.",
   },
   {
     kind: "saguao-embarque-desembarque",
@@ -394,7 +395,9 @@ export function rebindOrganNature(
     conexoes:
       entry.kind === "sala-desembarque"
         ? entry.conexoes
-        : reconcileBoardingConnections(entry, nature),
+        : entry.kind === "saguao-desembarque"
+          ? reconcileArrivalsConnections(entry, nature)
+          : reconcileBoardingConnections(entry, nature),
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

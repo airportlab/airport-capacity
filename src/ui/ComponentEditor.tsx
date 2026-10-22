@@ -44,7 +44,7 @@ import type {
 import {
   allowsArrivalsConnection,
   allowsBoardingConnection,
-  arrivalsConnectionPairs,
+  arrivalsConnectionPairsFor,
   ARRIVALS_CONNECTION_LABEL,
   boardingConnectionPairsFor,
   boardingConnectionSpec,
@@ -683,7 +683,7 @@ export function ComponentEditor({
         ) : null}
         {hasArrivalsConnection(entry) ? (
           <div className="connection-pairs">
-            {arrivalsConnectionPairs().map((pair) => (
+            {arrivalsConnectionPairsFor(entry).map((pair) => (
               <label className="choice" key={pair}>
                 <input
                   type="checkbox"
@@ -810,7 +810,17 @@ export function ComponentEditor({
               includeTaxa={areaTaxa}
               hasConnection={connectionPairs.length > 0}
               connectionPairs={connectionPairs}
-              arrivalsPairs={arrivalsHall ? arrivalsPairs : []}
+              arrivalsPairs={
+                arrivalsHall ||
+                (entry.kind === "saguao-desembarque" && !mixed)
+                  ? arrivalsPairs
+                  : []
+              }
+              arrivalsEmpSuffix={
+                entry.kind === "saguao-desembarque" && !mixed
+                  ? () => ""
+                  : undefined
+              }
               includeSeats={contract.formulas.some(
                 (formula) => formula.id === "assentosMinimos",
               )}

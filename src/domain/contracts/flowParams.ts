@@ -14,6 +14,7 @@ import type {
 } from "../types";
 import {
   ARRIVALS_CONNECTION_CATALOG,
+  arrivalsConnectionColumn,
   boardingConnectionSpec,
   enabledArrivalsConnections,
   enabledBoardingConnections,
@@ -168,7 +169,7 @@ function salaHallNature(entry: RegistryEntry): PeakNature {
 }
 
 function salaColumnOf(pair: ArrivalsConnectionPair): PeakNature {
-  return pair === "domInt" ? "domestico" : "internacional";
+  return arrivalsConnectionColumn(pair);
 }
 
 function salaConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
@@ -189,6 +190,40 @@ function salaConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
       },
     ];
   });
+}
+
+function hallArrivalsConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
+  const enabled = new Set(enabledArrivalsConnections(entry));
+  const fromFlows = entryFlowParams(entry).find(
+    (flow) => flow.area === "areaMinimaDesembarque",
+  );
+  const own: FlowParamIds = fromFlows ?? {
+    demanda: "demandaPico",
+    emp: "espacoMinimoPorPassageiro",
+    toi: "tempoDeOcupacao",
+    va: "vaDesembarque",
+    area: "areaMinima",
+  };
+  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
+    if (!enabled.has(spec.pair)) return [];
+    return [
+      {
+        demanda: spec.demanda,
+        emp: own.emp,
+        toi: own.toi,
+        va: own.va,
+        area: spec.area,
+      },
+    ];
+  });
+}
+
+/** O saguão simples reusa Emp e Toi do próprio saguão. */
+export function hallArrivalsConnectionSources(
+  entry: RegistryEntry,
+): SizingSources {
+  if (entry.kind !== "saguao-desembarque" || isMixedNature(entry)) return {};
+  return {};
 }
 
 /** Emp e Toi da coluna que não é a da sala, lidos do PMD dessa coluna. */
@@ -241,6 +276,9 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
   }
   if (!hasArrivalsConnection(entry)) return [];
   if (entry.kind === "sala-desembarque") return salaConnectionFlows(entry);
+  if (entry.kind === "saguao-desembarque" && !isMixedNature(entry)) {
+    return hallArrivalsConnectionFlows(entry);
+  }
   const enabled = new Set(enabledArrivalsConnections(entry));
   const flows = entryFlowParams(entry);
   const domestico = flows.find(
@@ -251,7 +289,10 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
   );
   return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
     if (!enabled.has(spec.pair)) return [];
-    const sizing = spec.pair === "domInt" ? domestico : internacional;
+    const sizing =
+      arrivalsConnectionColumn(spec.pair) === "domestico"
+        ? domestico
+        : internacional;
     if (!sizing) return [];
     return [
       {
