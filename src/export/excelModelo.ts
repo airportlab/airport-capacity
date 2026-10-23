@@ -1901,9 +1901,7 @@ function isFlowBody(id: ComponentParamId): boolean {
     id.startsWith("va") ||
     id.startsWith("tsec") ||
     id === "taxaDeUsoEquipamentoDomestico" ||
-    id === "taxaDeUsoEquipamentoInternacional" ||
-    id === "taxaDeUsoAreaDomestico" ||
-    id === "taxaDeUsoAreaInternacional"
+    id === "taxaDeUsoEquipamentoInternacional"
   );
 }
 

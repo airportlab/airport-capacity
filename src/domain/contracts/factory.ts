@@ -16,7 +16,6 @@ import {
   isDualFunction,
   isMixedNature,
   natureOfEntry,
-  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../types";
@@ -135,7 +134,6 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   if (entry.kind !== "sala-desembarque") delete requirements.esteira;
   const equipment = hasEquipment(requirements);
   const belt = hasEsteira(requirements);
-  const includeAreaTaxa = usesAreaTaxa(requirements);
   const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
   const includeBeltTaxa = usesEsteiraTaxa(requirements);
   const splitLounge = Boolean(area) && isSplitLoungeEntry(entry);
@@ -215,19 +213,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
 
   const paramIds: ComponentParamId[] = [
     ...demandIds,
-    ...(area
-      ? [
-          ...(includeAreaTaxa
-            ? splitCheckin
-              ? ([
-                  "taxaDeUsoAreaDomestico",
-                  "taxaDeUsoAreaInternacional",
-                ] as const)
-              : (["taxaDeUsoArea"] as const)
-            : []),
-          ...areaIds,
-        ]
-      : []),
+    ...(area ? areaIds : []),
     ...(equipment
       ? [
           ...(includeEquipmentTaxa
@@ -259,14 +245,13 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   ];
 
   const areaCopy = splitLounge
-    ? splitLoungeFormulaDisplay(includeAreaTaxa)
+    ? splitLoungeFormulaDisplay()
     : singleFunctionMixed
-    ? singleFunctionMixedFormulaDisplay(companions, includeAreaTaxa)
+    ? singleFunctionMixedFormulaDisplay(companions)
     : mixedNature
       ? mixedAreaFormulaDisplay(
           companions,
           flows.length,
-          includeAreaTaxa,
           arrivalsOnly
             ? arrivalsPairs.length > 0
             : connections.length > 0 && boardingPairs.length === 0,
@@ -277,19 +262,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     : dualFlows
       ? dualAreaFormulaDisplay(
           companions,
-          includeAreaTaxa,
           Boolean(connection) && boardingPairs.length === 0,
           boardingPairs,
         )
       : entry.kind === "sala-desembarque" && arrivalsPairs.length > 0
-        ? salaArrivalsFormulaDisplay(includeAreaTaxa, arrivalsPairs)
+        ? salaArrivalsFormulaDisplay(arrivalsPairs)
         : connection
-          ? simpleConnectionFormulaDisplay(
-              companions,
-              includeAreaTaxa,
-              boardingPairs,
-            )
-          : areaFormulaDisplay(companions, includeAreaTaxa);
+          ? simpleConnectionFormulaDisplay(companions, boardingPairs)
+          : areaFormulaDisplay(companions);
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
   if (area && equipment && seats) {
@@ -475,7 +455,6 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeEquipment: equipment,
       includeSeats: seats && !mixedNature,
       includeSplitLounge: splitLounge,
-      includeAreaTaxa,
       includeEquipmentTaxa,
       includeBeltTaxa,
       includeBelt: belt,

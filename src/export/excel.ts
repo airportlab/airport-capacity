@@ -48,7 +48,7 @@ import type {
   ExcelKind,
   RegistryEntry,
 } from "../domain/types";
-import { usesAreaTaxa, usesEquipmentTaxa, usesEsteiraTaxa } from "../domain/types";
+import { usesEquipmentTaxa, usesEsteiraTaxa } from "../domain/types";
 import { downloadBlob, stampFilename } from "./download";
 
 const COLORS = {
@@ -486,14 +486,7 @@ function writeConnectionAreaRow(
   flowRow.getCell(15).value = "—";
   flowRow.getCell(16).value = "—";
   flowRow.getCell(17).value = "—";
-  writeDashOrNumber(
-    flowRow.getCell(18),
-    evaluation.inputs.taxaDeUsoArea,
-    usesAreaTaxa(contract.requirements),
-  );
-  if (usesAreaTaxa(contract.requirements)) {
-    flowRow.getCell(18).numFmt = "0.00";
-  }
+  flowRow.getCell(18).value = "—";
   fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
 }
 
@@ -908,7 +901,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         "Assentos mín.",
         "Status",
         "v.a. desembarque",
-        "Taxa de utilização (%)",
+        "—",
         "Emp em pé",
         "Toi em pé",
         "Ocupação máxima (Ocup_max)",
@@ -958,21 +951,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           flowRow.getCell(15).value = "—";
           flowRow.getCell(16).value = "—";
           flowRow.getCell(17).value = "—";
-          const flowTaxaId = (
-            [
-              "taxaDeUsoAreaDomestico",
-              "taxaDeUsoAreaInternacional",
-              "taxaDeUsoArea",
-            ] as const
-          ).find((id) => flowBlock.inputs[id]);
-          writeDashOrNumber(
-            flowRow.getCell(18),
-            flowTaxaId ? evaluation.inputs[flowTaxaId] : Number.NaN,
-            Boolean(flowTaxaId),
-          );
-          if (flowTaxaId) {
-            flowRow.getCell(18).numFmt = "0.00";
-          }
+          flowRow.getCell(18).value = "—";
           fillRow(flowRow, COLORS.paper, 1, NATURE_AREA_COLUMNS);
         });
         for (const connectionBlock of mixedFlows) {
@@ -1015,21 +994,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
           row.getCell(col).value = "—";
         }
         row.getCell(17).value = "—";
-        const splitAreaTaxa = contract.params.some(
-          (field) => field.id === "taxaDeUsoAreaDomestico",
-        );
-        if (splitAreaTaxa) {
-          row.getCell(18).value = "—";
-        } else {
-          writeDashOrNumber(
-            row.getCell(18),
-            evaluation.inputs.taxaDeUsoArea,
-            usesAreaTaxa(contract.requirements),
-          );
-          if (usesAreaTaxa(contract.requirements)) {
-            row.getCell(18).numFmt = "0.00";
-          }
-        }
+        row.getCell(18).value = "—";
         row.getCell(11).value = evaluation.inputs.areaMedida;
         row.getCell(11).numFmt = "#,##0.00";
         row.getCell(12).value = "—";
@@ -1096,14 +1061,7 @@ function exportByNature(model: ExcelModel): ExcelJS.Workbook {
         dual ? evaluation.inputs.vaDesembarque : Number.NaN,
         dual && companions,
       );
-      writeDashOrNumber(
-        row.getCell(18),
-        evaluation.inputs.taxaDeUsoArea,
-        usesAreaTaxa(contract.requirements),
-      );
-      if (usesAreaTaxa(contract.requirements)) {
-        row.getCell(18).numFmt = "0.00";
-      }
+      row.getCell(18).value = "—";
       writeDashOrNumber(
         row.getCell(8),
         evaluation.inputs.percentualMinimoAssentos,

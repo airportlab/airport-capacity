@@ -54,7 +54,6 @@ export interface ExampleStudy {
   circulations: HorizontalCirculation[];
 }
 
-const AREA_TU = 85;
 const EQUIPMENT_TU = 90;
 const BELT_TU = 80;
 
@@ -167,7 +166,7 @@ function exampleRegistry(source: AirportSource): RegistryEntry[] {
 function exampleRequirements(template: OrganTemplate): ComponentRequirements {
   const requirements = requirementsFromPreset(template.preset);
   if (requirements.area && template.preset === "areaCompanions") {
-    requirements.area = { companions: true, taxaDiferente: true };
+    requirements.area = { companions: true };
   }
   if (organAllowsEquipment({ kind: template.kind })) {
     requirements.equipment = { taxaDiferente: true };
@@ -224,13 +223,6 @@ function fillOperations(entry: RegistryEntry, params: ComponentParams): void {
     if (field.id === "areaMedida") params.areaMedida = areaValue(entry);
     if (field.id === "quantidadeEquipamentos") {
       params.quantidadeEquipamentos = equipmentQuantity(entry);
-    }
-    if (field.id === "taxaDeUsoArea") params.taxaDeUsoArea = AREA_TU;
-    if (field.id === "taxaDeUsoAreaDomestico") {
-      params.taxaDeUsoAreaDomestico = AREA_TU;
-    }
-    if (field.id === "taxaDeUsoAreaInternacional") {
-      params.taxaDeUsoAreaInternacional = 75;
     }
     if (field.id === "taxaDeUsoEquipamento") {
       params.taxaDeUsoEquipamento = EQUIPMENT_TU;

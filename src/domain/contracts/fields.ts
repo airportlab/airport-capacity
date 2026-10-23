@@ -43,30 +43,6 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     origem:
       "Atributo do fluxo de desembarque. Demanda na hora-pico deste fluxo, em passageiros por hora.",
   },
-  taxaDeUsoArea: {
-    id: "taxaDeUsoArea",
-    kind: "attribute",
-    label: "Taxa de utilização (Tu)",
-    unit: "%",
-    defaultValue: 100,
-    origem: "",
-  },
-  taxaDeUsoAreaDomestico: {
-    id: "taxaDeUsoAreaDomestico",
-    kind: "attribute",
-    label: "Taxa de utilização · doméstico (Tu_dom)",
-    unit: "%",
-    defaultValue: 100,
-    origem: "",
-  },
-  taxaDeUsoAreaInternacional: {
-    id: "taxaDeUsoAreaInternacional",
-    kind: "attribute",
-    label: "Taxa de utilização · internacional (Tu_int)",
-    unit: "%",
-    defaultValue: 100,
-    origem: "",
-  },
   taxaDeUsoEquipamento: {
     id: "taxaDeUsoEquipamento",
     kind: "attribute",
@@ -602,9 +578,6 @@ export function isSizingParam(id: ComponentParamId): id is SizingParamId {
 
 export function isTaxaParam(id: ComponentParamId): boolean {
   return (
-    id === "taxaDeUsoArea" ||
-    id === "taxaDeUsoAreaDomestico" ||
-    id === "taxaDeUsoAreaInternacional" ||
     id === "taxaDeUsoEquipamento" ||
     id === "taxaDeUsoEquipamentoDomestico" ||
     id === "taxaDeUsoEquipamentoInternacional" ||

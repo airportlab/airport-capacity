@@ -13,7 +13,6 @@ import type {
 } from "./types";
 import {
   COMPONENT_PARAM_IDS,
-  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "./types";
@@ -166,21 +165,7 @@ function areaPeopleDemand(
   contract: ComponentContract,
   inputs: ResolvedInputs,
 ): number {
-  const split = contract.params.some(
-    (field) => field.id === "taxaDeUsoAreaDomestico",
-  );
-  if (split) {
-    return (
-      inputs.demandaPicoDomestico * taxaFactor(inputs, "taxaDeUsoAreaDomestico") +
-      inputs.demandaPicoInternacional *
-        taxaFactor(inputs, "taxaDeUsoAreaInternacional")
-    );
-  }
-  return peopleDemand(
-    contract,
-    inputs,
-    usesAreaTaxa(contract.requirements) ? "taxaDeUsoArea" : null,
-  );
+  return peopleDemand(contract, inputs, null);
 }
 
 export function evaluateAreaCheck(

@@ -56,7 +56,6 @@ import {
   hasEsteira,
   isDualFunction,
   isMixedNature,
-  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../domain/types";
@@ -324,7 +323,6 @@ interface ComponentEditorProps {
   onObservacoesChange: (raw: string) => void;
   onRemove: () => void;
   onSetCompanions: (companions: boolean) => void;
-  onSetAreaTaxa: (taxaDiferente: boolean) => void;
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
@@ -358,7 +356,6 @@ export function ComponentEditor({
   onObservacoesChange,
   onRemove,
   onSetCompanions,
-  onSetAreaTaxa,
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
@@ -383,7 +380,6 @@ export function ComponentEditor({
   const allowsEquipment = organAllowsEquipment(entry);
   const equipment = allowsEquipment && hasEquipment(contract.requirements);
   const esteira = hasEsteira(contract.requirements);
-  const areaTaxa = usesAreaTaxa(contract.requirements);
   const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
   const esteiraTaxa = usesEsteiraTaxa(contract.requirements);
   const identityIds = identityParamIds(entry);
@@ -405,19 +401,8 @@ export function ComponentEditor({
   const dhpIds = dhpStamp
     ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
     : undefined;
-  const areaTaxaFields = contract.params.filter(
-    (field) =>
-      field.id === "taxaDeUsoArea" ||
-      field.id === "taxaDeUsoAreaDomestico" ||
-      field.id === "taxaDeUsoAreaInternacional",
-  );
   const equipmentTaxaFields = contract.params.filter(
-    (field) =>
-      isTaxaParam(field.id) &&
-      field.id !== "taxaDeUsoArea" &&
-      field.id !== "taxaDeUsoAreaDomestico" &&
-      field.id !== "taxaDeUsoAreaInternacional" &&
-      field.id !== "taxaDeUsoEsteira",
+    (field) => isTaxaParam(field.id) && field.id !== "taxaDeUsoEsteira",
   );
   const beltTaxaFields = contract.params.filter(
     (field) => field.id === "taxaDeUsoEsteira",
@@ -767,7 +752,6 @@ export function ComponentEditor({
           {mixed ? (
             <MixedNatureAreaFormulaCard
               companions={area.companions}
-              includeTaxa={areaTaxa}
               flowCount={entry.flows?.length ?? 0}
               singleFunction={singleFunctionMixed}
               arrivalsOnly={
@@ -785,7 +769,6 @@ export function ComponentEditor({
           ) : dual ? (
             <DualAreaFormulaCard
               companions={area.companions}
-              includeTaxa={areaTaxa}
               hasConnection={connectionPairs.length > 0}
               connectionPairs={connectionPairs}
               afterEquation={
@@ -799,7 +782,6 @@ export function ComponentEditor({
               (field) => field.id === "percentualOcupacaoMaxima",
             ) ? (
             <SplitLoungeFormulaCard
-              includeTaxa={areaTaxa}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -807,7 +789,6 @@ export function ComponentEditor({
           ) : (
             <FormulaCard
               companions={area.companions}
-              includeTaxa={areaTaxa}
               hasConnection={connectionPairs.length > 0}
               connectionPairs={connectionPairs}
               arrivalsPairs={
@@ -841,23 +822,6 @@ export function ComponentEditor({
               />
               Com acompanhante
             </label>
-          ) : null}
-          <label className="choice">
-            <input
-              type="checkbox"
-              checked={areaTaxa}
-              onChange={(event) => onSetAreaTaxa(event.target.checked)}
-            />
-            Taxa de utilização diferente de 100%
-          </label>
-          {areaTaxa && areaTaxaFields.length > 0 ? (
-            <FieldList
-              fields={areaTaxaFields}
-              drafts={drafts}
-              origens={origens}
-              onValueChange={onValueChange}
-              onOrigemChange={onOrigemChange}
-            />
           ) : null}
           {areaMeasureFields.length > 0 ? (
             <FieldList

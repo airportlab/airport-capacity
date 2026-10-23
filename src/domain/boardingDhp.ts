@@ -12,7 +12,6 @@ import {
   hasBoardingConnection,
   isMixedNature,
   natureOfEntry,
-  usesAreaTaxa,
   type ArrivalsConnectionPair,
 } from "./types";
 
@@ -213,7 +212,6 @@ export function boardingWeightInputIds(
   const specs = weightSpecs(entry);
   if (!specs) return null;
   const ids = new Set<ComponentParamId>();
-  if (usesAreaTaxa(entry.requirements)) ids.add("taxaDeUsoArea");
   for (const spec of specs) {
     ids.add(spec.emp);
     ids.add(spec.toi);
@@ -229,12 +227,11 @@ export function boardingFlowWeights(
 ): BoardingFlowWeight[] | null {
   const specs = weightSpecs(entry);
   if (!specs) return null;
-  const taxaId = usesAreaTaxa(entry.requirements) ? "taxaDeUsoArea" : null;
   return specs.map((spec) => ({
     demanda: spec.demanda,
     label: spec.label,
     key: spec.key,
-    peso: areaCoefficient(inputs, spec.emp, spec.toi, spec.va, taxaId),
+    peso: areaCoefficient(inputs, spec.emp, spec.toi, spec.va),
   }));
 }
 

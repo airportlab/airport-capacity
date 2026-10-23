@@ -59,18 +59,16 @@ export function TexText({ text }: { text: string }) {
 
 interface AreaEquationProps {
   companions: boolean;
-  includeTaxa?: boolean;
   lhs?: string;
   numerator?: string;
 }
 
 export function AreaEquation({
   companions,
-  includeTaxa = false,
   lhs = "Ad",
   numerator,
 }: AreaEquationProps) {
-  const num = numerator ?? areaNumerator(companions, includeTaxa);
+  const num = numerator ?? areaNumerator(companions);
 
   return (
     <div className="tex" role="img" aria-label={`${lhs} = (${num}) / 60`}>
@@ -135,14 +133,12 @@ export function SeatsFormulaLine({
 
 function areaLegend(
   companions: boolean,
-  includeTaxa: boolean,
   hasConnection: boolean,
   includeSeats: boolean,
   pairs: readonly BoardingConnectionPair[] = [],
 ) {
   const items = AREA_NOTATIONS.filter((item) => {
     if (item.symbol === "v.a" && !companions) return false;
-    if (item.symbol === "Tu" && !includeTaxa) return false;
     if (item.symbol === "DHp_c" && (!hasConnection || pairs.length > 0)) {
       return false;
     }
@@ -169,11 +165,9 @@ function areaLegend(
 }
 
 function ConnectionEquation({
-  includeTaxa,
   empSuffix,
   pair,
 }: {
-  includeTaxa: boolean;
   empSuffix: string;
   pair?: BoardingConnectionPair;
 }) {
@@ -181,9 +175,8 @@ function ConnectionEquation({
     return (
       <AreaEquation
         companions={false}
-        includeTaxa={includeTaxa}
         lhs="Ad_c"
-        numerator={connectionAreaNumerator(includeTaxa, empSuffix)}
+        numerator={connectionAreaNumerator(empSuffix)}
       />
     );
   }
@@ -191,21 +184,18 @@ function ConnectionEquation({
   return (
     <AreaEquation
       companions={false}
-      includeTaxa={includeTaxa}
       lhs={spec.areaSymbol}
-      numerator={boardingConnectionNumerator(pair, includeTaxa, empSuffix)}
+      numerator={boardingConnectionNumerator(pair, empSuffix)}
     />
   );
 }
 
 function BoardingConnectionEquations({
   pairs,
-  includeTaxa,
   empSuffix,
   empSuffixOf,
 }: {
   pairs: readonly BoardingConnectionPair[];
-  includeTaxa: boolean;
   empSuffix: string;
   empSuffixOf?: (pair: BoardingConnectionPair) => string;
 }) {
@@ -214,7 +204,6 @@ function BoardingConnectionEquations({
       {pairs.map((pair) => (
         <ConnectionEquation
           key={pair}
-          includeTaxa={includeTaxa}
           empSuffix={empSuffixOf?.(pair) ?? empSuffix}
           pair={pair}
         />
@@ -225,20 +214,18 @@ function BoardingConnectionEquations({
 
 function AreaLegend({
   companions,
-  includeTaxa,
   hasConnection,
   includeSeats = false,
   pairs = [],
 }: {
   companions: boolean;
-  includeTaxa: boolean;
   hasConnection: boolean;
   includeSeats?: boolean;
   pairs?: readonly BoardingConnectionPair[];
 }) {
   return (
     <dl className="formula-legend">
-      {areaLegend(companions, includeTaxa, hasConnection, includeSeats, pairs).map((item) => (
+      {areaLegend(companions, hasConnection, includeSeats, pairs).map((item) => (
         <div key={item.symbol}>
             <dt>
               <TexText text={item.symbol} />
@@ -254,7 +241,6 @@ function AreaLegend({
 
 const SPLIT_LOUNGE_NOTATIONS = [
   { symbol: "DHp", meaning: "Demanda hora pico do componente", unit: "pax/h" },
-  { symbol: "Tu", meaning: "Taxa de utilização", unit: "%" },
   { symbol: "Pa", meaning: "Acesso a assentos", unit: "%" },
   { symbol: "Ocup_max", meaning: "Máxima ocupação das salas", unit: "%" },
   { symbol: "Emp_s", meaning: "Espaço mínimo por passageiro sentado", unit: "m²/pax" },
@@ -263,17 +249,12 @@ const SPLIT_LOUNGE_NOTATIONS = [
   { symbol: "Toi_p", meaning: "Tempo de ocupação do passageiro em pé", unit: "min" },
 ] as const;
 
-export function splitLoungeNumerator(includeTaxa = false): string {
-  const demand = includeTaxa ? "DHp × Tu" : "DHp";
-  return `${demand} × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)]`;
+export function splitLoungeNumerator(): string {
+  return "DHp × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)]";
 }
 
-export function SplitLoungeEquation({
-  includeTaxa = false,
-}: {
-  includeTaxa?: boolean;
-}) {
-  const numerator = splitLoungeNumerator(includeTaxa);
+export function SplitLoungeEquation() {
+  const numerator = splitLoungeNumerator();
   return (
     <div
       className="tex"
@@ -297,21 +278,17 @@ export function SplitLoungeEquation({
 }
 
 export function SplitLoungeFormulaCard({
-  includeTaxa = false,
   afterEquation,
 }: {
-  includeTaxa?: boolean;
   afterEquation?: ReactNode;
 }) {
   return (
     <div className="formula-card">
       <p className="formula-kicker">Fórmula do requisito de área</p>
-      <SplitLoungeEquation includeTaxa={includeTaxa} />
+      <SplitLoungeEquation />
       {afterEquation}
       <dl className="formula-legend">
-        {SPLIT_LOUNGE_NOTATIONS.filter(
-          (item) => item.symbol !== "Tu" || includeTaxa,
-        ).map((item) => (
+        {SPLIT_LOUNGE_NOTATIONS.map((item) => (
           <div key={item.symbol}>
             <dt>
               <TexText text={item.symbol} />
@@ -328,7 +305,6 @@ export function SplitLoungeFormulaCard({
 
 interface FormulaCardProps {
   companions: boolean;
-  includeTaxa?: boolean;
   hasConnection?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
@@ -339,7 +315,6 @@ interface FormulaCardProps {
 
 export function FormulaCard({
   companions,
-  includeTaxa = false,
   hasConnection = false,
   connectionPairs = [],
   arrivalsPairs = [],
@@ -353,20 +328,14 @@ export function FormulaCard({
     return (
       <div className="formula-card">
         <p className="formula-kicker">Fórmulas de desembarque e conexão</p>
-        <AreaEquation
-          companions={companions}
-          includeTaxa={includeTaxa}
-          lhs="Ad_d"
-        />
+        <AreaEquation companions={companions} lhs="Ad_d" />
         {arrivalsPairs.map((pair) => (
           <AreaEquation
             key={pair}
             companions={false}
-            includeTaxa={includeTaxa}
             lhs={arrivalsConnectionSpec(pair).areaSymbol}
             numerator={arrivalsConnectionNumerator(
               pair,
-              includeTaxa,
               arrivalsEmpSuffix?.(pair),
             )}
           />
@@ -401,18 +370,13 @@ export function FormulaCard({
       </p>
       <AreaEquation
         companions={companions}
-        includeTaxa={includeTaxa}
         lhs={linked ? "Ad_e" : "Ad"}
-        numerator={linked ? areaNumerator(companions, includeTaxa, "_e") : undefined}
+        numerator={linked ? areaNumerator(companions, "_e") : undefined}
       />
       {connectionPairs.length > 0 ? (
-        <BoardingConnectionEquations
-          pairs={connectionPairs}
-          includeTaxa={includeTaxa}
-          empSuffix="_e"
-        />
+        <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_e" />
       ) : hasConnection ? (
-        <ConnectionEquation includeTaxa={includeTaxa} empSuffix="_e" />
+        <ConnectionEquation empSuffix="_e" />
       ) : null}
       {linked ? (
         <div className="tex" role="img" aria-label={sum}>
@@ -432,7 +396,6 @@ export function FormulaCard({
       ) : null}
       <AreaLegend
         companions={companions}
-        includeTaxa={includeTaxa}
         hasConnection={linked}
         includeSeats={includeSeats}
         pairs={connectionPairs}
@@ -443,7 +406,6 @@ export function FormulaCard({
 
 interface DualFormulaCardProps {
   companions: boolean;
-  includeTaxa?: boolean;
   hasConnection?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
   afterEquation?: ReactNode;
@@ -451,7 +413,6 @@ interface DualFormulaCardProps {
 
 export function DualAreaFormulaCard({
   companions,
-  includeTaxa = false,
   hasConnection = false,
   connectionPairs = [],
   afterEquation,
@@ -466,24 +427,18 @@ export function DualAreaFormulaCard({
       </p>
       <AreaEquation
         companions={companions}
-        includeTaxa={includeTaxa}
         lhs="Ad_e"
-        numerator={areaNumerator(companions, includeTaxa, "_e")}
+        numerator={areaNumerator(companions, "_e")}
       />
       <AreaEquation
         companions={companions}
-        includeTaxa={includeTaxa}
         lhs="Ad_d"
-        numerator={areaNumerator(companions, includeTaxa, "_d")}
+        numerator={areaNumerator(companions, "_d")}
       />
       {connectionPairs.length > 0 ? (
-        <BoardingConnectionEquations
-          pairs={connectionPairs}
-          includeTaxa={includeTaxa}
-          empSuffix="_e"
-        />
+        <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_e" />
       ) : hasConnection ? (
-        <ConnectionEquation includeTaxa={includeTaxa} empSuffix="_e" />
+        <ConnectionEquation empSuffix="_e" />
       ) : null}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>
@@ -502,7 +457,6 @@ export function DualAreaFormulaCard({
 
 export function MixedNatureAreaFormulaCard({
   companions,
-  includeTaxa = false,
   flowCount = 4,
   hasConnection = false,
   connectionPairs = [],
@@ -525,25 +479,13 @@ export function MixedNatureAreaFormulaCard({
         </p>
         <AreaEquation
           companions={companions}
-          includeTaxa={includeTaxa}
           lhs="Ad_dom"
-          numerator={areaNumerator(
-            companions,
-            includeTaxa,
-            "_dom",
-            includeTaxa ? "Tu_dom" : "Tu",
-          )}
+          numerator={areaNumerator(companions, "_dom")}
         />
         <AreaEquation
           companions={companions}
-          includeTaxa={includeTaxa}
           lhs="Ad_int"
-          numerator={areaNumerator(
-            companions,
-            includeTaxa,
-            "_int",
-            includeTaxa ? "Tu_int" : "Tu",
-          )}
+          numerator={areaNumerator(companions, "_int")}
         />
         <div className="tex" role="img" aria-label={sum}>
           <span className="tex-lhs">Ad</span>
@@ -560,7 +502,6 @@ export function MixedNatureAreaFormulaCard({
       </div>
     );
   }
-  const num = areaNumerator(companions, includeTaxa);
   const boardingOnly = flowCount <= 2 && !arrivalsOnly;
   const twoFlows = flowCount <= 2;
   const sum = mixedAreaSumDisplay(
@@ -586,30 +527,26 @@ export function MixedNatureAreaFormulaCard({
         <>
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_d,dom"
-            numerator={num}
+            numerator={areaNumerator(companions, "_d,dom")}
           />
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_d,int"
-            numerator={num}
+            numerator={areaNumerator(companions, "_d,int")}
           />
         </>
       ) : (
         <>
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_e,dom"
-            numerator={num}
+            numerator={areaNumerator(companions, "_e,dom")}
           />
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_e,int"
-            numerator={num}
+            numerator={areaNumerator(companions, "_e,int")}
           />
         </>
       )}
@@ -617,22 +554,19 @@ export function MixedNatureAreaFormulaCard({
         <>
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_d,dom"
-            numerator={num}
+            numerator={areaNumerator(companions, "_d,dom")}
           />
           <AreaEquation
             companions={companions}
-            includeTaxa={includeTaxa}
             lhs="Ad_d,int"
-            numerator={num}
+            numerator={areaNumerator(companions, "_d,int")}
           />
         </>
       )}
       {connectionPairs.length > 0 && !arrivalsOnly ? (
         <BoardingConnectionEquations
           pairs={connectionPairs}
-          includeTaxa={includeTaxa}
           empSuffix="_e,dom"
           empSuffixOf={boardingOnly ? mixedBoardingConnectionEmpSuffix : undefined}
         />
@@ -642,9 +576,8 @@ export function MixedNatureAreaFormulaCard({
             <AreaEquation
               key={pair}
               companions={false}
-              includeTaxa={includeTaxa}
               lhs={arrivalsConnectionSpec(pair).areaSymbol}
-              numerator={arrivalsConnectionNumerator(pair, includeTaxa)}
+              numerator={arrivalsConnectionNumerator(pair)}
             />
           ))
         : null}

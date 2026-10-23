@@ -585,22 +585,6 @@ export function AirportEditor() {
     });
   }
 
-  function handleSetAreaTaxa(id: ComponentId, taxaDiferente: boolean) {
-    updateRequirements(id, (entry) => {
-      if (!entry.requirements.area) return entry;
-      return {
-        ...entry,
-        requirements: {
-          ...entry.requirements,
-          area: {
-            ...entry.requirements.area,
-            taxaDiferente: taxaDiferente || undefined,
-          },
-        },
-      };
-    });
-  }
-
   function handleSetConnection(id: ComponentId, hasConnection: boolean) {
     updateRequirements(id, (entry) => {
       if (!hasConnection) {
@@ -1084,9 +1068,6 @@ export function AirportEditor() {
           onRemove={() => handleRemove(activeContract.id)}
           onSetCompanions={(companions) =>
             handleSetCompanions(activeContract.id, companions)
-          }
-          onSetAreaTaxa={(taxaDiferente) =>
-            handleSetAreaTaxa(activeContract.id, taxaDiferente)
           }
           onAddEquipment={() => handleAddEquipment(activeContract.id)}
           onSetEquipmentTaxa={(taxaDiferente) =>

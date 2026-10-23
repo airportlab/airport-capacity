@@ -9,7 +9,6 @@ import type {
 } from "../domain/types";
 import { contractHasConnection, isDualContract } from "../domain/contracts/factory";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
-import { usesAreaTaxa } from "../domain/types";
 import { roundLabel, sourceCitation } from "../domain/pmd";
 import { formatAirportName, formatNumber, formatReportDate, formatSaturacao } from "./format";
 import {
@@ -200,9 +199,7 @@ function ComponentSections({
                   contract.params.some(
                     (field) => field.id === "percentualOcupacaoMaxima",
                   ) ? (
-                    <SplitLoungeEquation
-                      includeTaxa={usesAreaTaxa(contract.requirements)}
-                    />
+                    <SplitLoungeEquation />
                   ) : formula.id === "areaMinima" &&
                     !(isDualContract(contract) || contractHasConnection(contract))
                     ? (
@@ -210,7 +207,6 @@ function ComponentSections({
                           companions={
                             contract.requirements.area?.companions === true
                           }
-                          includeTaxa={usesAreaTaxa(contract.requirements)}
                         />
                       )
                     : formula.id === "assentosMinimos" ? (

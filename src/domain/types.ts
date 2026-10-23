@@ -4,7 +4,6 @@ export type ComponentId = string;
 
 export interface AreaRequirement {
   companions: boolean;
-  taxaDiferente?: boolean;
 }
 
 export interface EquipmentRequirement {
@@ -32,10 +31,6 @@ export function hasEsteira(
   requirements: ComponentRequirements,
 ): boolean {
   return requirements.esteira != null;
-}
-
-export function usesAreaTaxa(requirements: ComponentRequirements): boolean {
-  return requirements.area?.taxaDiferente === true;
 }
 
 export function usesEquipmentTaxa(
@@ -86,9 +81,6 @@ export const COMPONENT_PARAM_IDS = [
   "demandaPicoConexaoDesembarqueDomInt",
   "demandaPicoConexaoDesembarqueIntDom",
   "demandaPicoConexaoDesembarqueIntInt",
-  "taxaDeUsoArea",
-  "taxaDeUsoAreaDomestico",
-  "taxaDeUsoAreaInternacional",
   "taxaDeUsoEquipamento",
   "taxaDeUsoEquipamentoDomestico",
   "taxaDeUsoEquipamentoInternacional",

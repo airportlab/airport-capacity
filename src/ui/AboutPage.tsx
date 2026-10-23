@@ -70,7 +70,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           preenche um estudo ilustrativo — não são valores operacionais do
           aeroporto selecionado. Entram um componente de cada tipo da tabela
           desse aeroporto, o saguão combinado, as naturezas mistas, conexão,
-          taxa de utilização diferente de 100%, esteira, equipamentos nos
+          taxa de utilização nos equipamentos e na esteira, equipamentos nos
           processadores e quatro circulações horizontais, com comentários nos
           campos de texto.
         </p>
@@ -99,8 +99,9 @@ export function AboutPage({ onBack }: AboutPageProps) {
         <p>
           Na aba do componente você informa DHp e área medida. Nos
           processadores, também equipamentos. A demanda de área (Ad) usa DHp,
-          Emp e Toi — e v.a. ou taxa de utilização, se o requisito marcar.
-          Equipamentos usam o teto da conta de N. O Tsec nasce no padrão do
+          Emp e Toi — e v.a., se o saguão marcar acompanhante. Equipamentos
+          usam o teto da conta de N e podem marcar taxa de utilização, como a
+          esteira. O Tsec nasce no padrão do
           Manual de Anteprojeto quando o fluxo tem esse padrão; valor diferente
           pede justificativa. Sem padrão, o campo nasce em 0. Saguões e salas
           não têm N. Na sala de desembarque o requisito opcional é o comprimento

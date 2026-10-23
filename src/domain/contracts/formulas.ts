@@ -140,10 +140,7 @@ function usedDemandExcel(
   return `${dhp}*(${requiredCell(cells, taxaId)}/100)`;
 }
 
-function splitLoungeArea(
-  inputs: ResolvedInputs,
-  taxaId: ComponentParamId | null,
-): number {
+function splitLoungeArea(inputs: ResolvedInputs): number {
   const share = inputs.percentualMinimoAssentos / 100;
   const occupancy = inputs.percentualOcupacaoMaxima / 100;
   if (!Number.isFinite(occupancy) || occupancy === 0) return Number.NaN;
@@ -151,34 +148,26 @@ function splitLoungeArea(
     share * inputs.espacoMinimoPorPassageiro * (inputs.tempoDeOcupacao / 60);
   const standing =
     (1 - share) * inputs.espacoMinimoEmPe * (inputs.tempoDeOcupacaoEmPe / 60);
-  return (usedDemand(inputs, "demandaPico", taxaId) * (seated + standing)) / occupancy;
+  return (inputs.demandaPico * (seated + standing)) / occupancy;
 }
 
-function splitLoungeExcel(
-  cells: ExcelCellMap["inputs"],
-  taxaId: ComponentParamId | null,
-): string {
+function splitLoungeExcel(cells: ExcelCellMap["inputs"]): string {
   const share = `(${requiredCell(cells, "percentualMinimoAssentos")}/100)`;
   const occupancy = `(${requiredCell(cells, "percentualOcupacaoMaxima")}/100)`;
   const seated = `${share}*${requiredCell(cells, "espacoMinimoPorPassageiro")}*(${requiredCell(cells, "tempoDeOcupacao")}/60)`;
   const standing = `(1-${share})*${requiredCell(cells, "espacoMinimoEmPe")}*(${requiredCell(cells, "tempoDeOcupacaoEmPe")}/60)`;
-  return `(${usedDemandExcel(cells, "demandaPico", taxaId)}*(${seated}+${standing}))/${occupancy}`;
+  return `(${requiredCell(cells, "demandaPico")}*(${seated}+${standing}))/${occupancy}`;
 }
 
-/** Coeficiente da área, sem o DHp. Com Tu marcado, entra Tu/100; com acompanhante, (1 + v.a.). */
+/** Coeficiente da área, sem o DHp. Com acompanhante, entra (1 + v.a.). */
 export function areaCoefficient(
   inputs: ResolvedInputs,
   emp: ComponentParamId,
   toi: ComponentParamId,
   va?: ComponentParamId,
-  taxaId: ComponentParamId | null = null,
 ): number {
   return (
-    (utilizationFactor(inputs, taxaId) *
-      inputs[emp] *
-      inputs[toi] *
-      (va ? 1 + inputs[va] : 1)) /
-    60
+    (inputs[emp] * inputs[toi] * (va ? 1 + inputs[va] : 1)) / 60
   );
 }
 
@@ -188,9 +177,8 @@ function areaValue(
   emp: ComponentParamId,
   toi: ComponentParamId,
   va?: ComponentParamId,
-  taxaId: ComponentParamId | null = null,
 ): number {
-  return inputs[demanda] * areaCoefficient(inputs, emp, toi, va, taxaId);
+  return inputs[demanda] * areaCoefficient(inputs, emp, toi, va);
 }
 
 function areaExcel(
@@ -199,10 +187,9 @@ function areaExcel(
   emp: ComponentParamId,
   toi: ComponentParamId,
   va?: ComponentParamId,
-  taxaId: ComponentParamId | null = null,
 ): string {
   const factors = [
-    usedDemandExcel(cells, demanda, taxaId),
+    requiredCell(cells, demanda),
     requiredCell(cells, emp),
     requiredCell(cells, toi),
   ];
@@ -255,47 +242,14 @@ function flowNotationSuffix(area: FlowParamIds["area"]): string {
   }
 }
 
-function checkinFlowTaxaId(
-  area: FlowParamIds["area"],
-  singleFunctionMixed: boolean,
-  includeAreaTaxa: boolean,
-): ComponentParamId | null {
-  if (!includeAreaTaxa) return null;
-  if (singleFunctionMixed && area === "areaMinimaDomestico") {
-    return "taxaDeUsoAreaDomestico";
-  }
-  if (singleFunctionMixed && area === "areaMinimaInternacional") {
-    return "taxaDeUsoAreaInternacional";
-  }
-  return "taxaDeUsoArea";
-}
-
-function checkinFlowTuSymbol(
-  area: FlowParamIds["area"],
-  singleFunctionMixed: boolean,
-): string {
-  if (singleFunctionMixed && area === "areaMinimaDomestico") return "Tu_dom";
-  if (singleFunctionMixed && area === "areaMinimaInternacional") return "Tu_int";
-  return "Tu";
-}
-
-function flowAreaExpression(
-  flow: FlowParamIds,
-  companions: boolean,
-  includeTaxa: boolean,
-  tu = "Tu",
-): string {
+function flowAreaExpression(flow: FlowParamIds, companions: boolean): string {
   const suffix = flowNotationSuffix(flow.area);
-  const dhp = withDemandTu(`DHp${suffix}`, includeTaxa, tu);
+  const dhp = `DHp${suffix}`;
   const emp = `Emp${suffix}`;
   const toi = `Toi${suffix}`;
   return companions
     ? `Ad${suffix} = (${dhp} × ${emp} × ${toi} × (1 + v.a${suffix})) / 60`
     : `Ad${suffix} = (${dhp} × ${emp} × ${toi}) / 60`;
-}
-
-function withDemandTu(demand: string, includeTaxa: boolean, tu = "Tu"): string {
-  return includeTaxa ? `${demand} × ${tu}` : demand;
 }
 
 function boardingPairOfArea(area: ResultId): BoardingConnectionPair | null {
@@ -310,11 +264,7 @@ function arrivalsPairOfArea(area: ResultId): ArrivalsConnectionPair | null {
   );
 }
 
-function connectionExpression(
-  item: FlowParamIds,
-  mixedNature: boolean,
-  includeTaxa: boolean,
-): string {
+function connectionExpression(item: FlowParamIds, mixedNature: boolean): string {
   const arrival = arrivalsPairOfArea(item.area);
   if (arrival) {
     const suffix =
@@ -328,12 +278,12 @@ function connectionExpression(
                 item.va === "vaDesembarque"
               ? ""
               : undefined;
-    return arrivalsConnectionAreaDisplay(arrival, includeTaxa, suffix);
+    return arrivalsConnectionAreaDisplay(arrival, suffix);
   }
   const pair = boardingPairOfArea(item.area);
   const empSuffix = connectionEmpSuffix(item.emp, mixedNature);
-  if (pair) return boardingConnectionAreaDisplay(pair, includeTaxa, empSuffix);
-  return connectionAreaDisplay(includeTaxa, empSuffix);
+  if (pair) return boardingConnectionAreaDisplay(pair, empSuffix);
+  return connectionAreaDisplay(empSuffix);
 }
 
 function connectionEmpSuffix(
@@ -424,7 +374,6 @@ export function capacityFormulas(copy: {
   includeEquipment?: boolean;
   includeSeats?: boolean;
   includeSplitLounge?: boolean;
-  includeAreaTaxa?: boolean;
   includeEquipmentTaxa?: boolean;
   includeBeltTaxa?: boolean;
   companions?: boolean;
@@ -440,7 +389,6 @@ export function capacityFormulas(copy: {
   const includeEquipment = copy.includeEquipment ?? false;
   const includeSeats = copy.includeSeats ?? false;
   const includeSplitLounge = copy.includeSplitLounge ?? false;
-  const includeAreaTaxa = copy.includeAreaTaxa ?? false;
   const includeEquipmentTaxa = copy.includeEquipmentTaxa ?? false;
   const companions = copy.companions ?? false;
   const flows = copy.flows ?? [];
@@ -480,9 +428,6 @@ export function capacityFormulas(copy: {
   const singleFunctionMixed = flows.some(
     (flow) => flow.area === "areaMinimaDomestico",
   );
-  const areaTaxaId: ComponentParamId | null = includeAreaTaxa
-    ? "taxaDeUsoArea"
-    : null;
   const equipmentTaxaId: ComponentParamId | null = includeEquipmentTaxa
     ? "taxaDeUsoEquipamento"
     : null;
@@ -498,27 +443,17 @@ export function capacityFormulas(copy: {
       id: "usoReal",
       label: copy.usoRealLabel ?? "Uso real",
       unit: "pax/h",
-      origem: copy.usoRealOrigem ?? "O uso real é dado pela taxa de uso × DHp.",
-      expression: includeAreaTaxa ? "Tu × DHp" : "DHp",
-      evaluate: (inputs) => usedDemand(inputs, "demandaPico", areaTaxaId),
-      toExcel: (cells) => usedDemandExcel(cells, "demandaPico", areaTaxaId),
+      origem: copy.usoRealOrigem ?? "O uso real é o DHp.",
+      expression: "DHp",
+      evaluate: (inputs) => inputs.demandaPico,
+      toExcel: (cells) => requiredCell(cells, "demandaPico"),
     });
   }
 
   if (includeArea && flows.length > 0) {
     for (const flow of flows) {
       const va = companions ? flow.va : undefined;
-      const flowTaxaId = checkinFlowTaxaId(
-        flow.area,
-        singleFunctionMixed,
-        includeAreaTaxa,
-      );
-      const expression = flowAreaExpression(
-        flow,
-        companions,
-        includeAreaTaxa,
-        checkinFlowTuSymbol(flow.area, singleFunctionMixed),
-      );
+      const expression = flowAreaExpression(flow, companions);
       formulas.push({
         id: flow.area,
         label: flowAreaLabel(flow, mixedNature),
@@ -526,13 +461,13 @@ export function capacityFormulas(copy: {
         origem: expression,
         expression,
         evaluate: (inputs) =>
-          areaValue(inputs, flow.demanda, flow.emp, flow.toi, va, flowTaxaId),
+          areaValue(inputs, flow.demanda, flow.emp, flow.toi, va),
         toExcel: (cells) =>
-          areaExcel(cells, flow.demanda, flow.emp, flow.toi, va, flowTaxaId),
+          areaExcel(cells, flow.demanda, flow.emp, flow.toi, va),
       });
     }
     for (const item of connections) {
-      const expression = connectionExpression(item, mixedNature, includeAreaTaxa);
+      const expression = connectionExpression(item, mixedNature);
       formulas.push({
         id: item.area,
         label: connectionLabel(item),
@@ -540,23 +475,9 @@ export function capacityFormulas(copy: {
         origem: `${expression}. Conexões sem acompanhante.`,
         expression,
         evaluate: (inputs) =>
-          areaValue(
-            inputs,
-            item.demanda,
-            item.emp,
-            item.toi,
-            undefined,
-            areaTaxaId,
-          ),
+          areaValue(inputs, item.demanda, item.emp, item.toi),
         toExcel: (cells) =>
-          areaExcel(
-            cells,
-            item.demanda,
-            item.emp,
-            item.toi,
-            undefined,
-            areaTaxaId,
-          ),
+          areaExcel(cells, item.demanda, item.emp, item.toi),
       });
     }
     const arrivalsOnly = isArrivalsOnlyMixed(flows);
@@ -600,21 +521,12 @@ export function capacityFormulas(copy: {
               flow.emp,
               flow.toi,
               companions ? flow.va : undefined,
-              checkinFlowTaxaId(flow.area, singleFunctionMixed, includeAreaTaxa),
             ),
           0,
         ) +
         connections.reduce(
           (sum, item) =>
-            sum +
-            areaValue(
-              inputs,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
+            sum + areaValue(inputs, item.demanda, item.emp, item.toi),
           0,
         ),
       toExcel: (cells) => {
@@ -625,20 +537,10 @@ export function capacityFormulas(copy: {
             flow.emp,
             flow.toi,
             companions ? flow.va : undefined,
-            checkinFlowTaxaId(flow.area, singleFunctionMixed, includeAreaTaxa),
           ),
         );
         for (const item of connections) {
-          parts.push(
-            areaExcel(
-              cells,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
-          );
+          parts.push(areaExcel(cells, item.demanda, item.emp, item.toi));
         }
         return parts.join("+");
       },
@@ -650,7 +552,7 @@ export function capacityFormulas(copy: {
     );
     if (arrivalsLoose.length > 0 && flows.length === 0) {
       const hallVa = companions ? "va" : undefined;
-      const hallExpression = areaFormulaDisplay(companions, includeAreaTaxa).replace(
+      const hallExpression = areaFormulaDisplay(companions).replace(
         "Ad = ",
         "Ad_d = ",
       );
@@ -667,7 +569,6 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             hallVa,
-            areaTaxaId,
           ),
         toExcel: (cells) =>
           areaExcel(
@@ -676,11 +577,10 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             hallVa,
-            areaTaxaId,
           ),
       });
       for (const item of arrivalsLoose) {
-        const expression = connectionExpression(item, false, includeAreaTaxa);
+        const expression = connectionExpression(item, false);
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -688,23 +588,9 @@ export function capacityFormulas(copy: {
           origem: `${expression}. Conexões sem acompanhante.`,
           expression,
           evaluate: (inputs) =>
-            areaValue(
-              inputs,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
+            areaValue(inputs, item.demanda, item.emp, item.toi),
           toExcel: (cells) =>
-            areaExcel(
-              cells,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
+            areaExcel(cells, item.demanda, item.emp, item.toi),
         });
       }
       const sumDisplay = salaArrivalsSumDisplay(
@@ -726,19 +612,10 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             hallVa,
-            areaTaxaId,
           ) +
           arrivalsLoose.reduce(
             (sum, item) =>
-              sum +
-              areaValue(
-                inputs,
-                item.demanda,
-                item.emp,
-                item.toi,
-                undefined,
-                areaTaxaId,
-              ),
+              sum + areaValue(inputs, item.demanda, item.emp, item.toi),
             0,
           ),
         toExcel: (cells) =>
@@ -749,22 +626,14 @@ export function capacityFormulas(copy: {
               "espacoMinimoPorPassageiro",
               "tempoDeOcupacao",
               hallVa,
-              areaTaxaId,
             ),
             ...arrivalsLoose.map((item) =>
-              areaExcel(
-                cells,
-                item.demanda,
-                item.emp,
-                item.toi,
-                undefined,
-                areaTaxaId,
-              ),
+              areaExcel(cells, item.demanda, item.emp, item.toi),
             ),
           ].join("+"),
       });
     } else if (looseConnections.length > 0) {
-      const originExpression = `Ad_e = ${areaFormulaDisplay(companions, includeAreaTaxa).replace("Ad = ", "")}`;
+      const originExpression = `Ad_e = ${areaFormulaDisplay(companions).replace("Ad = ", "")}`;
       formulas.push({
         id: "areaMinimaEmbarque",
         label: "Área mínima de embarque (Ad_e)",
@@ -778,7 +647,6 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             companions ? "va" : undefined,
-            areaTaxaId,
           ),
         toExcel: (cells) =>
           areaExcel(
@@ -787,11 +655,10 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             companions ? "va" : undefined,
-            areaTaxaId,
           ),
       });
       for (const item of looseConnections) {
-        const expression = connectionExpression(item, false, includeAreaTaxa);
+        const expression = connectionExpression(item, false);
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -799,23 +666,9 @@ export function capacityFormulas(copy: {
           origem: `${expression}. Conexões sem acompanhante.`,
           expression,
           evaluate: (inputs) =>
-            areaValue(
-              inputs,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
+            areaValue(inputs, item.demanda, item.emp, item.toi),
           toExcel: (cells) =>
-            areaExcel(
-              cells,
-              item.demanda,
-              item.emp,
-              item.toi,
-              undefined,
-              areaTaxaId,
-            ),
+            areaExcel(cells, item.demanda, item.emp, item.toi),
         });
       }
       const sumDisplay = simpleConnectionSumDisplay(boardingPairsOf(looseConnections));
@@ -832,19 +685,10 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             companions ? "va" : undefined,
-            areaTaxaId,
           ) +
           looseConnections.reduce(
             (sum, item) =>
-              sum +
-              areaValue(
-                inputs,
-                item.demanda,
-                item.emp,
-                item.toi,
-                undefined,
-                areaTaxaId,
-              ),
+              sum + areaValue(inputs, item.demanda, item.emp, item.toi),
             0,
           ),
         toExcel: (cells) =>
@@ -855,38 +699,30 @@ export function capacityFormulas(copy: {
               "espacoMinimoPorPassageiro",
               "tempoDeOcupacao",
               companions ? "va" : undefined,
-              areaTaxaId,
             ),
             ...looseConnections.map((item) =>
-              areaExcel(
-                cells,
-                item.demanda,
-                item.emp,
-                item.toi,
-                undefined,
-                areaTaxaId,
-              ),
+              areaExcel(cells, item.demanda, item.emp, item.toi),
             ),
           ].join("+"),
       });
     } else if (includeSplitLounge) {
-      const expression = splitLoungeFormulaDisplay(includeAreaTaxa);
+      const expression = splitLoungeFormulaDisplay();
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
         unit: "m²",
         origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé.`,
         expression,
-        evaluate: (inputs) => splitLoungeArea(inputs, areaTaxaId),
-        toExcel: (cells) => splitLoungeExcel(cells, areaTaxaId),
+        evaluate: (inputs) => splitLoungeArea(inputs),
+        toExcel: (cells) => splitLoungeExcel(cells),
       });
     } else {
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
         unit: "m²",
-        origem: `${areaFormulaDisplay(companions, includeAreaTaxa)}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
-        expression: areaFormulaDisplay(companions, includeAreaTaxa),
+        origem: `${areaFormulaDisplay(companions)}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
+        expression: areaFormulaDisplay(companions),
         evaluate: (inputs) =>
           areaValue(
             inputs,
@@ -894,7 +730,6 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             companions ? "va" : undefined,
-            areaTaxaId,
           ),
         toExcel: (cells) =>
           areaExcel(
@@ -903,14 +738,13 @@ export function capacityFormulas(copy: {
             "espacoMinimoPorPassageiro",
             "tempoDeOcupacao",
             companions ? "va" : undefined,
-            areaTaxaId,
           ),
       });
     }
   }
 
-  const seatsDemand = withDemandTu("DHp", includeAreaTaxa);
-  const seatsDemandE = withDemandTu("DHp_e", includeAreaTaxa);
+  const seatsDemand = "DHp";
+  const seatsDemandE = "DHp_e";
 
   if (includeSeats && flows.length === 2) {
     const boarding = flows.find((flow) => flow.area === "areaMinimaEmbarque");
@@ -924,13 +758,11 @@ export function capacityFormulas(copy: {
         expression: `⌈(${seatsDemandE} × Toi_e / 60) × P_min%⌉`,
         evaluate: (inputs) =>
           ceilCount(
-            ((usedDemand(inputs, boarding.demanda, areaTaxaId) *
-              inputs[boarding.toi]) /
-              60) *
+            ((inputs[boarding.demanda] * inputs[boarding.toi]) / 60) *
               (inputs.percentualMinimoAssentos / 100),
           ),
         toExcel: (cells) =>
-          `ROUNDUP((${usedDemandExcel(cells, boarding.demanda, areaTaxaId)}*${requiredCell(cells, boarding.toi)}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
+          `ROUNDUP((${requiredCell(cells, boarding.demanda)}*${requiredCell(cells, boarding.toi)}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
       });
     }
   } else if (includeSeats) {
@@ -943,13 +775,11 @@ export function capacityFormulas(copy: {
       expression: `⌈(${seatsDemand} × Toi / 60) × P_min%⌉`,
       evaluate: (inputs) =>
         ceilCount(
-          ((usedDemand(inputs, "demandaPico", areaTaxaId) *
-            inputs.tempoDeOcupacao) /
-            60) *
+          ((inputs.demandaPico * inputs.tempoDeOcupacao) / 60) *
             (inputs.percentualMinimoAssentos / 100),
         ),
       toExcel: (cells) =>
-        `ROUNDUP((${usedDemandExcel(cells, "demandaPico", areaTaxaId)}*${requiredCell(cells, "tempoDeOcupacao")}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
+        `ROUNDUP((${requiredCell(cells, "demandaPico")}*${requiredCell(cells, "tempoDeOcupacao")}/60)*(${requiredCell(cells, "percentualMinimoAssentos")}/100),0)`,
     });
   }
 
