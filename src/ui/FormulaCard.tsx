@@ -104,7 +104,7 @@ export function SeatsFormulaLine({
   const formula = contract.formulas.find((item) => item.id === "assentosMinimos");
   if (!formula) return null;
   const numerator = seatsNumerator(formula.expression);
-  const label = `Assentos = ⌈(${numerator} / 60) × P_min⌉`;
+  const label = `Assentos = ⌈(${numerator} / 60) × P_min%⌉`;
   return (
     <>
       <p className="formula-kicker formula-kicker-follow">Número mínimo de assentos</p>
@@ -122,7 +122,7 @@ export function SeatsFormulaLine({
             <span className="tex-den">60</span>
           </span>
           <span>
-            × <TexText text="P_min" />
+            × <TexText text="P_min%" />
           </span>
         </span>
         <span className="tex-ceil-brace tex-ceil-brace-close" aria-hidden="true">
