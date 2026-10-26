@@ -76,7 +76,7 @@ export function beltTr(inputs: ResolvedInputs): number {
 export function beltLmp(inputs: ResolvedInputs): number {
   const value = inputs.comprimentoLinearPassageiro;
   if (!Number.isFinite(value)) return BELT_LMP_MIN;
-  return Math.max(value, BELT_LMP_MIN);
+  return value;
 }
 
 export function beltTermValue(
@@ -101,7 +101,7 @@ function beltTermExcel(
   taxaId: ComponentParamId | null,
 ): string {
   const tr = `${requiredCell(cells, "taxaRetiradaBagagem")}/100`;
-  const lmp = `MAX(${requiredCell(cells, "comprimentoLinearPassageiro")},${BELT_LMP_MIN})`;
+  const lmp = requiredCell(cells, "comprimentoLinearPassageiro");
   const demand = usedDemandExcel(cells, demanda, taxaId);
   return `(${demand}*(${tr})*${lmp}*${requiredCell(cells, toi)})/60`;
 }
@@ -854,7 +854,7 @@ export function capacityFormulas(copy: {
       return pair ? [{ item, pair }] : [];
     });
     const beltOrigem =
-      "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.";
+      "Manual de Anteprojeto. Comprimento mínimo da esteira de restituição de bagagens. Taxa de recirculação padrão 30% e Lmp padrão 0,9 m; valor diferente, inclusive abaixo, pede justificativa. A conta usa o valor informado. Atende se o comprimento somado das esteiras for maior ou igual a C.";
     if (beltPairs.length > 0) {
       const hallExpression = `C_d = ${beltTermRhs(includeBeltTaxa)}`;
       formulas.push({

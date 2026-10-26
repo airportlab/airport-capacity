@@ -56,7 +56,7 @@ export function ParametersTab({
         <p className="panel-lead">
           Padrões do requisito de esteira. Não se separam por natureza. Valor
           diferente pede justificativa. A taxa de recirculação pode ficar
-          abaixo de 30%.
+          abaixo de 30% e o Lmp abaixo de 0,9 m.
         </p>
         <div className="pmd-wrap">
           <table className="pmd-table manual-single">

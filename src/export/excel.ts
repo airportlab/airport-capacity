@@ -1391,7 +1391,7 @@ function writeBeltBlock(
     .find((formula) => formula.id === "comprimentoMinimoEsteira")?.expression;
   const note = sheet.getRow(layout.belt.noteRow);
   note.getCell(1).value = expression
-    ? `Comprimento mínimo da esteira: ${expression}. Taxa de recirculação padrão 30%; valor diferente pede justificativa. Lmp mínimo 0,9 m. Atende se o comprimento somado das esteiras for maior ou igual a C.`
+    ? `Comprimento mínimo da esteira: ${expression}. Taxa de recirculação padrão 30% e Lmp padrão 0,9 m; valor diferente, inclusive abaixo, pede justificativa. A conta usa o valor informado. Atende se o comprimento somado das esteiras for maior ou igual a C.`
     : "Comprimento mínimo da esteira.";
   note.getCell(1).alignment = { wrapText: true, vertical: "middle" };
   sheet.mergeCells(

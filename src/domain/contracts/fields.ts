@@ -491,7 +491,8 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     label: "Comprimento de esteira por passageiro (Lmp)",
     unit: "m",
     defaultValue: 0.9,
-    origem: "Manual de Anteprojeto. Mínimo 0,9 m.",
+    origem:
+      "Manual de Anteprojeto. Padrão 0,9 m. Valor diferente, inclusive abaixo, pede justificativa.",
   },
   comprimentoEsteiras: {
     id: "comprimentoEsteiras",

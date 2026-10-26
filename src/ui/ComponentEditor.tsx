@@ -272,15 +272,6 @@ function BeltManualControl({
         draft={draft}
         origem={field.origem}
         onValueChange={onValueChange}
-        onBlur={() => {
-          if (
-            field.id === "comprimentoLinearPassageiro" &&
-            parsed !== null &&
-            parsed < standard
-          ) {
-            onValueChange(formatEditable(standard));
-          }
-        }}
       />
       {altered ? (
         <>

@@ -709,8 +709,8 @@ export function BeltFormulaCard({
       {afterEquation}
       <p className="origem">
         Manual de Anteprojeto. Atende se o comprimento somado das esteiras for
-        maior ou igual a C. Taxa de recirculação padrão 30%; valor diferente
-        pede justificativa. Lmp mínimo 0,9 m.
+        maior ou igual a C. Taxa de recirculação padrão 30% e Lmp padrão 0,9 m;
+        valor diferente, inclusive abaixo, pede justificativa.
       </p>
     </div>
   );
