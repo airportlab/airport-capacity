@@ -18,7 +18,12 @@ import {
   TexText,
 } from "./FormulaCard";
 import { PmdTable } from "./PmdTable";
-import { complianceClass, complianceLabel, equipmentColumn } from "./SummaryPage";
+import {
+  complianceClass,
+  complianceLabel,
+  equipmentColumn,
+  requirementFailureTally,
+} from "./SummaryPage";
 
 interface ReportViewProps {
   kind: PdfKind;
@@ -43,13 +48,7 @@ export function ReportView({
 }: ReportViewProps) {
   const generated = formatReportDate(capturedAt);
   const name = formatAirportName(airportName);
-  const failedArea = contracts.filter(
-    (contract) => evaluations[contract.id]?.areaCheck?.atende === false,
-  ).length;
-  const failedEquipment = contracts.filter((contract) => {
-    const column = equipmentColumn(evaluations[contract.id]);
-    return column?.check.atende === false;
-  }).length;
+  const tally = requirementFailureTally(contracts, evaluations);
 
   return (
     <article className="report" data-kind={kind}>
@@ -64,8 +63,7 @@ export function ReportView({
         <p className="report-meta">{sourceCitation(airport)}</p>
         <p className="report-meta">{UNOFFICIAL_NOTICE}</p>
         <p className="report-tally">
-          {failedArea} não atende{failedArea === 1 ? "" : "m"} área ·{" "}
-          {failedEquipment} não atende{failedEquipment === 1 ? "" : "m"} equipamentos
+          {tally}
         </p>
       </header>
 
@@ -77,20 +75,23 @@ export function ReportView({
               <th>Componente</th>
               <th>Área</th>
               <th>Equipamentos</th>
+              <th>Esteira</th>
             </tr>
           </thead>
           <tbody>
             {contracts.map((contract) => {
               const evaluation = evaluations[contract.id];
-              const column = equipmentColumn(evaluation);
               return (
                 <tr key={contract.id}>
                   <td>{contract.title}</td>
                   <td className={complianceClass(evaluation?.areaCheck)}>
                     {complianceLabel(evaluation?.areaCheck)}
                   </td>
-                  <td className={complianceClass(column?.check)}>
-                    {complianceLabel(column?.check)}
+                  <td className={complianceClass(evaluation?.equipmentCheck)}>
+                    {complianceLabel(evaluation?.equipmentCheck)}
+                  </td>
+                  <td className={complianceClass(evaluation?.esteiraCheck)}>
+                    {complianceLabel(evaluation?.esteiraCheck)}
                   </td>
                 </tr>
               );

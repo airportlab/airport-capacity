@@ -185,6 +185,7 @@ function collectParamLines(
     const wanted = new Set<string>();
     if (item.entry.requirements.area) wanted.add("areaMinima");
     if (item.entry.requirements.equipment) wanted.add("numeroMinimoEquipamentos");
+    if (item.entry.requirements.esteira) wanted.add("comprimentoMinimoEsteira");
     const seen = new Set<ComponentParamId>();
     for (const formula of item.contract.formulas) {
       if (!wanted.has(formula.id)) continue;
@@ -1127,6 +1128,8 @@ interface PainelComponentSource {
   areaMeets: PainelMeets | null;
   equipmentCell: string | null;
   equipmentMeets: PainelMeets | null;
+  beltCell: string | null;
+  beltMeets: PainelMeets | null;
 }
 
 function emptyPainelSource(): PainelComponentSource {
@@ -1139,6 +1142,8 @@ function emptyPainelSource(): PainelComponentSource {
     areaMeets: null,
     equipmentCell: null,
     equipmentMeets: null,
+    beltCell: null,
+    beltMeets: null,
   };
 }
 
@@ -1292,12 +1297,14 @@ function writePainel(
   const sheet = workbook.addWorksheet("Painel", {
     views: [{ showGridLines: false, showRowColHeaders: true }],
   });
+  const painelLast = 12;
   sheet.columns = [
     { width: 2 },
     { width: 6 },
     { width: PAINEL_NAME_WIDTH },
     { width: PAINEL_DHP_WIDTH },
     { width: 11 },
+    { width: 14 },
     { width: 14 },
     { width: 12 },
     { width: 12 },
@@ -1311,30 +1318,31 @@ function writePainel(
     `PAINEL DE ACOMPANHAMENTO DO NÍVEL DE SERVIÇO  |  ${airport.icao}`;
   title.getCell(2).font = { bold: true };
   title.getCell(2).alignment = { horizontal: "center", vertical: "middle" };
-  sheet.mergeCells(2, 2, 2, 11);
-  band(title, 2, 11, "blue");
+  sheet.mergeCells(2, 2, 2, painelLast);
+  band(title, 2, painelLast, "blue");
 
   const head = sheet.getRow(4);
   head.getCell(2).value = "ID";
   head.getCell(3).value = "COMPONENTE OPERACIONAL";
   head.getCell(4).value = "DHp";
   head.getCell(5).value = "Parâmetros mínimos de dimensionamento";
-  head.getCell(8).value = "Especificações mínimas da infraestrutura aeroportuária";
-  sheet.mergeCells(4, 5, 4, 7);
-  sheet.mergeCells(4, 8, 4, 11);
+  head.getCell(9).value = "Especificações mínimas da infraestrutura aeroportuária";
+  sheet.mergeCells(4, 5, 4, 8);
+  sheet.mergeCells(4, 9, 4, painelLast);
   const sub = sheet.getRow(5);
   sub.getCell(5).value = "Áreas";
   sub.getCell(6).value = "Equipamentos";
-  sub.getCell(7).value = "% Proces. PBB";
-  sub.getCell(8).value = "Percursos";
-  sub.getCell(9).value = "Circulação horizontal";
-  sub.getCell(10).value = "Circulação vertical";
-  sub.getCell(11).value = "Filas pré-embarque";
+  sub.getCell(7).value = "Esteiras";
+  sub.getCell(8).value = "% Proces. PBB";
+  sub.getCell(9).value = "Percursos";
+  sub.getCell(10).value = "Circulação horizontal";
+  sub.getCell(11).value = "Circulação vertical";
+  sub.getCell(12).value = "Filas pré-embarque";
   sheet.mergeCells(4, 2, 5, 2);
   sheet.mergeCells(4, 3, 5, 3);
   sheet.mergeCells(4, 4, 5, 4);
-  band(head, 2, 11, "header");
-  band(sub, 2, 11, "header");
+  band(head, 2, painelLast, "header");
+  band(sub, 2, painelLast, "header");
   head.height = 30;
   sub.height = 32;
 
@@ -1343,7 +1351,7 @@ function writePainel(
     const row = sheet.getRow(rowNumber);
     row.getCell(2).value = index + 1;
     row.getCell(3).value = contract.title;
-    band(row, 2, 11, "data", index % 2 === 0);
+    band(row, 2, painelLast, "data", index % 2 === 0);
     row.getCell(3).alignment = {
       horizontal: "left",
       vertical: "middle",
@@ -1363,20 +1371,26 @@ function writePainel(
       source?.equipmentMeets ?? null,
       sourceSheet,
     );
-    for (const column of [7, 8, 10, 11]) {
+    writePainelStatus(
+      row.getCell(7),
+      source?.beltCell ?? null,
+      source?.beltMeets ?? null,
+      sourceSheet,
+    );
+    for (const column of [8, 9, 11, 12]) {
       row.getCell(column).value = MARK_NA;
     }
     const links = atendeLinks.get(contract.id) ?? [];
     if (links.length > 0) {
       writeFormula(
-        row.getCell(9),
+        row.getCell(10),
         circulationStatusFormula(
           links.map((link) => sheetRef(sourceSheet, link.cell)),
         ),
         circulationStatus(links.map((link) => link.atende)),
       );
     } else {
-      row.getCell(9).value = MARK_NA;
+      row.getCell(10).value = MARK_NA;
     }
     row.height = Math.max(
       fittedRowHeight(contract.title, PAINEL_NAME_WIDTH),
@@ -1388,7 +1402,8 @@ function writePainel(
   if (model.contracts.length > 0) {
     paintSymbols(sheet, 6, rowNumber - 1, "E", 1);
     paintSymbols(sheet, 6, rowNumber - 1, "F", 3);
-    paintSymbols(sheet, 6, rowNumber - 1, "I", 5);
+    paintSymbols(sheet, 6, rowNumber - 1, "G", 5);
+    paintSymbols(sheet, 6, rowNumber - 1, "J", 7);
   }
 
   const legend = sheet.getRow(rowNumber);
@@ -1399,14 +1414,14 @@ function writePainel(
     vertical: "middle",
     wrapText: true,
   };
-  sheet.mergeCells(rowNumber, 2, rowNumber, 11);
-  band(legend, 2, 11, "header");
+  sheet.mergeCells(rowNumber, 2, rowNumber, painelLast);
+  band(legend, 2, painelLast, "header");
   legend.getCell(2).alignment = {
     horizontal: "left",
     vertical: "middle",
     wrapText: true,
   };
-  fitReportPage(sheet, "K", rowNumber, "4:5");
+  fitReportPage(sheet, "L", rowNumber, "4:5");
 }
 
 export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> {
@@ -1754,6 +1769,108 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     ),
   );
 
+  rowNumber += 1;
+  const beltTitle = sheet.getRow(rowNumber);
+  beltTitle.getCell(2).value = "ESTEIRAS DISPONIBILIZADAS";
+  beltTitle.getCell(2).font = { bold: true };
+  beltTitle.getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+  sheet.mergeCells(rowNumber, 2, rowNumber, 7);
+  band(beltTitle, PAGE_START, PAGE_END, "section");
+  beltTitle.getCell(2).alignment = { horizontal: "left", vertical: "middle" };
+  rowNumber += 1;
+
+  const beltHead = rowNumber;
+  const beltTop = sheet.getRow(beltHead);
+  beltTop.getCell(2).value = "REF";
+  beltTop.getCell(3).value = "COMPONENTE OPERACIONAL";
+  beltTop.getCell(4).value = "ESTEIRA (m)";
+  beltTop.getCell(6).value = "ADEQUAÇÃO";
+  sheet.mergeCells(beltHead, 4, beltHead, 5);
+  sheet.mergeCells(beltHead, 6, beltHead, 7);
+  const beltSub = sheet.getRow(beltHead + 1);
+  beltSub.getCell(4).value = "VERIFICADO";
+  beltSub.getCell(5).value = "MÍNIMO";
+  beltSub.getCell(6).value = "SATURAÇÃO";
+  beltSub.getCell(7).value = "ATENDE";
+  sheet.mergeCells(beltHead, 2, beltHead + 1, 2);
+  sheet.mergeCells(beltHead, 3, beltHead + 1, 3);
+  band(beltTop, PAGE_START, PAGE_END, "header");
+  band(beltSub, PAGE_START, PAGE_END, "header");
+  beltSub.height = 32;
+  rowNumber = beltHead + 2;
+
+  let beltRow = 0;
+  let beltMeetsFirst = 0;
+  let beltMeetsLast = 0;
+  for (const item of indexed) {
+    if (!item.entry?.requirements.esteira) continue;
+    const evaluation = model.evaluations[item.contract.id];
+    const row = sheet.getRow(rowNumber);
+    row.getCell(2).value = item.id;
+    row.getCell(3).value = item.contract.title;
+    const measured = evaluation?.inputs.comprimentoEsteiras;
+    const minimum = evaluation?.results.comprimentoMinimoEsteira;
+    const verified = row.getCell(4);
+    verified.value = Number.isFinite(measured) ? measured : null;
+    verified.numFmt = "#,##0.00";
+    const minima = row.getCell(5);
+    const beltFormula = item.contract.formulas.find(
+      (formula) => formula.id === "comprimentoMinimoEsteira",
+    );
+    const check = evaluation?.esteiraCheck;
+    if (
+      evaluation &&
+      beltFormula &&
+      minimum !== undefined &&
+      Number.isFinite(minimum)
+    ) {
+      pending.push({
+        componentId: item.contract.id,
+        row: rowNumber,
+        formula: beltFormula,
+        inputs: evaluation.inputs,
+        result: minimum,
+        saturacao: null,
+      });
+    } else {
+      minima.value = null;
+    }
+    const occupancy = row.getCell(6);
+    if (check && Number.isFinite(check.saturacao)) {
+      writeFormula(
+        occupancy,
+        `E${rowNumber}/D${rowNumber}`,
+        check.saturacao / 100,
+        "0%",
+      );
+    }
+    const meets = row.getCell(7);
+    if (check && Number.isFinite(minimum)) {
+      writeFormula(
+        meets,
+        `IF(D${rowNumber}>=E${rowNumber},"SIM","NÃO")`,
+        check.atende ? "SIM" : "NÃO",
+      );
+    } else {
+      meets.value = check ? (check.atende ? "SIM" : "NÃO") : "";
+    }
+    if (beltMeetsFirst === 0) beltMeetsFirst = rowNumber;
+    beltMeetsLast = rowNumber;
+    const beltPainel = painelSource(painelSources, item.contract.id);
+    beltPainel.beltCell = `G${rowNumber}`;
+    beltPainel.beltMeets = meetsText(check);
+    band(row, PAGE_START, PAGE_END, "data", beltRow % 2 === 0);
+    verified.font = { bold: true, color: { argb: INK } };
+    beltRow += 1;
+    row.getCell(3).alignment = {
+      horizontal: "left",
+      vertical: "middle",
+      wrapText: true,
+    };
+    rowNumber += 1;
+  }
+  paintMeets(sheet, beltMeetsFirst, beltMeetsLast, 5);
+
   const unmodeled = appendUnmodeled(
     sheet,
     rowNumber - 1,
@@ -1854,7 +1971,8 @@ function memoryParamIds(
     (id) =>
       !id.startsWith("demanda") &&
       id !== "areaMedida" &&
-      id !== "quantidadeEquipamentos",
+      id !== "quantidadeEquipamentos" &&
+      id !== "comprimentoEsteiras",
   );
 }
 
@@ -2011,9 +2129,14 @@ function writeMemoryAccount(
   item: ModeloIndexed,
   model: ModeloExcelModel,
   addresses: Map<string, string>,
-  kind: "area" | "equipment",
+  kind: "area" | "equipment" | "belt",
 ): { nextRow: number; meetsRow: number } {
-  const formulaId = kind === "area" ? "areaMinima" : "numeroMinimoEquipamentos";
+  const formulaId =
+    kind === "area"
+      ? "areaMinima"
+      : kind === "belt"
+        ? "comprimentoMinimoEsteira"
+        : "numeroMinimoEquipamentos";
   const formula = item.contract.formulas.find((entry) => entry.id === formulaId);
   const evaluation = model.evaluations[item.contract.id];
   if (!formula || !evaluation) return { nextRow: rowNumber, meetsRow: 0 };
@@ -2021,15 +2144,22 @@ function writeMemoryAccount(
   if (lines.length === 0) return { nextRow: rowNumber, meetsRow: 0 };
 
   const title =
-    kind === "area" ? "ÁREA DISPONIBILIZADA" : "EQUIPAMENTOS DISPONIBILIZADOS";
+    kind === "area"
+      ? "ÁREA DISPONIBILIZADA"
+      : kind === "belt"
+        ? "ESTEIRA DISPONIBILIZADA"
+        : "EQUIPAMENTOS DISPONIBILIZADOS";
+  const minimumLabel = kind === "area" ? "MÍNIMA" : kind === "belt" ? "MÍNIMO (m)" : "N";
+  const verifiedLabel =
+    kind === "area" ? "VERIFICADA" : kind === "belt" ? "VERIFICADO (m)" : "VERIFICADOS";
   rowNumber = sectionTitle(sheet, rowNumber, title, MEMORY_END);
   const header = sheet.getRow(rowNumber);
   header.getCell(COL_PARAM).value = "PARÂMETRO";
   header.getCell(COL_VALUE).value = "VALOR";
   header.getCell(COL_FLOW).value = "FLUXO";
   header.getCell(COL_DHP).value = "DHp";
-  header.getCell(COL_MINIMUM).value = kind === "area" ? "MÍNIMA" : "N";
-  header.getCell(COL_VERIFIED).value = kind === "area" ? "VERIFICADA" : "VERIFICADOS";
+  header.getCell(COL_MINIMUM).value = minimumLabel;
+  header.getCell(COL_VERIFIED).value = verifiedLabel;
   header.getCell(COL_SATURATION).value = "SATURAÇÃO";
   header.getCell(COL_MEETS).value = "ATENDE";
   band(header, PAGE_START, MEMORY_END, "header");
@@ -2038,14 +2168,8 @@ function writeMemoryAccount(
     ["VALOR", MEMORY_COLUMN_WIDTHS[COL_VALUE - 1]],
     ["FLUXO", MEMORY_COLUMN_WIDTHS[COL_FLOW - 1]],
     ["DHp", MEMORY_COLUMN_WIDTHS[COL_DHP - 1]],
-    [
-      kind === "area" ? "MÍNIMA" : "N",
-      MEMORY_COLUMN_WIDTHS[COL_MINIMUM - 1],
-    ],
-    [
-      kind === "area" ? "VERIFICADA" : "VERIFICADOS",
-      MEMORY_COLUMN_WIDTHS[COL_VERIFIED - 1],
-    ],
+    [minimumLabel, MEMORY_COLUMN_WIDTHS[COL_MINIMUM - 1]],
+    [verifiedLabel, MEMORY_COLUMN_WIDTHS[COL_VERIFIED - 1]],
     ["SATURAÇÃO", MEMORY_COLUMN_WIDTHS[COL_SATURATION - 1]],
     ["ATENDE", MEMORY_COLUMN_WIDTHS[COL_MEETS - 1]],
   ]);
@@ -2150,18 +2274,27 @@ function writeMemoryAccount(
   const result =
     kind === "area"
       ? evaluation.results.areaMinima
-      : evaluation.results.numeroMinimoEquipamentos;
+      : kind === "belt"
+        ? evaluation.results.comprimentoMinimoEsteira
+        : evaluation.results.numeroMinimoEquipamentos;
   const measured =
     kind === "area"
       ? evaluation.inputs.areaMedida
-      : evaluation.inputs.quantidadeEquipamentos;
+      : kind === "belt"
+        ? evaluation.inputs.comprimentoEsteiras
+        : evaluation.inputs.quantidadeEquipamentos;
   const verified = sheet.getRow(first).getCell(COL_VERIFIED);
   verified.value = Number.isFinite(measured) ? measured : null;
-  verified.numFmt = kind === "area" ? "#,##0.00" : "#,##0";
+  verified.numFmt = kind === "equipment" ? "#,##0" : "#,##0.00";
   verified.font = { bold: true, color: { argb: INK } };
   const minimumCell = `${columnName(COL_MINIMUM)}${first}`;
   const verifiedCell = `${columnName(COL_VERIFIED)}${first}`;
-  const check = kind === "area" ? evaluation.areaCheck : evaluation.equipmentCheck;
+  const check =
+    kind === "area"
+      ? evaluation.areaCheck
+      : kind === "belt"
+        ? evaluation.esteiraCheck
+        : evaluation.equipmentCheck;
   if (
     splitEquipment &&
     domesticFormula &&
@@ -2242,7 +2375,7 @@ function writeMemoryAccount(
         verifiedAddress: verifiedCell,
       },
     ], addresses);
-    if (kind === "area" && check && Number.isFinite(check.saturacao)) {
+    if (kind !== "equipment" && check && Number.isFinite(check.saturacao)) {
       writeFormula(
         sheet.getRow(first).getCell(COL_SATURATION),
         `${minimumCell}/${verifiedCell}`,
@@ -2268,7 +2401,7 @@ function writeComponentModeloBlock(
   item: ModeloIndexed,
   model: ModeloExcelModel,
   addresses: Map<string, string>,
-): { nextRow: number; areaRow: number; equipmentRow: number } {
+): { nextRow: number; areaRow: number; equipmentRow: number; beltRow: number } {
   const titleRow = rowNumber;
   rowNumber = sectionTitle(sheet, rowNumber, item.contract.title, MEMORY_END);
   sheet.getRow(titleRow).height = fittedRowHeight(
@@ -2340,7 +2473,21 @@ function writeComponentModeloBlock(
     }
   }
 
-  return { nextRow: rowNumber, areaRow, equipmentRow };
+  let beltRow = 0;
+  if (item.entry?.requirements.esteira) {
+    const belt = writeMemoryAccount(
+      sheet,
+      rowNumber,
+      item,
+      model,
+      addresses,
+      "belt",
+    );
+    rowNumber = belt.nextRow;
+    beltRow = belt.meetsRow;
+  }
+
+  return { nextRow: rowNumber, areaRow, equipmentRow, beltRow };
 }
 
 
@@ -2371,6 +2518,7 @@ function blockPainelSources(
   addresses: Map<string, string>,
   areaRows: Map<string, number>,
   equipmentRows: Map<string, number>,
+  beltRows: Map<string, number>,
 ): Map<string, PainelComponentSource> {
   const map = new Map<string, PainelComponentSource>();
   for (const item of indexed) {
@@ -2413,6 +2561,11 @@ function blockPainelSources(
       source.equipmentCell = `${columnName(COL_MEETS)}${equipmentRow}`;
       source.equipmentMeets = meetsText(evaluation?.equipmentCheck);
     }
+    const beltRow = beltRows.get(item.contract.id);
+    if (beltRow) {
+      source.beltCell = `${columnName(COL_MEETS)}${beltRow}`;
+      source.beltMeets = meetsText(evaluation?.esteiraCheck);
+    }
     map.set(item.contract.id, source);
   }
   return map;
@@ -2449,6 +2602,8 @@ export async function exportModeloPorComponente(
   const equipmentMeets: number[] = [];
   const areaRows = new Map<string, number>();
   const equipmentRows = new Map<string, number>();
+  const beltRows = new Map<string, number>();
+  const beltMeets: number[] = [];
   let rowNumber = 6;
   for (const item of indexed) {
     const block = writeComponentModeloBlock(
@@ -2466,6 +2621,10 @@ export async function exportModeloPorComponente(
       equipmentMeets.push(block.equipmentRow);
       equipmentRows.set(item.contract.id, block.equipmentRow);
     }
+    if (block.beltRow > 0) {
+      beltMeets.push(block.beltRow);
+      beltRows.set(item.contract.id, block.beltRow);
+    }
     rowNumber = block.nextRow + 1;
   }
 
@@ -2475,6 +2634,10 @@ export async function exportModeloPorComponente(
     priority += 2;
   }
   for (const row of equipmentMeets) {
+    paintMeets(sheet, row, row, priority, columnName(COL_MEETS));
+    priority += 2;
+  }
+  for (const row of beltMeets) {
     paintMeets(sheet, row, row, priority, columnName(COL_MEETS));
     priority += 2;
   }
@@ -2509,7 +2672,7 @@ export async function exportModeloPorComponente(
     workbook,
     { ...model, contracts: ordered },
     atendeByComponent(unmodeled.circulationRows),
-    blockPainelSources(indexed, model, addresses, areaRows, equipmentRows),
+    blockPainelSources(indexed, model, addresses, areaRows, equipmentRows, beltRows),
     POR_COMPONENTE_SHEET_NAME,
   );
   await downloadModeloWorkbook(workbook, "aeroporto-modelo-por-componente");

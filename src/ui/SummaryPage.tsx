@@ -89,6 +89,35 @@ export function equipmentColumn(
   return null;
 }
 
+function failureClause(count: number, noun: string): string {
+  return `${count} não atende${count === 1 ? "" : "m"} ${noun}`;
+}
+
+export function requirementFailureTally(
+  contracts: ComponentContract[],
+  evaluations: Record<ComponentId, Evaluation>,
+  invalidIds: readonly ComponentId[] = [],
+): string {
+  const skipped = new Set(invalidIds);
+  let failedArea = 0;
+  let failedEquipment = 0;
+  let failedEsteira = 0;
+  for (const contract of contracts) {
+    const evaluation = evaluations[contract.id];
+    if (!evaluation) continue;
+    if (!skipped.has(contract.id) && evaluation.areaCheck?.atende === false) {
+      failedArea += 1;
+    }
+    if (evaluation.equipmentCheck?.atende === false) failedEquipment += 1;
+    if (evaluation.esteiraCheck?.atende === false) failedEsteira += 1;
+  }
+  return [
+    failureClause(failedArea, "área"),
+    failureClause(failedEquipment, "equipamentos"),
+    failureClause(failedEsteira, "esteira"),
+  ].join(" · ");
+}
+
 function rowTone(evaluation: Evaluation | undefined): string {
   if (!evaluation) return "";
   const checks = [
@@ -125,15 +154,7 @@ export function SummaryPage({
     evaluationMonth,
     evaluationYear,
   );
-  const failedArea = contracts.filter(
-    (contract) =>
-      !invalidIds.includes(contract.id) &&
-      evaluations[contract.id]?.areaCheck?.atende === false,
-  ).length;
-  const failedEquipment = contracts.filter((contract) => {
-    const column = equipmentColumn(evaluations[contract.id]);
-    return column?.check.atende === false;
-  }).length;
+  const tally = requirementFailureTally(contracts, evaluations, invalidIds);
   const groups = journeyGroups(contracts, kinds);
 
   return (
@@ -211,9 +232,7 @@ export function SummaryPage({
           Data do relatório: <strong>{today}</strong>
         </p>
         <p className="summary-tally">
-          {formatAirportName(airportName)} · {failedArea} não atende
-          {failedArea === 1 ? "" : "m"} área · {failedEquipment} não atende
-          {failedEquipment === 1 ? "" : "m"} equipamentos
+          {formatAirportName(airportName)} · {tally}
         </p>
         <div className="actions">
           <button type="button" className="accent" onClick={onRegister}>
@@ -307,19 +326,19 @@ export function SummaryPage({
                 <th>Componente</th>
                 <th>Área</th>
                 <th>Equipamentos</th>
+                <th>Esteira</th>
                 <th></th>
               </tr>
             </thead>
             {groups.map((group) => (
               <tbody key={group.leg}>
                 <tr className="summary-leg-row">
-                  <th colSpan={4} scope="rowgroup">
+                  <th colSpan={5} scope="rowgroup">
                     {LEG_LABEL[group.leg]}
                   </th>
                 </tr>
                 {group.contracts.map((contract) => {
                   const evaluation = evaluations[contract.id];
-                  const column = equipmentColumn(evaluation);
                   return (
                     <tr key={contract.id} className={rowTone(evaluation)}>
                       <td>
@@ -334,8 +353,11 @@ export function SummaryPage({
                       <td className={complianceClass(evaluation?.areaCheck)}>
                         {complianceLabel(evaluation?.areaCheck)}
                       </td>
-                      <td className={complianceClass(column?.check)}>
-                        {complianceLabel(column?.check)}
+                      <td className={complianceClass(evaluation?.equipmentCheck)}>
+                        {complianceLabel(evaluation?.equipmentCheck)}
+                      </td>
+                      <td className={complianceClass(evaluation?.esteiraCheck)}>
+                        {complianceLabel(evaluation?.esteiraCheck)}
                       </td>
                       <td>
                         <button
