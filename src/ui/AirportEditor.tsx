@@ -109,6 +109,12 @@ export function AirportEditor() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [airportName, setAirportName] = useState(initial.airportName);
   const [airportId, setAirportId] = useState<AirportId>(initial.airportId);
+  const [evaluationMonth, setEvaluationMonth] = useState<number | null>(
+    initial.evaluationMonth,
+  );
+  const [evaluationYear, setEvaluationYear] = useState<number | null>(
+    initial.evaluationYear,
+  );
   const airport = airportById(airportId);
   const [registry, setRegistry] = useState<RegistryEntry[]>(initial.registry);
   const [components, setComponents] = useState(initial.components);
@@ -220,6 +226,8 @@ export function AirportEditor() {
   function applyState(next: EditorState | PersistedAirportState) {
     setAirportName(next.airportName);
     setAirportId(next.airportId);
+    setEvaluationMonth(next.evaluationMonth);
+    setEvaluationYear(next.evaluationYear);
     setRegistry(next.registry);
     setComponents(next.components);
     setComponentOrigens(next.componentOrigens);
@@ -249,6 +257,8 @@ export function AirportEditor() {
         airportName,
         airportId: airport.id,
         roundId: airport.roundId,
+        evaluationMonth,
+        evaluationYear,
         registry,
         components,
         componentOrigens,
@@ -308,7 +318,14 @@ export function AirportEditor() {
     ) {
       return;
     }
-    applyState(exampleEditorState(airportName, airport.id));
+    applyState(
+      exampleEditorState(
+        airportName,
+        airport.id,
+        evaluationMonth,
+        evaluationYear,
+      ),
+    );
     setTab("summary");
     setMessage(
       "Exemplo fictício carregado: componentes, variantes e circulações ilustrativos.",
@@ -848,6 +865,8 @@ export function AirportEditor() {
         airportName: formatAirportName(airportName),
         airport,
         generatedAt: new Date(),
+        evaluationMonth,
+        evaluationYear,
         registry,
         contracts,
         evaluations,
@@ -999,6 +1018,10 @@ export function AirportEditor() {
           onAirportNameChange={setAirportName}
           airportId={airport.id}
           onAirportChange={handleAirportChange}
+          evaluationMonth={evaluationMonth}
+          evaluationYear={evaluationYear}
+          onEvaluationMonthChange={setEvaluationMonth}
+          onEvaluationYearChange={setEvaluationYear}
           sourceNote={sourceCitation(airport)}
           contracts={contracts}
           kinds={Object.fromEntries(

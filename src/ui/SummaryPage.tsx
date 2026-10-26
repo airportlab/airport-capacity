@@ -6,13 +6,22 @@ import {
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import { journeyLeg, journeyRank } from "../domain/templates/organs";
 import type { RequirementCheckResult, ComponentContract, ComponentId, Evaluation } from "../domain/types";
-import { formatAirportName, formatReportDate } from "./format";
+import {
+  evaluationMonths,
+  formatAirportName,
+  formatEvaluationPeriod,
+  formatReportDate,
+} from "./format";
 
 interface SummaryPageProps {
   airportName: string;
   onAirportNameChange: (value: string) => void;
   airportId: AirportId;
   onAirportChange: (id: AirportId) => void;
+  evaluationMonth: number | null;
+  evaluationYear: number | null;
+  onEvaluationMonthChange: (month: number | null) => void;
+  onEvaluationYearChange: (year: number | null) => void;
   sourceNote: string;
   contracts: ComponentContract[];
   kinds: Record<ComponentId, string | undefined>;
@@ -96,6 +105,10 @@ export function SummaryPage({
   onAirportNameChange,
   airportId,
   onAirportChange,
+  evaluationMonth,
+  evaluationYear,
+  onEvaluationMonthChange,
+  onEvaluationYearChange,
   sourceNote,
   contracts,
   kinds,
@@ -108,6 +121,10 @@ export function SummaryPage({
   onRemoveAll,
 }: SummaryPageProps) {
   const today = formatReportDate(new Date());
+  const evaluationPeriod = formatEvaluationPeriod(
+    evaluationMonth,
+    evaluationYear,
+  );
   const failedArea = contracts.filter(
     (contract) =>
       !invalidIds.includes(contract.id) &&
@@ -154,6 +171,40 @@ export function SummaryPage({
               />
             </label>
           </div>
+          <div className="summary-identity-pair">
+            <label className="field">
+              <span className="field-label">Mês de início</span>
+              <select
+                value={evaluationMonth ?? ""}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  onEvaluationMonthChange(raw === "" ? null : Number(raw));
+                }}
+              >
+                <option value="">—</option>
+                {evaluationMonths.map((name, index) => (
+                  <option key={name} value={index + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field-label">Ano de início</span>
+              <input
+                inputMode="numeric"
+                value={evaluationYear ?? ""}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
+                  const year = digits === "" ? null : Number(digits);
+                  onEvaluationYearChange(year != null && year >= 1 ? year : null);
+                }}
+              />
+            </label>
+          </div>
+          <p className="summary-date">
+            Período de avaliação: <strong>{evaluationPeriod}</strong>
+          </p>
           <p className="summary-date">{sourceNote}</p>
         </div>
         <p className="summary-date">

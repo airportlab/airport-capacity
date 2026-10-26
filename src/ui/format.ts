@@ -68,3 +68,40 @@ export function formatReportDate(date: Date): string {
     timeStyle: "short",
   }).format(date);
 }
+
+export const evaluationMonths = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+] as const;
+
+export function formatEvaluationPeriod(
+  month: number | null,
+  year: number | null,
+): string {
+  if (
+    month == null ||
+    year == null ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    month < 1 ||
+    month > 12 ||
+    year < 1
+  ) {
+    return "—";
+  }
+  const start = evaluationMonths[month - 1];
+  const end = evaluationMonths[(month - 1 + 11) % 12];
+  const endYear = year + Math.floor((month - 1 + 11) / 12);
+  if (endYear === year) return `${start} a ${end} de ${year}`;
+  return `${start} de ${year} a ${end} de ${endYear}`;
+}

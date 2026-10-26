@@ -27,6 +27,7 @@ import {
 } from "../domain/types";
 import { journeyRank } from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
+import { formatEvaluationPeriod } from "../ui/format";
 
 const INK = "FF1C2430";
 const SLATE = "FF2F4A63";
@@ -73,6 +74,8 @@ const MIN_ROW_HEIGHT = LINE_HEIGHT;
 export interface ModeloExcelModel {
   airport?: AirportSource;
   generatedAt: Date;
+  evaluationMonth: number | null;
+  evaluationYear: number | null;
   registry: RegistryEntry[];
   contracts: ComponentContract[];
   evaluations: Record<ComponentId, Evaluation>;
@@ -336,13 +339,6 @@ function paintMeets(
       },
     ],
   });
-}
-
-function formatReportDate(date: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "long",
-    timeStyle: "short",
-  }).format(date);
 }
 
 function formatCount(value: number): string {
@@ -1422,22 +1418,12 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     views: [{ showGridLines: false, showRowColHeaders: true }],
   });
   sheet.columns = MODELO_COLUMN_WIDTHS.map((width) => ({ width }));
-
-  label(sheet.getCell("B3"), "AEROPORTO");
-  sheet.mergeCells("B3:C3");
-  label(sheet.getCell("D3"), "PERÍODO DE AVALIAÇÃO");
-  sheet.mergeCells("D3:G3");
-  const airportCell = sheet.getCell("B4");
-  airportCell.value = `${airport.place} - ${airport.icao}`;
-  airportCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  airportCell.font = { bold: true };
-  sheet.mergeCells("B4:C4");
-  const periodCell = sheet.getCell("D4");
-  periodCell.value = formatReportDate(model.generatedAt);
-  periodCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-  sheet.mergeCells("D4:G4");
-  band(sheet.getRow(3), PAGE_START, PAGE_END, "blue");
-  band(sheet.getRow(4), PAGE_START, PAGE_END, "blue");
+  writeModeloHeader(
+    sheet,
+    airport,
+    model.evaluationMonth,
+    model.evaluationYear,
+  );
 
   const demandTitle = sheet.getCell("B6");
   demandTitle.value = "IDENTIFICAÇÃO DAS DEMANDAS POR COMPONENTE OPERACIONAL";
@@ -1823,7 +1809,8 @@ function columnName(column: number): string {
 function writeModeloHeader(
   sheet: ExcelJS.Worksheet,
   airport: AirportSource,
-  generatedAt: Date,
+  evaluationMonth: number | null,
+  evaluationYear: number | null,
   end = PAGE_END,
 ): void {
   const endName = columnName(end);
@@ -1837,7 +1824,7 @@ function writeModeloHeader(
   airportCell.font = { bold: true };
   sheet.mergeCells("B4:C4");
   const periodCell = sheet.getCell("D4");
-  periodCell.value = formatReportDate(generatedAt);
+  periodCell.value = formatEvaluationPeriod(evaluationMonth, evaluationYear);
   periodCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   sheet.mergeCells(`D4:${endName}4`);
   band(sheet.getRow(3), PAGE_START, end, "blue");
@@ -2442,7 +2429,13 @@ export async function exportModeloPorComponente(
     views: [{ showGridLines: false, showRowColHeaders: true }],
   });
   sheet.columns = MEMORY_COLUMN_WIDTHS.map((width) => ({ width }));
-  writeModeloHeader(sheet, airport, model.generatedAt, MEMORY_END);
+  writeModeloHeader(
+    sheet,
+    airport,
+    model.evaluationMonth,
+    model.evaluationYear,
+    MEMORY_END,
+  );
 
   const registryById = new Map(model.registry.map((entry) => [entry.id, entry]));
   const ordered = journeyOrderedContracts(model);

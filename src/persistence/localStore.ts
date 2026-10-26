@@ -62,6 +62,8 @@ export interface PersistedAirportState {
   airportId: AirportId;
   airportName: string;
   roundId: RoundId;
+  evaluationMonth: number | null;
+  evaluationYear: number | null;
   registry: RegistryEntry[];
   components: Record<ComponentId, ComponentParams>;
   componentOrigens: Record<ComponentId, Record<ComponentParamId, string>>;
@@ -75,6 +77,18 @@ export type EditorState = Omit<PersistedAirportState, "savedAt"> & {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function parseEvaluationMonth(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  if (value < 1 || value > 12) return null;
+  return value;
+}
+
+function parseEvaluationYear(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  if (value < 1 || value > 9999) return null;
+  return value;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -468,6 +482,8 @@ export function parsePersistedState(raw: unknown): PersistedAirportState | null 
     airportId: airport.id,
     airportName: typeof raw.airportName === "string" ? raw.airportName : "",
     roundId: airport.roundId,
+    evaluationMonth: parseEvaluationMonth(raw.evaluationMonth),
+    evaluationYear: parseEvaluationYear(raw.evaluationYear),
     registry,
     components: overlaid.components,
     componentOrigens: overlaid.componentOrigens,
@@ -495,6 +511,8 @@ export function emptyEditorState(): EditorState {
     airportId: airport.id,
     airportName: "",
     roundId: airport.roundId,
+    evaluationMonth: null,
+    evaluationYear: null,
     registry: [],
     components: {},
     componentOrigens: {},
@@ -506,6 +524,8 @@ export function emptyEditorState(): EditorState {
 export function exampleEditorState(
   airportName = "",
   airportId: AirportId = defaultAirport().id,
+  evaluationMonth: number | null = null,
+  evaluationYear: number | null = null,
 ): EditorState {
   const airport = airportById(airportId);
   const study = exampleStudy(airport);
@@ -515,5 +535,7 @@ export function exampleEditorState(
     airportName: airportName.trim() ? airportName : "Exemplo fictício",
     roundId: airport.roundId,
     ...study,
+    evaluationMonth,
+    evaluationYear,
   };
 }
