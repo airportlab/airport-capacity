@@ -155,8 +155,19 @@ type ParamLine = {
   refId: number;
   title: string;
   paramId: ComponentParamId;
+  label: string;
+  unit: string;
   value: number;
 };
+
+function fieldOf(
+  contract: ComponentContract,
+  paramId: ComponentParamId,
+): { label: string; unit: string } {
+  const patched = contract.params.find((field) => field.id === paramId);
+  if (patched) return patched;
+  return pickFields([paramId])[0];
+}
 
 type PendingAccount = {
   componentId: ComponentId;
@@ -194,11 +205,14 @@ function collectParamLines(
     for (const paramId of COMPONENT_PARAM_IDS) {
       if (!seen.has(paramId) || paramId.startsWith("demanda")) continue;
       const raw = evaluation.inputs[paramId];
+      const field = fieldOf(item.contract, paramId);
       lines.push({
         componentId: item.contract.id,
         refId: item.id,
         title: item.contract.title,
         paramId,
+        label: field.label,
+        unit: field.unit,
         value: Number.isFinite(raw) ? raw : 0,
       });
     }
@@ -235,14 +249,13 @@ function writeParamBlock(
   rowNumber += 1;
   for (const [index, line] of lines.entries()) {
     const row = sheet.getRow(rowNumber);
-    const field = pickFields([line.paramId])[0];
     row.getCell(2).value = line.refId;
     row.getCell(3).value = line.title;
-    row.getCell(4).value = field.label;
+    row.getCell(4).value = line.label;
     const value = row.getCell(5);
     value.value = line.value;
     value.numFmt = line.paramId.startsWith("demanda") ? "#,##0" : "#,##0.00";
-    row.getCell(6).value = field.unit;
+    row.getCell(6).value = line.unit;
     sheet.mergeCells(rowNumber, 6, rowNumber, 7);
     band(row, PAGE_START, PAGE_END, "data", index % 2 === 0);
     row.getCell(3).alignment = {
@@ -257,7 +270,7 @@ function writeParamBlock(
     };
     row.height = Math.max(
       fittedRowHeight(line.title, MODELO_NAME_WIDTH),
-      fittedRowHeight(field.label, MODELO_PARAM_WIDTH),
+      fittedRowHeight(line.label, MODELO_PARAM_WIDTH),
     );
     addresses.set(`${line.componentId}|${line.paramId}`, `E${rowNumber}`);
     rowNumber += 1;
@@ -530,7 +543,7 @@ function identificationObservationsText(
 
 function sectionDeviationSentence(
   refId: number,
-  componentId: ComponentId,
+  contract: ComponentContract,
   entry: RegistryEntry,
   paramId: ComponentParamId,
   value: number,
@@ -538,20 +551,20 @@ function sectionDeviationSentence(
   model: ModeloExcelModel,
   manual: boolean,
 ): string | null {
-  const field = pickFields([paramId])[0];
+  const field = fieldOf(contract, paramId);
   if (isSizingParam(paramId)) {
     const ref = resolvedSources(entry)[paramId];
     if (!ref) return null;
     const absorbed = pmdValueFor(ref, paramId, airport);
     if (absorbed == null || Math.abs(value - absorbed) < 1e-9) return null;
-    const just = model.justificativas?.[componentId]?.[paramId]?.trim() ?? "";
+    const just = model.justificativas?.[contract.id]?.[paramId]?.trim() ?? "";
     const sentence = `${refId}. ${field.label}: ${formatQuantity(value)} ${field.unit} (PMD ${formatQuantity(absorbed)}).`;
     return just ? `${sentence} ${just}` : sentence;
   }
   if (!manual || !isTsecParam(paramId)) return null;
   const standard = standardTsecForParam(entry, paramId);
   if (standard == null || Math.abs(value - standard) < 1e-9) return null;
-  const just = model.justificativas?.[componentId]?.[paramId]?.trim() ?? "";
+  const just = model.justificativas?.[contract.id]?.[paramId]?.trim() ?? "";
   return `${refId}. ${tsecDeviationNote(standard, value, just)}`;
 }
 
@@ -579,7 +592,7 @@ function requirementObservationsText(
         if (!Number.isFinite(value)) continue;
         const sentence = sectionDeviationSentence(
           item.id,
-          item.contract.id,
+          item.contract,
           item.entry,
           paramId,
           value,
@@ -1046,7 +1059,7 @@ function appendUnmodeled(
   line("TEI - Passageiros internacionais transportados em aeronaves que impedem pontes de embarque");
   line("PI - Passageiros internacionais processados em pontes de embarque no período");
   line("RAI% - Percentual de passageiros internacionais processados em pontes de embarque");
-  line("ATENDE PMD (70%)");
+  line("ATENDE PMD - Piso de 70% de passageiros processados em pontes (RAD% e RAI%)");
 
   rowNumber += 1;
   rowNumber = sectionTitle(
@@ -1333,7 +1346,7 @@ function writePainel(
   sub.getCell(5).value = "Áreas";
   sub.getCell(6).value = "Equipamentos";
   sub.getCell(7).value = "Esteiras";
-  sub.getCell(8).value = "% Proces. PBB";
+  sub.getCell(8).value = "% em pontes";
   sub.getCell(9).value = "Percursos";
   sub.getCell(10).value = "Circulação horizontal";
   sub.getCell(11).value = "Circulação vertical";
@@ -2183,7 +2196,7 @@ function writeMemoryAccount(
       line.group == null || previous == null || previous.group !== line.group;
     let label = line.flowLabel;
     if (line.paramId) {
-      const field = pickFields([line.paramId])[0];
+      const field = fieldOf(item.contract, line.paramId);
       label = field.label;
       row.getCell(COL_PARAM).value = field.label;
       const raw = evaluation.inputs[line.paramId];
