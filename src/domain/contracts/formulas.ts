@@ -19,6 +19,7 @@ import {
   isArrivalsOnlyMixed,
   isSplitCheckinEquipment,
   splitEquipmentResultId,
+  splitEquipmentTaxaId,
   tsecIdForToi,
 } from "./flowParams";
 import {
@@ -436,6 +437,9 @@ export function capacityFormulas(copy: {
   const beltTaxaId: ComponentParamId | null = includeBeltTaxa
     ? "taxaDeUsoEsteira"
     : null;
+  const excelBeltTaxaId: ComponentParamId | null = includeBelt
+    ? "taxaDeUsoEsteira"
+    : null;
   const formulas: ContractFormula[] = [];
 
   if (includeUsoReal) {
@@ -800,7 +804,8 @@ export function capacityFormulas(copy: {
         origem: expression,
         expression,
         evaluate: (inputs) => ceilCount(equipmentTermLoad(inputs, term, null)),
-        toExcel: (cells) => equipmentTermExcel(cells, term, null),
+        toExcel: (cells) =>
+          equipmentTermExcel(cells, term, splitEquipmentTaxaId(term.tsec)),
       });
     }
     formulas.push({
@@ -816,7 +821,11 @@ export function capacityFormulas(copy: {
           return Number.isFinite(piece) ? sum + ceilCount(piece) : Number.NaN;
         }, 0),
       toExcel: (cells) =>
-        ordered.map((term) => equipmentTermExcel(cells, term, null)).join("+"),
+        ordered
+          .map((term) =>
+            equipmentTermExcel(cells, term, splitEquipmentTaxaId(term.tsec)),
+          )
+          .join("+"),
     });
   } else if (includeEquipment) {
     const multi = equipmentTerms.length > 1;
@@ -837,7 +846,7 @@ export function capacityFormulas(copy: {
           const demanda = equipmentDemandExcel(
             cells,
             term.demandIds,
-            equipmentTaxaId,
+            term.taxa ?? "taxaDeUsoEquipamento",
           );
           return `(${demanda}*${requiredCell(cells, term.tsec)})/(60*(60+${requiredCell(cells, term.toi)}))`;
         });
@@ -864,7 +873,7 @@ export function capacityFormulas(copy: {
         origem: hallExpression,
         expression: hallExpression,
         evaluate: (inputs) => beltTermValue(inputs, demanda, toi, beltTaxaId),
-        toExcel: (cells) => beltTermExcel(cells, demanda, toi, beltTaxaId),
+        toExcel: (cells) => beltTermExcel(cells, demanda, toi, excelBeltTaxaId),
       });
       for (const { item, pair } of beltPairs) {
         const symbol = beltConnectionSymbol(pair);
@@ -878,7 +887,7 @@ export function capacityFormulas(copy: {
           evaluate: (inputs) =>
             beltTermValue(inputs, item.demanda, item.toi, beltTaxaId),
           toExcel: (cells) =>
-            beltTermExcel(cells, item.demanda, item.toi, beltTaxaId),
+            beltTermExcel(cells, item.demanda, item.toi, excelBeltTaxaId),
         });
       }
       const expression = salaBeltFormulaDisplay(
@@ -900,9 +909,9 @@ export function capacityFormulas(copy: {
           ),
         toExcel: (cells) =>
           [
-            beltTermExcel(cells, demanda, toi, beltTaxaId),
+            beltTermExcel(cells, demanda, toi, excelBeltTaxaId),
             ...beltPairs.map(({ item }) =>
-              beltTermExcel(cells, item.demanda, item.toi, beltTaxaId),
+              beltTermExcel(cells, item.demanda, item.toi, excelBeltTaxaId),
             ),
           ].join("+"),
       });
@@ -915,7 +924,7 @@ export function capacityFormulas(copy: {
         origem: beltOrigem,
         expression,
         evaluate: (inputs) => beltTermValue(inputs, demanda, toi, beltTaxaId),
-        toExcel: (cells) => beltTermExcel(cells, demanda, toi, beltTaxaId),
+        toExcel: (cells) => beltTermExcel(cells, demanda, toi, excelBeltTaxaId),
       });
     }
   }

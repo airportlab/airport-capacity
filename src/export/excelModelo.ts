@@ -11,6 +11,7 @@ import { pmdValueFor, resolvedSources, standardTsecForParam } from "../domain/pm
 import { tsecDeviationNote } from "./tsecNote";
 import {
   identityParamIds,
+  isSplitCheckinEquipment,
   MIXED_FLOW_SPECS,
   mixedFlowLabel,
 } from "../domain/contracts/flowParams";
@@ -22,8 +23,12 @@ import {
   type ComponentParamId,
   type Evaluation,
   type ExcelCellMap,
+  hasEquipment,
+  hasEsteira,
   natureOfEntry,
   type RegistryEntry,
+  usesEquipmentTaxa,
+  usesEsteiraTaxa,
 } from "../domain/types";
 import { journeyRank } from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
@@ -160,6 +165,25 @@ type ParamLine = {
   value: number;
 };
 
+/** Tu de 100% sem a marcação. A célula entra na fórmula; o valor gravado é 100, não o zero do contrato. */
+function implicitUtilizationIds(contract: ComponentContract): ComponentParamId[] {
+  const ids: ComponentParamId[] = [];
+  if (hasEquipment(contract.requirements) && !usesEquipmentTaxa(contract.requirements)) {
+    if (isSplitCheckinEquipment(contract.equipmentTerms ?? [])) {
+      ids.push(
+        "taxaDeUsoEquipamentoDomestico",
+        "taxaDeUsoEquipamentoInternacional",
+      );
+    } else {
+      ids.push("taxaDeUsoEquipamento");
+    }
+  }
+  if (hasEsteira(contract.requirements) && !usesEsteiraTaxa(contract.requirements)) {
+    ids.push("taxaDeUsoEsteira");
+  }
+  return ids;
+}
+
 function fieldOf(
   contract: ComponentContract,
   paramId: ComponentParamId,
@@ -202,6 +226,8 @@ function collectParamLines(
       if (!wanted.has(formula.id)) continue;
       for (const id of paramsTouched(formula)) seen.add(id);
     }
+    const atHundred = new Set(implicitUtilizationIds(item.contract));
+    for (const id of atHundred) seen.add(id);
     for (const paramId of COMPONENT_PARAM_IDS) {
       if (!seen.has(paramId) || paramId.startsWith("demanda")) continue;
       const raw = evaluation.inputs[paramId];
@@ -213,7 +239,7 @@ function collectParamLines(
         paramId,
         label: field.label,
         unit: field.unit,
-        value: Number.isFinite(raw) ? raw : 0,
+        value: atHundred.has(paramId) ? 100 : Number.isFinite(raw) ? raw : 0,
       });
     }
   }
@@ -1975,6 +2001,8 @@ type MemoryLine = {
   demandId: ComponentParamId | null;
   flowLabel: string;
   group: string | null;
+  /** Tu de 100% sem a marcação: a célula vale 100 e a fórmula a lê. */
+  implicit?: boolean;
 };
 
 function memoryParamIds(
@@ -2079,9 +2107,12 @@ function memoryFlowLabel(
 function buildMemoryLines(
   entry: RegistryEntry | undefined,
   formula: ComponentContract["formulas"][number],
+  implicitIds: readonly ComponentParamId[] = [],
 ): MemoryLine[] {
   const touched = new Set(paramsTouched(formula));
+  const implicit = new Set(implicitIds);
   const params = new Set(memoryParamIds(formula));
+  for (const id of implicit) params.add(id);
   const primary = COMPONENT_PARAM_IDS.filter(
     (id) => id.startsWith("demanda") && touched.has(id) && !CONNECTION_DEMANDS.has(id),
   );
@@ -2118,11 +2149,18 @@ function buildMemoryLines(
         demandId: demand,
         flowLabel: memoryFlowLabel(demand, entry),
         group: demand,
+        ...(implicit.has(id) ? { implicit: true } : {}),
       });
     }
   }
   for (const id of loose) {
-    lines.push({ paramId: id, demandId: null, flowLabel: "", group: null });
+    lines.push({
+      paramId: id,
+      demandId: null,
+      flowLabel: "",
+      group: null,
+      ...(implicit.has(id) ? { implicit: true } : {}),
+    });
   }
   for (const id of COMPONENT_PARAM_IDS) {
     if (!CONNECTION_DEMANDS.has(id) || !touched.has(id)) continue;
@@ -2153,7 +2191,13 @@ function writeMemoryAccount(
   const formula = item.contract.formulas.find((entry) => entry.id === formulaId);
   const evaluation = model.evaluations[item.contract.id];
   if (!formula || !evaluation) return { nextRow: rowNumber, meetsRow: 0 };
-  const lines = buildMemoryLines(item.entry, formula);
+  const implicitIds =
+    kind === "equipment"
+      ? implicitUtilizationIds(item.contract).filter((id) => id !== "taxaDeUsoEsteira")
+      : kind === "belt"
+        ? implicitUtilizationIds(item.contract).filter((id) => id === "taxaDeUsoEsteira")
+        : [];
+  const lines = buildMemoryLines(item.entry, formula, implicitIds);
   if (lines.length === 0) return { nextRow: rowNumber, meetsRow: 0 };
 
   const title =
@@ -2199,7 +2243,7 @@ function writeMemoryAccount(
       const field = fieldOf(item.contract, line.paramId);
       label = field.label;
       row.getCell(COL_PARAM).value = field.label;
-      const raw = evaluation.inputs[line.paramId];
+      const raw = line.implicit ? 100 : evaluation.inputs[line.paramId];
       const value = row.getCell(COL_VALUE);
       value.value = Number.isFinite(raw) ? raw : null;
       value.numFmt = isTsecParam(line.paramId) ? "#,##0" : "#,##0.00";
