@@ -1,10 +1,8 @@
 import type {
-  ArrivalsConnectionPair,
   BoardingConnectionPair,
   ComponentParamId,
   EquipmentTerm,
   OrganFunctionRole,
-  PeakNature,
   RegistryEntry,
   RegistryFlow,
   ResolvedInputs,
@@ -13,15 +11,15 @@ import type {
   SizingSources,
 } from "../types";
 import {
-  ARRIVALS_CONNECTION_CATALOG,
   arrivalsConnectionColumn,
+  arrivalsConnectionSpec,
+  boardingConnectionColumn,
   boardingConnectionSpec,
   enabledArrivalsConnections,
   enabledBoardingConnections,
   hasArrivalsConnection,
   hasBoardingConnection,
   isMixedNature,
-  natureOfEntry,
 } from "../types";
 
 export interface FlowParamIds {
@@ -133,27 +131,24 @@ export function identityParamIds(entry: RegistryEntry): ComponentParamId[] {
     }
   }
   if (hasArrivalsConnection(entry)) {
-    for (const flow of connectionFlows(entry)) ids.push(flow.demanda);
+    for (const pair of enabledArrivalsConnections(entry)) {
+      ids.push(arrivalsConnectionSpec(pair).demanda);
+    }
   }
   return ids;
 }
 
-function boardingSizing(
-  entry: RegistryEntry,
-): Pick<FlowParamIds, "emp" | "toi" | "va"> | null {
-  if (!hasBoardingConnection(entry)) return null;
-  const flows = entryFlowParams(entry);
-  if (isMixedNature(entry)) {
-    const boarding = flows.find(
-      (flow) => flow.demanda === "demandaPicoEmbarqueDomestico",
-    );
-    if (!boarding) return null;
-    return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
-  }
-  if (flows.length > 0) {
-    const boarding =
-      flows.find((flow) => flow.area === "areaMinimaEmbarque") ?? flows[0];
-    return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+type ConnectionSide = "embarque" | "desembarque";
+
+function bareConnectionSizing(
+  side: ConnectionSide,
+): Pick<FlowParamIds, "emp" | "toi" | "va"> {
+  if (side === "desembarque") {
+    return {
+      emp: "espacoMinimoPorPassageiro",
+      toi: "tempoDeOcupacao",
+      va: "vaDesembarque",
+    };
   }
   return {
     emp: "espacoMinimoPorPassageiro",
@@ -162,138 +157,61 @@ function boardingSizing(
   };
 }
 
-function salaHallNature(entry: RegistryEntry): PeakNature {
-  return natureOfEntry(entry) === "internacional"
-    ? "internacional"
-    : "domestico";
-}
-
-function salaColumnOf(pair: ArrivalsConnectionPair): PeakNature {
-  return arrivalsConnectionColumn(pair);
-}
-
-function salaConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
-  const hall = salaHallNature(entry);
-  const enabled = new Set(enabledArrivalsConnections(entry));
-  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
-    if (!enabled.has(spec.pair)) return [];
-    const own = salaColumnOf(spec.pair) === hall;
-    return [
-      {
-        demanda: spec.demanda,
-        emp: (own
-          ? "espacoMinimoPorPassageiro"
-          : spec.emp) as SizingParamId,
-        toi: (own ? "tempoDeOcupacao" : spec.toi) as SizingParamId,
-        va: "va",
-        area: spec.area,
-      },
-    ];
-  });
-}
-
-function hallArrivalsConnectionFlows(entry: RegistryEntry): FlowParamIds[] {
-  const enabled = new Set(enabledArrivalsConnections(entry));
-  const fromFlows = entryFlowParams(entry).find(
-    (flow) => flow.area === "areaMinimaDesembarque",
-  );
-  const own: FlowParamIds = fromFlows ?? {
-    demanda: "demandaPico",
-    emp: "espacoMinimoPorPassageiro",
-    toi: "tempoDeOcupacao",
-    va: "vaDesembarque",
-    area: "areaMinima",
-  };
-  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
-    if (!enabled.has(spec.pair)) return [];
-    return [
-      {
-        demanda: spec.demanda,
-        emp: own.emp,
-        toi: own.toi,
-        va: own.va,
-        area: spec.area,
-      },
-    ];
-  });
-}
-
-/** O saguão simples reusa Emp e Toi do próprio saguão. */
-export function hallArrivalsConnectionSources(
+/** Natureza única: Emp e Toi do componente. Misto: a coluna do voo do par. */
+function connectionSizing(
   entry: RegistryEntry,
-): SizingSources {
-  if (entry.kind !== "saguao-desembarque" || isMixedNature(entry)) return {};
-  return {};
-}
-
-/** Emp e Toi da coluna que não é a da sala, lidos do PMD dessa coluna. */
-export function salaConnectionSources(entry: RegistryEntry): SizingSources {
-  if (entry.kind !== "sala-desembarque" || !entry.pmd?.rowId) return {};
-  const sources: SizingSources = {};
-  for (const flow of salaConnectionFlows(entry)) {
-    if (flow.emp === "espacoMinimoPorPassageiro") continue;
-    const nature: PeakNature = String(flow.emp).includes("Internacional")
-      ? "internacional"
-      : "domestico";
-    const binding = { rowId: entry.pmd.rowId, nature };
-    sources[flow.emp] = binding;
-    sources[flow.toi] = binding;
-  }
-  return sources;
-}
-
-function boardingColumnSizing(
-  entry: RegistryEntry,
-  pair: BoardingConnectionPair,
-  shared: Pick<FlowParamIds, "emp" | "toi" | "va">,
+  side: ConnectionSide,
+  column: "domestico" | "internacional",
 ): Pick<FlowParamIds, "emp" | "toi" | "va"> | null {
-  if (entry.kind !== "saguao-embarque" || !isMixedNature(entry)) return shared;
-  if (pair !== "domInt" && pair !== "intInt") return shared;
-  const boarding = entryFlowParams(entry).find(
-    (flow) => flow.demanda === "demandaPicoEmbarqueInternacional",
-  );
-  if (!boarding) return null;
-  return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+  const flows = entryFlowParams(entry);
+  if (!isMixedNature(entry)) {
+    if (flows.length === 0) return bareConnectionSizing(side);
+    if (side === "embarque") {
+      const boarding =
+        flows.find((flow) => flow.area === "areaMinimaEmbarque") ??
+        flows.find(
+          (flow) =>
+            flow.area === "areaMinimaDomestico" ||
+            flow.area === "areaMinimaInternacional",
+        ) ??
+        flows[0];
+      return { emp: boarding.emp, toi: boarding.toi, va: boarding.va };
+    }
+    const arrivals =
+      flows.find((flow) => flow.area === "areaMinimaDesembarque") ?? flows[0];
+    return { emp: arrivals.emp, toi: arrivals.toi, va: arrivals.va };
+  }
+  const natureza = column === "internacional" ? "Internacional" : "Domestico";
+  const roleDemand =
+    side === "embarque"
+      ? (`demandaPicoEmbarque${natureza}` as ComponentParamId)
+      : (`demandaPicoDesembarque${natureza}` as ComponentParamId);
+  const unicoDemand = (
+    column === "internacional" ? "demandaPicoInternacional" : "demandaPicoDomestico"
+  ) as ComponentParamId;
+  const match =
+    flows.find((flow) => flow.demanda === roleDemand) ??
+    flows.find((flow) => flow.demanda === unicoDemand);
+  if (!match) return null;
+  return { emp: match.emp, toi: match.toi, va: match.va };
 }
 
-export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
-  const sizing = boardingSizing(entry);
-  if (sizing) {
-    return enabledBoardingConnections(entry).flatMap((pair) => {
-      const column = boardingColumnSizing(entry, pair, sizing);
-      if (!column) return [];
-      const spec = boardingConnectionSpec(pair);
-      return [
-        {
-          demanda: spec.demanda,
-          emp: column.emp,
-          toi: column.toi,
-          va: column.va,
-          area: spec.area,
-        },
-      ];
-    });
-  }
-  if (!hasArrivalsConnection(entry)) return [];
-  if (entry.kind === "sala-desembarque") return salaConnectionFlows(entry);
-  if (entry.kind === "saguao-desembarque" && !isMixedNature(entry)) {
-    return hallArrivalsConnectionFlows(entry);
-  }
-  const enabled = new Set(enabledArrivalsConnections(entry));
-  const flows = entryFlowParams(entry);
-  const domestico = flows.find(
-    (flow) => flow.demanda === "demandaPicoDesembarqueDomestico",
-  );
-  const internacional = flows.find(
-    (flow) => flow.demanda === "demandaPicoDesembarqueInternacional",
-  );
-  return ARRIVALS_CONNECTION_CATALOG.flatMap((spec) => {
-    if (!enabled.has(spec.pair)) return [];
-    const sizing =
-      arrivalsConnectionColumn(spec.pair) === "domestico"
-        ? domestico
-        : internacional;
+function connectionFlowsFor(
+  entry: RegistryEntry,
+  side: ConnectionSide,
+  pairs: readonly BoardingConnectionPair[],
+): FlowParamIds[] {
+  return pairs.flatMap((pair) => {
+    const column =
+      side === "embarque"
+        ? boardingConnectionColumn(pair)
+        : arrivalsConnectionColumn(pair);
+    const sizing = connectionSizing(entry, side, column);
     if (!sizing) return [];
+    const spec =
+      side === "embarque"
+        ? boardingConnectionSpec(pair)
+        : arrivalsConnectionSpec(pair);
     return [
       {
         demanda: spec.demanda,
@@ -304,6 +222,28 @@ export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
       },
     ];
   });
+}
+
+/** Os dois pares da natureza usam o Emp e o Toi do componente. */
+export function hallArrivalsConnectionSources(
+  _entry: RegistryEntry,
+): SizingSources {
+  return {};
+}
+
+/** A sala não abre a outra coluna: os pares usam o Emp e o Toi dela. */
+export function salaConnectionSources(_entry: RegistryEntry): SizingSources {
+  return {};
+}
+
+export function connectionFlows(entry: RegistryEntry): FlowParamIds[] {
+  const boarding = hasBoardingConnection(entry)
+    ? connectionFlowsFor(entry, "embarque", enabledBoardingConnections(entry))
+    : [];
+  const arrivals = hasArrivalsConnection(entry)
+    ? connectionFlowsFor(entry, "desembarque", enabledArrivalsConnections(entry))
+    : [];
+  return [...boarding, ...arrivals];
 }
 
 export function connectionAreaParams(

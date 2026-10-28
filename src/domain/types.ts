@@ -196,12 +196,32 @@ export interface RegistryEntry {
   flows?: RegistryFlow[];
   sizingSources?: SizingSources;
   observacoes?: string;
+  /** Embarque via conexão. No componente só de desembarque, é a conexão desse lado. */
   hasConnection?: boolean;
   conexoes?: BoardingConnections;
+  /** Desembarque via conexão no saguão combinado, independente do embarque. */
+  hasDesembarqueConnection?: boolean;
+  conexoesDesembarque?: BoardingConnections;
 }
 
 const BOARDING_CONNECTION_KINDS = new Set([
   "saguao-embarque",
+  "saguao-embarque-desembarque",
+  "checkin-bagagens",
+  "inspecao",
+  "emigracao",
+  "sala-embarque-pontes",
+  "sala-embarque-remotas",
+  "sala-embarque-pontes-sentado",
+  "sala-embarque-remotas-sentado",
+  "salas-embarque",
+]);
+
+const ARRIVALS_CONNECTION_KINDS = new Set([
+  "saguao-desembarque",
+  "sala-desembarque",
+  "imigracao",
+  "aduana",
   "saguao-embarque-desembarque",
 ]);
 
@@ -214,32 +234,30 @@ export function hasBoardingConnection(entry: RegistryEntry): boolean {
 }
 
 export function allowsArrivalsConnection(entry: RegistryEntry): boolean {
-  return (
-    entry.kind === "sala-desembarque" || entry.kind === "saguao-desembarque"
-  );
+  return ARRIVALS_CONNECTION_KINDS.has(entry.kind ?? "");
 }
 
 export function hasArrivalsConnection(entry: RegistryEntry): boolean {
-  return allowsArrivalsConnection(entry) && entry.hasConnection === true;
+  if (!allowsArrivalsConnection(entry)) return false;
+  if (entry.kind === "saguao-embarque-desembarque") {
+    return entry.hasDesembarqueConnection === true;
+  }
+  return entry.hasConnection === true;
 }
 
-/** Fluxos de desembarque via conexão. A sala não usa DOM-DOM. */
-export type ArrivalsConnectionPair = "domDom" | "domInt" | "intDom" | "intInt";
+export function arrivalsConnectionMap(
+  entry: RegistryEntry,
+): BoardingConnections | undefined {
+  if (entry.kind === "saguao-embarque-desembarque") {
+    return entry.conexoesDesembarque;
+  }
+  return entry.conexoes;
+}
 
-/** Arquivo antigo sem `conexoes` liga estes três. DOM-DOM não entra sozinho. */
-const LEGACY_ARRIVALS_PAIRS: readonly ArrivalsConnectionPair[] = [
-  "domInt",
-  "intDom",
-  "intInt",
-];
+/** Fluxos de desembarque via conexão. A primeira letra é o voo. */
+export type ArrivalsConnectionPair = BoardingConnectionPair;
 
-const SALA_ARRIVALS_PAIRS: readonly ArrivalsConnectionPair[] = [
-  "domInt",
-  "intDom",
-  "intInt",
-];
-
-/** Doméstico: quem veio de voo doméstico. Internacional: quem veio de voo internacional. */
+/** Doméstico: DOM-DOM e DOM-INT. Internacional: INT-DOM e INT-INT. Misto: os quatro. */
 export function arrivalsConnectionPairsForNature(
   nature: PeakNature | "misto" | undefined,
 ): ArrivalsConnectionPair[] {
@@ -248,11 +266,12 @@ export function arrivalsConnectionPairsForNature(
   return ["domDom", "domInt"];
 }
 
-/** Sala: os três pares, nas duas naturezas. Saguão: os pares da origem. */
 export function arrivalsConnectionPairsFor(
   entry: RegistryEntry,
 ): ArrivalsConnectionPair[] {
-  if (entry.kind === "sala-desembarque") return [...SALA_ARRIVALS_PAIRS];
+  if (entry.kind === "imigracao" || entry.kind === "aduana") {
+    return ["intDom", "intInt"];
+  }
   return arrivalsConnectionPairsForNature(natureOfEntry(entry));
 }
 
@@ -264,44 +283,42 @@ export function arrivalsConnectionsAllOn(
   );
 }
 
-/** Fluxos ligados. Sem `conexoes`, o arquivo antigo liga os três possíveis. */
+/** Fluxos ligados. Sem o mapa, os pares nascem ligados. Ausente no mapa também. */
 export function enabledArrivalsConnections(
   entry: RegistryEntry,
 ): ArrivalsConnectionPair[] {
   if (!hasArrivalsConnection(entry)) return [];
   const possible = arrivalsConnectionPairsFor(entry);
-  if (!entry.conexoes) {
-    return possible.filter((pair) => LEGACY_ARRIVALS_PAIRS.includes(pair));
-  }
-  return possible.filter((pair) => entry.conexoes?.[pair] === true);
+  const stored = arrivalsConnectionMap(entry);
+  if (!stored) return possible;
+  return possible.filter((pair) => stored[pair] !== false);
 }
 
-/** Troca de natureza do saguão: par novo nasce ligado; par que saiu sai do registro. */
+/** Troca de natureza: par ausente nasce ligado; par que saiu da natureza sai do registro. */
 export function reconcileArrivalsConnections(
   entry: RegistryEntry,
   nature: PeakNature | "misto",
 ): BoardingConnections | undefined {
-  if (entry.hasConnection !== true || entry.kind !== "saguao-desembarque") {
-    return undefined;
-  }
-  const possible = arrivalsConnectionPairsForNature(nature);
-  const previous = new Set(arrivalsConnectionPairsFor(entry));
+  if (!hasArrivalsConnection(entry)) return undefined;
+  const stored = arrivalsConnectionMap(entry);
+  if (!stored) return undefined;
+  const possible =
+    entry.kind === "imigracao" || entry.kind === "aduana"
+      ? arrivalsConnectionPairsFor(entry)
+      : arrivalsConnectionPairsForNature(nature);
   const next: BoardingConnections = {};
-  for (const pair of possible) {
-    const explicit = entry.conexoes?.[pair];
-    const wasPossible = previous.has(pair);
-    if (!entry.conexoes) {
-      next[pair] =
-        !wasPossible || LEGACY_ARRIVALS_PAIRS.includes(pair);
-      continue;
-    }
-    if (explicit === false) next[pair] = false;
-    else next[pair] = explicit === true || !wasPossible;
-  }
+  for (const pair of possible) next[pair] = stored[pair] !== false;
   return next;
 }
 
-/** Primeira letra, a origem. A sala usa esta coluna. */
+/** Embarque: a segunda letra é o voo. DOM-DOM e INT-DOM são a coluna doméstica. */
+export function boardingConnectionColumn(
+  pair: BoardingConnectionPair,
+): PeakNature {
+  return pair === "domDom" || pair === "intDom" ? "domestico" : "internacional";
+}
+
+/** Desembarque: a primeira letra é o voo. DOM-DOM e DOM-INT são a coluna doméstica. */
 export function arrivalsConnectionColumn(
   pair: ArrivalsConnectionPair,
 ): PeakNature {
@@ -413,7 +430,7 @@ export function boardingConnectionSpec(
   return spec;
 }
 
-/** Um DHp e uma área por par. O Emp gravado é o da origem. A sala e o saguão de desembarque usam essa coluna. */
+/** Um DHp e uma área por par. No misto, a coluna é a do voo (primeira letra). */
 export const ARRIVALS_CONNECTION_CATALOG: readonly {
   pair: ArrivalsConnectionPair;
   demanda: ComponentParamId;

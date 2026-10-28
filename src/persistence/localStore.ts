@@ -305,6 +305,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     if (!fromRequirements) return null;
     const observacoes = parseOptionalText(item.observacoes);
     const conexoes = parseConexoes(item.conexoes);
+    const conexoesDesembarque = parseConexoes(item.conexoesDesembarque);
     entries.push(
       ensureAreaRequirement(
         clampEquipmentTaxa(clampArrivalsRequirements(clampAreaCompanions({
@@ -318,6 +319,10 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
           observacoes,
           ...(item.hasConnection === true ? { hasConnection: true } : {}),
           ...(conexoes ? { conexoes } : {}),
+          ...(item.hasDesembarqueConnection === true
+            ? { hasDesembarqueConnection: true }
+            : {}),
+          ...(conexoesDesembarque ? { conexoesDesembarque } : {}),
         }))),
       ),
     );

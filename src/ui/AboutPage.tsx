@@ -109,9 +109,11 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Manual de Anteprojeto quando o fluxo tem esse padrão; valor diferente
           pede justificativa. Sem padrão, o campo nasce em 0. Saguões e salas
           não têm N. Na sala de desembarque o requisito opcional é o comprimento
-          mínimo de esteira. A marcação de desembarque via conexão abre os
-          pares DOM-INT, INT-DOM e INT-INT; a área e a esteira somam cada par
-          ligado. Com vários DHp no mesmo recinto, as contas somam; a
+          mínimo de esteira. No embarque, doméstico abre DOM-DOM e INT-DOM;
+          internacional, DOM-INT e INT-INT. No desembarque, doméstico abre
+          DOM-DOM e DOM-INT; internacional, INT-DOM e INT-INT. O misto abre os
+          quatro. Na sala, a área e a esteira somam cada par ligado, com o Emp
+          e o Toi da sala. Com vários DHp no mesmo recinto, as contas somam; a
           fórmula fica no próprio componente, junto do requisito. A saturação
           compara a demanda com o que a área ou os equipamentos podem atender. A
           aba <strong>Parâmetros</strong> consulta a tabela PMD da fonte

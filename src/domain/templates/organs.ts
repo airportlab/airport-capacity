@@ -10,6 +10,7 @@ import {
 } from "../pmd";
 import {
   natureOfEntry,
+  allowsArrivalsConnection,
   reconcileArrivalsConnections,
   reconcileBoardingConnections,
   type ComponentId,
@@ -73,7 +74,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "embarque", rowId: "saguao-embarque" }],
     detail:
-      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: um DHp por par ligado. DOM-DOM e INT-DOM usam Emp/Toi do embarque doméstico; DOM-INT e INT-INT, do embarque internacional. Sem acompanhante.",
+      "Público antes do processamento, Emp por ocupante e v.a. Natureza mista: dois DHp. Conexão opcional: doméstico, DOM-DOM e INT-DOM; internacional, DOM-INT e INT-INT; misto, os quatro. No misto, a coluna é a do voo. Sem acompanhante.",
   },
   {
     kind: "saguao-desembarque",
@@ -82,7 +83,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaCompanions",
     flows: [{ role: "desembarque", rowId: "saguao-desembarque" }],
     detail:
-      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional nas três naturezas: doméstico, DOM-DOM e DOM-INT; internacional, INT-DOM e INT-INT; misto, os quatro. DOM-DOM e DOM-INT usam Emp/Toi domésticos; INT-DOM e INT-INT, internacionais, sem acompanhante. No saguão de uma natureza só, os dois pares usam o Emp e o Toi do saguão. Par desligado não entra.",
+      "Público após o desembarque. Toi internacional maior que o doméstico. Natureza mista: dois DHp; Ad = Ad_d,dom + Ad_d,int. Conexão opcional: doméstico, DOM-DOM e DOM-INT; internacional, INT-DOM e INT-INT; misto, os quatro. No misto, DOM-DOM e DOM-INT usam a coluna doméstica; INT-DOM e INT-INT, a internacional. Natureza única: os dois pares usam o Emp e o Toi do saguão. Sem acompanhante.",
   },
   {
     kind: "saguao-embarque-desembarque",
@@ -94,7 +95,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
       { role: "desembarque", rowId: "saguao-desembarque" },
     ],
     detail:
-      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional só no embarque, um DHp por par ligado.",
+      "Um componente operacional, duas funções de saguão. DHp por função; misto também por natureza. Conexão opcional no embarque e no desembarque, independentes. No embarque, doméstico: DOM-DOM e INT-DOM; internacional: DOM-INT e INT-INT; misto, a segunda letra. No desembarque, doméstico: DOM-DOM e DOM-INT; internacional: INT-DOM e INT-INT; misto, a primeira letra.",
   },
   {
     kind: "checkin-bagagens",
@@ -103,7 +104,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaAndEquipment",
     flows: [{ role: "unico", rowId: "checkin-bagagens" }],
     detail:
-      "Área de fila (PMD) e equipamentos de atendimento. Natureza mista: dois DHp; Ad = Ad_dom + Ad_int.",
+      "Área de fila (PMD) e equipamentos de atendimento. Natureza mista: dois DHp; Ad = Ad_dom + Ad_int. Conexão opcional de embarque: doméstico, DOM-DOM e INT-DOM; internacional, DOM-INT e INT-INT; misto, os quatro, cada um na sua coluna. O DHp do par entra no N do mesmo Toi.",
   },
   {
     kind: "inspecao",
@@ -111,7 +112,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["domestico", "internacional"],
     preset: "areaAndEquipment",
     flows: [{ role: "unico", rowId: "inspecao" }],
-    detail: "Área de fila (PMD) e equipamentos de inspeção.",
+    detail:
+      "Área de fila (PMD) e equipamentos de inspeção. Conexão opcional de embarque, com os pares da natureza. O DHp do par entra no N.",
   },
   {
     kind: "emigracao",
@@ -119,7 +121,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["internacional"],
     preset: "area",
     flows: [{ role: "unico", rowId: "emigracao" }],
-    detail: "Só há PMD na coluna internacional.",
+    detail:
+      "Só há PMD na coluna internacional. Conexão opcional de embarque: DOM-INT e INT-INT.",
   },
   {
     kind: "imigracao",
@@ -127,7 +130,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["internacional"],
     preset: "area",
     flows: [{ role: "unico", rowId: "imigracao" }],
-    detail: "Só há PMD na coluna internacional.",
+    detail:
+      "Só há PMD na coluna internacional. Conexão opcional de desembarque: INT-DOM e INT-INT.",
   },
   {
     kind: "aduana",
@@ -135,7 +139,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["internacional"],
     preset: "areaAndEquipment",
     flows: [{ role: "unico", rowId: "aduana" }],
-    detail: "Só há PMD na coluna internacional. Emp 1,7 m²/pax.",
+    detail:
+      "Só há PMD na coluna internacional. Emp 1,7 m²/pax. Conexão opcional de desembarque: INT-DOM e INT-INT. O DHp do par entra no N.",
   },
   {
     kind: "sala-embarque-pontes",
@@ -144,7 +149,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["domestico", "internacional"],
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-pontes" }],
-    detail: "Espera em pontes. Emp 2,3; Toi 40/60; 70% de assentos.",
+    detail:
+      "Espera em pontes. Emp 2,3; Toi 40/60; 70% de assentos. Conexão opcional de embarque, com os pares da natureza. Assentos não entram na conexão.",
   },
   {
     kind: "sala-embarque-remotas",
@@ -152,7 +158,8 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     natures: ["domestico", "internacional"],
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-remotas" }],
-    detail: "Espera em posições remotas. Mesmos números de pontes nesta rodada.",
+    detail:
+      "Espera em posições remotas. Mesmos números de pontes nesta rodada. Conexão opcional de embarque, com os pares da natureza.",
   },
   {
     kind: "sala-embarque-pontes-sentado",
@@ -162,7 +169,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-pontes-sentado" }],
     detail:
-      "Espera em pontes. Ocup_max, Pa, sentado e em pé. Sem contagem separada de assentos.",
+      "Espera em pontes. Ocup_max, Pa, sentado e em pé. Sem contagem separada de assentos. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
   },
   {
     kind: "sala-embarque-remotas-sentado",
@@ -171,7 +178,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-remotas-sentado" }],
     detail:
-      "Espera em posições remotas. Mesmos números de sentado e em pé das pontes.",
+      "Espera em posições remotas. Mesmos números de sentado e em pé das pontes. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
   },
   {
     kind: "salas-embarque",
@@ -180,7 +187,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "salas-embarque" }],
     detail:
-      "Contrato com sentado e em pé. Ocup_max, Pa, Emp_s, Toi_s, Emp_p e Toi_p. Sem contagem separada de assentos.",
+      "Contrato com sentado e em pé. Ocup_max, Pa, Emp_s, Toi_s, Emp_p e Toi_p. Sem contagem separada de assentos. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
   },
   {
     kind: "sala-desembarque",
@@ -189,7 +196,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "area",
     flows: [{ role: "desembarque", rowId: "sala-desembarque" }],
     detail:
-      "Desembarque da aeronave. Toi vem da tabela do aeroporto. Um DHp, doméstico ou internacional. Conexão opcional: DOM-INT, INT-DOM e INT-INT, sem acompanhante. Sem N. O requisito opcional é o comprimento mínimo de esteira.",
+      "Desembarque da aeronave. Toi vem da tabela do aeroporto. Um DHp, doméstico ou internacional. Conexão opcional: doméstico, DOM-DOM e DOM-INT; internacional, INT-DOM e INT-INT. Os dois pares usam o Emp e o Toi da sala. Sem N. O requisito opcional é o comprimento mínimo de esteira.",
   },
 ];
 
@@ -392,12 +399,16 @@ export function rebindOrganNature(
     requirements: entry.requirements,
     observacoes: entry.observacoes,
     hasConnection: entry.hasConnection,
+    hasDesembarqueConnection: entry.hasDesembarqueConnection,
     conexoes:
-      entry.kind === "sala-desembarque"
-        ? entry.conexoes
-        : entry.kind === "saguao-desembarque"
-          ? reconcileArrivalsConnections(entry, nature)
-          : reconcileBoardingConnections(entry, nature),
+      entry.kind === "saguao-embarque-desembarque" ||
+      !allowsArrivalsConnection(entry)
+        ? reconcileBoardingConnections(entry, nature)
+        : reconcileArrivalsConnections(entry, nature),
+    conexoesDesembarque:
+      entry.kind === "saguao-embarque-desembarque"
+        ? reconcileArrivalsConnections(entry, nature)
+        : entry.conexoesDesembarque,
     pmd: bound.pmd,
     ...(bound.flows ? { flows: bound.flows } : {}),
   });

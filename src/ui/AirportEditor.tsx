@@ -58,6 +58,7 @@ import type {
 } from "../domain/types";
 import {
   allowsArrivalsConnection,
+  allowsBoardingConnection,
   arrivalsConnectionPairsFor,
   arrivalsConnectionsAllOn,
   boardingConnectionPairsFor,
@@ -376,6 +377,10 @@ export function AirportEditor() {
       observacoes: source.observacoes,
       hasConnection: source.hasConnection,
       conexoes: source.conexoes ? { ...source.conexoes } : undefined,
+      hasDesembarqueConnection: source.hasDesembarqueConnection,
+      conexoesDesembarque: source.conexoesDesembarque
+        ? { ...source.conexoesDesembarque }
+        : undefined,
     };
     applyComponentRecords(
       id,
@@ -603,15 +608,33 @@ export function AirportEditor() {
     });
   }
 
-  function handleSetConnection(id: ComponentId, hasConnection: boolean) {
+  function handleSetConnection(
+    id: ComponentId,
+    hasConnection: boolean,
+    side: "embarque" | "desembarque" = "embarque",
+  ) {
     updateRequirements(id, (entry) => {
+      const arrivalsSide =
+        side === "desembarque" ||
+        (allowsArrivalsConnection(entry) && !allowsBoardingConnection(entry));
+      if (entry.kind === "saguao-embarque-desembarque" && side === "desembarque") {
+        if (!hasConnection) {
+          return {
+            ...entry,
+            hasDesembarqueConnection: undefined,
+            conexoesDesembarque: undefined,
+          };
+        }
+        return {
+          ...entry,
+          hasDesembarqueConnection: true,
+          conexoesDesembarque: arrivalsConnectionsAllOn(entry),
+        };
+      }
       if (!hasConnection) {
         return { ...entry, hasConnection: undefined, conexoes: undefined };
       }
-      if (
-        entry.kind === "saguao-desembarque" ||
-        entry.kind === "sala-desembarque"
-      ) {
+      if (arrivalsSide) {
         return {
           ...entry,
           hasConnection: true,
@@ -633,9 +656,24 @@ export function AirportEditor() {
     id: ComponentId,
     pair: BoardingConnectionPair,
     enabled: boolean,
+    side: "embarque" | "desembarque" = "embarque",
   ) {
     updateRequirements(id, (entry) => {
-      const possible = allowsArrivalsConnection(entry)
+      const arrivalsSide =
+        side === "desembarque" ||
+        (allowsArrivalsConnection(entry) && !allowsBoardingConnection(entry));
+      if (entry.kind === "saguao-embarque-desembarque" && side === "desembarque") {
+        const possible = arrivalsConnectionPairsFor(entry);
+        const current =
+          entry.conexoesDesembarque ??
+          Object.fromEntries(possible.map((item) => [item, true]));
+        return {
+          ...entry,
+          hasDesembarqueConnection: true,
+          conexoesDesembarque: { ...current, [pair]: enabled },
+        };
+      }
+      const possible = arrivalsSide
         ? arrivalsConnectionPairsFor(entry)
         : boardingConnectionPairsFor(entry);
       const current =
@@ -1105,11 +1143,11 @@ export function AirportEditor() {
             handleSetEsteiraTaxa(activeContract.id, taxaDiferente)
           }
           onRemoveEsteira={() => handleRemoveEsteira(activeContract.id)}
-          onSetConnection={(hasConnection) =>
-            handleSetConnection(activeContract.id, hasConnection)
+          onSetConnection={(hasConnection, side) =>
+            handleSetConnection(activeContract.id, hasConnection, side)
           }
-          onSetConnectionPair={(pair, enabled) =>
-            handleSetConnectionPair(activeContract.id, pair, enabled)
+          onSetConnectionPair={(pair, enabled, side) =>
+            handleSetConnectionPair(activeContract.id, pair, enabled, side)
           }
           onNatureChange={(nature) =>
             handleNatureChange(activeContract.id, nature)

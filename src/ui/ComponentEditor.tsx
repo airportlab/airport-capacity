@@ -321,8 +321,15 @@ interface ComponentEditorProps {
   onAddEsteira: () => void;
   onSetEsteiraTaxa: (taxaDiferente: boolean) => void;
   onRemoveEsteira: () => void;
-  onSetConnection: (hasConnection: boolean) => void;
-  onSetConnectionPair: (pair: BoardingConnectionPair, enabled: boolean) => void;
+  onSetConnection: (
+    hasConnection: boolean,
+    side?: "embarque" | "desembarque",
+  ) => void;
+  onSetConnectionPair: (
+    pair: BoardingConnectionPair,
+    enabled: boolean,
+    side?: "embarque" | "desembarque",
+  ) => void;
   onNatureChange: (nature: OrganNature) => void;
   onValueChange: (id: ComponentParamId, raw: string) => void;
   onOrigemChange: (id: ComponentParamId, raw: string) => void;
@@ -629,7 +636,9 @@ export function ComponentEditor({
             <input
               type="checkbox"
               checked={hasBoardingConnection(entry)}
-              onChange={(event) => onSetConnection(event.target.checked)}
+              onChange={(event) =>
+                onSetConnection(event.target.checked, "embarque")
+              }
             />
             Há embarque via conexão
           </label>
@@ -637,12 +646,12 @@ export function ComponentEditor({
         {hasBoardingConnection(entry) ? (
           <div className="connection-pairs">
             {boardingConnectionPairsFor(entry).map((pair) => (
-              <label className="choice" key={pair}>
+              <label className="choice" key={`embarque-${pair}`}>
                 <input
                   type="checkbox"
                   checked={enabledBoardingConnections(entry).includes(pair)}
                   onChange={(event) =>
-                    onSetConnectionPair(pair, event.target.checked)
+                    onSetConnectionPair(pair, event.target.checked, "embarque")
                   }
                 />
                 Conexão {boardingConnectionSpec(pair).label}
@@ -655,7 +664,9 @@ export function ComponentEditor({
             <input
               type="checkbox"
               checked={hasArrivalsConnection(entry)}
-              onChange={(event) => onSetConnection(event.target.checked)}
+              onChange={(event) =>
+                onSetConnection(event.target.checked, "desembarque")
+              }
             />
             Há desembarque via conexão
           </label>
@@ -663,12 +674,16 @@ export function ComponentEditor({
         {hasArrivalsConnection(entry) ? (
           <div className="connection-pairs">
             {arrivalsConnectionPairsFor(entry).map((pair) => (
-              <label className="choice" key={pair}>
+              <label className="choice" key={`desembarque-${pair}`}>
                 <input
                   type="checkbox"
                   checked={enabledArrivalsConnections(entry).includes(pair)}
                   onChange={(event) =>
-                    onSetConnectionPair(pair, event.target.checked)
+                    onSetConnectionPair(
+                      pair,
+                      event.target.checked,
+                      "desembarque",
+                    )
                   }
                 />
                 Conexão {ARRIVALS_CONNECTION_LABEL[pair]}
@@ -676,15 +691,29 @@ export function ComponentEditor({
             ))}
           </div>
         ) : null}
-        {connectionFields.length > 0 ? (
+        {connectionFields.some((field) => !field.id.includes("Desembarque")) ? (
           <>
-            <h3 className="field-label">
-              {allowsArrivalsConnection(entry)
-                ? "Desembarque via conexão"
-                : "Embarque via conexão"}
-            </h3>
+            <h3 className="field-label">Embarque via conexão</h3>
             <FieldList
-              fields={connectionFields}
+              fields={connectionFields.filter(
+                (field) => !field.id.includes("Desembarque"),
+              )}
+              drafts={drafts}
+              origens={origens}
+              onValueChange={onValueChange}
+              onOrigemChange={onOrigemChange}
+              dhpMark={dhpMark}
+              dhpIds={dhpIds}
+            />
+          </>
+        ) : null}
+        {connectionFields.some((field) => field.id.includes("Desembarque")) ? (
+          <>
+            <h3 className="field-label">Desembarque via conexão</h3>
+            <FieldList
+              fields={connectionFields.filter((field) =>
+                field.id.includes("Desembarque"),
+              )}
               drafts={drafts}
               origens={origens}
               onValueChange={onValueChange}
@@ -763,8 +792,11 @@ export function ComponentEditor({
           ) : dual ? (
             <DualAreaFormulaCard
               companions={area.companions}
-              hasConnection={connectionPairs.length > 0}
+              hasConnection={
+                connectionPairs.length > 0 || arrivalsPairs.length > 0
+              }
               connectionPairs={connectionPairs}
+              arrivalsPairs={arrivalsPairs}
               afterEquation={
                 <>
                   <SeatsFormulaLine contract={contract} />
@@ -776,6 +808,7 @@ export function ComponentEditor({
               (field) => field.id === "percentualOcupacaoMaxima",
             ) ? (
             <SplitLoungeFormulaCard
+              connectionPairs={connectionPairs}
               afterEquation={
                 <AreaResults contract={contract} evaluation={evaluation} />
               }
@@ -784,18 +817,10 @@ export function ComponentEditor({
             <FormulaCard
               companions={area.companions}
               hasConnection={connectionPairs.length > 0}
+              connectionHall={entry.kind === "saguao-embarque"}
               connectionPairs={connectionPairs}
-              arrivalsPairs={
-                arrivalsHall ||
-                (entry.kind === "saguao-desembarque" && !mixed)
-                  ? arrivalsPairs
-                  : []
-              }
-              arrivalsEmpSuffix={
-                entry.kind === "saguao-desembarque" && !mixed
-                  ? () => ""
-                  : undefined
-              }
+              arrivalsPairs={arrivalsPairs}
+              arrivalsEmpSuffix={() => ""}
               includeSeats={contract.formulas.some(
                 (formula) => formula.id === "assentosMinimos",
               )}

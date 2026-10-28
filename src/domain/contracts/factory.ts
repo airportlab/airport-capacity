@@ -108,20 +108,19 @@ export function contractHasConnection(contract: ComponentContract): boolean {
   return contract.params.some((field) => field.id.startsWith("demandaPicoConexao"));
 }
 
-/** Emp e Toi da conexão vêm do embarque. No saguão misto, DOM-INT e INT-INT usam a coluna internacional. */
+/** Emp e Toi da conexão são os do componente. No misto, a coluna é a do voo do par. */
 export function connectionDemandOrigem(
   entry: RegistryEntry,
   pair?: BoardingConnectionPair,
 ): string {
-  const internationalPair =
-    entry.kind === "saguao-embarque" &&
-    isMixedNature(entry) &&
-    (pair === "domInt" || pair === "intInt");
-  const nature = natureOfEntry(entry);
-  if (internationalPair || nature === "internacional") {
-    return "Emp e Toi usados nesta conta são os do embarque internacional. Sem acompanhante.";
+  const international =
+    isMixedNature(entry)
+      ? pair === "domInt" || pair === "intInt"
+      : natureOfEntry(entry) === "internacional";
+  if (international) {
+    return "Emp e Toi usados nesta conta são os da coluna internacional. Sem acompanhante.";
   }
-  return "Emp e Toi usados nesta conta são os do embarque doméstico. Sem acompanhante.";
+  return "Emp e Toi usados nesta conta são os da coluna doméstica. Sem acompanhante.";
 }
 
 export function makeContract(entry: RegistryEntry): ComponentContract {
@@ -254,10 +253,11 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       : []),
   ];
 
+  const hallConnection = entry.kind === "saguao-embarque";
   const areaCopy = splitLounge
-    ? splitLoungeFormulaDisplay()
+    ? splitLoungeFormulaDisplay(boardingPairs)
     : singleFunctionMixed
-    ? singleFunctionMixedFormulaDisplay(companions)
+    ? singleFunctionMixedFormulaDisplay(companions, boardingPairs)
     : mixedNature
       ? mixedAreaFormulaDisplay(
           companions,
@@ -272,13 +272,20 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     : dualFlows
       ? dualAreaFormulaDisplay(
           companions,
-          Boolean(connection) && boardingPairs.length === 0,
+          Boolean(connection) &&
+            boardingPairs.length === 0 &&
+            arrivalsPairs.length === 0,
           boardingPairs,
+          arrivalsPairs,
         )
-      : entry.kind === "sala-desembarque" && arrivalsPairs.length > 0
+      : arrivalsPairs.length > 0 && boardingPairs.length === 0
         ? salaArrivalsFormulaDisplay(arrivalsPairs)
         : connection
-          ? simpleConnectionFormulaDisplay(companions, boardingPairs)
+          ? simpleConnectionFormulaDisplay(
+              companions,
+              boardingPairs,
+              hallConnection,
+            )
           : areaFormulaDisplay(companions);
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
@@ -337,28 +344,6 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       espacoMinimoPorPassageiroDesembarqueInternacional: {
         unit: empUnitDesembarque,
       },
-      ...(entry.kind === "sala-desembarque"
-        ? {
-            espacoMinimoPorPassageiroDesembarqueDomestico: {
-              unit: empUnit,
-              label: "Emp · coluna doméstica",
-              origem: "PMD da sala de desembarque, coluna doméstica.",
-            },
-            tempoDeOcupacaoDesembarqueDomestico: {
-              label: "Toi · coluna doméstica",
-              origem: "PMD da sala de desembarque, coluna doméstica.",
-            },
-            espacoMinimoPorPassageiroDesembarqueInternacional: {
-              unit: empUnit,
-              label: "Emp · coluna internacional",
-              origem: "PMD da sala de desembarque, coluna internacional.",
-            },
-            tempoDeOcupacaoDesembarqueInternacional: {
-              label: "Toi · coluna internacional",
-              origem: "PMD da sala de desembarque, coluna internacional.",
-            },
-          }
-        : {}),
       espacoMinimoPorPassageiroDomestico: {
         unit: empUnit,
       },
@@ -469,6 +454,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       excelEquipmentTaxa: organAllowsEquipmentTaxa(entry),
       includeBeltTaxa,
       includeBelt: belt,
+      connectionHall: hallConnection,
       companions,
       flows: flows.length > 1 ? flows : [],
       demandIds,

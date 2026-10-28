@@ -38,6 +38,7 @@ import {
   splitEquipmentFormulaDisplay,
   splitLoungeFormulaDisplay,
   mixedAreaSumDisplay,
+  simpleConnectionFormulaDisplay,
   simpleConnectionSumDisplay,
   singleFunctionMixedSumDisplay,
 } from "./notations";
@@ -293,6 +294,10 @@ function connectionEmpSuffix(
 ): string {
   if (emp === "espacoMinimoPorPassageiroEmbarqueInternacional") return "_e,int";
   if (emp === "espacoMinimoPorPassageiroEmbarqueDomestico") return "_e,dom";
+  if (emp === "espacoMinimoPorPassageiroEmbarque") return "_e";
+  if (emp === "espacoMinimoPorPassageiroInternacional") return "_int";
+  if (emp === "espacoMinimoPorPassageiroDomestico") return "_dom";
+  if (emp === "espacoMinimoPorPassageiro") return "";
   return mixedNature ? "_e,dom" : "_e";
 }
 
@@ -386,6 +391,8 @@ export function capacityFormulas(copy: {
   connections?: FlowParamIds[];
   equipmentTerms?: EquipmentTerm[];
   includeBelt?: boolean;
+  /** Saguão de embarque de uma natureza: a base da conexão é Ad_e. */
+  connectionHall?: boolean;
 }): ContractFormula[] {
   const includeUsoReal = copy.includeUsoReal ?? false;
   const includeArea = copy.includeArea ?? false;
@@ -437,6 +444,7 @@ export function capacityFormulas(copy: {
   const excelEquipmentTaxaId: ComponentParamId | null =
     copy.excelEquipmentTaxa === false ? null : "taxaDeUsoEquipamento";
   const includeBelt = copy.includeBelt ?? false;
+  const connectionHall = copy.connectionHall ?? false;
   const includeBeltTaxa = copy.includeBeltTaxa ?? false;
   const beltTaxaId: ComponentParamId | null = includeBeltTaxa
     ? "taxaDeUsoEsteira"
@@ -501,7 +509,7 @@ export function capacityFormulas(copy: {
       flows[0]?.area === "areaMinimaDesembarque" &&
       arrivalPairs.length > 0;
     const sumDisplay = singleFunctionMixed
-      ? singleFunctionMixedSumDisplay()
+      ? singleFunctionMixedSumDisplay(pairs)
       : mixedNature
         ? mixedAreaSumDisplay(
             flows.length,
@@ -512,7 +520,7 @@ export function capacityFormulas(copy: {
           )
         : singleArrivals
           ? salaArrivalsSumDisplay(arrivalPairs)
-          : dualAreaSumDisplay(connections.length > 0, pairs);
+          : dualAreaSumDisplay(connections.length > 0, pairs, arrivalPairs);
     formulas.push({
       id: "areaMinima",
       label: "Área mínima necessária (Ad)",
@@ -640,7 +648,7 @@ export function capacityFormulas(copy: {
             ),
           ].join("+"),
       });
-    } else if (looseConnections.length > 0) {
+    } else if (looseConnections.length > 0 && connectionHall) {
       const originExpression = `Ad_e = ${areaFormulaDisplay(companions).replace("Ad = ", "")}`;
       formulas.push({
         id: "areaMinimaEmbarque",
@@ -679,7 +687,10 @@ export function capacityFormulas(copy: {
             areaExcel(cells, item.demanda, item.emp, item.toi),
         });
       }
-      const sumDisplay = simpleConnectionSumDisplay(boardingPairsOf(looseConnections));
+      const sumDisplay = simpleConnectionSumDisplay(
+        boardingPairsOf(looseConnections),
+        true,
+      );
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
@@ -714,15 +725,99 @@ export function capacityFormulas(copy: {
           ].join("+"),
       });
     } else if (includeSplitLounge) {
-      const expression = splitLoungeFormulaDisplay();
+      const splitPairs = boardingPairsOf(looseConnections);
+      const expression = splitLoungeFormulaDisplay(splitPairs);
+      for (const item of looseConnections) {
+        const pair = boardingPairOfArea(item.area);
+        const display = pair
+          ? boardingConnectionAreaDisplay(pair, "_s")
+          : connectionExpression(item, false);
+        formulas.push({
+          id: item.area,
+          label: connectionLabel(item),
+          unit: "m²",
+          origem: `${display}. Conexões sem acompanhante. Emp_s e Toi_s da sala.`,
+          expression: display,
+          evaluate: (inputs) =>
+            areaValue(inputs, item.demanda, item.emp, item.toi),
+          toExcel: (cells) =>
+            areaExcel(cells, item.demanda, item.emp, item.toi),
+        });
+      }
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
         unit: "m²",
-        origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé.`,
+        origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé. Cada conexão soma (DHp_c × Emp_s × Toi_s) / 60.`,
         expression,
-        evaluate: (inputs) => splitLoungeArea(inputs),
-        toExcel: (cells) => splitLoungeExcel(cells),
+        evaluate: (inputs) =>
+          splitLoungeArea(inputs) +
+          looseConnections.reduce(
+            (sum, item) =>
+              sum + areaValue(inputs, item.demanda, item.emp, item.toi),
+            0,
+          ),
+        toExcel: (cells) =>
+          [
+            splitLoungeExcel(cells),
+            ...looseConnections.map((item) =>
+              areaExcel(cells, item.demanda, item.emp, item.toi),
+            ),
+          ].join("+"),
+      });
+    } else if (looseConnections.length > 0) {
+      for (const item of looseConnections) {
+        const expression = connectionExpression(item, false);
+        formulas.push({
+          id: item.area,
+          label: connectionLabel(item),
+          unit: "m²",
+          origem: `${expression}. Conexões sem acompanhante.`,
+          expression,
+          evaluate: (inputs) =>
+            areaValue(inputs, item.demanda, item.emp, item.toi),
+          toExcel: (cells) =>
+            areaExcel(cells, item.demanda, item.emp, item.toi),
+        });
+      }
+      const plainPairs = boardingPairsOf(looseConnections);
+      const sumDisplay = simpleConnectionFormulaDisplay(
+        companions,
+        plainPairs,
+        false,
+      );
+      formulas.push({
+        id: "areaMinima",
+        label: "Área mínima necessária (Ad)",
+        unit: "m²",
+        origem: `${sumDisplay}. Uma área medida do recinto contra a soma das contas.`,
+        expression: sumDisplay,
+        evaluate: (inputs) =>
+          areaValue(
+            inputs,
+            "demandaPico",
+            "espacoMinimoPorPassageiro",
+            "tempoDeOcupacao",
+            companions ? "va" : undefined,
+          ) +
+          looseConnections.reduce(
+            (sum, item) =>
+              sum + areaValue(inputs, item.demanda, item.emp, item.toi),
+            0,
+          ),
+        toExcel: (cells) =>
+          [
+            areaExcel(
+              cells,
+              "demandaPico",
+              "espacoMinimoPorPassageiro",
+              "tempoDeOcupacao",
+              companions ? "va" : undefined,
+            ),
+            ...looseConnections.map((item) =>
+              areaExcel(cells, item.demanda, item.emp, item.toi),
+            ),
+          ].join("+"),
       });
     } else {
       formulas.push({

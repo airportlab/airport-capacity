@@ -329,22 +329,34 @@ function boardingConnectionRows(contract: ComponentContract) {
   );
 }
 
-function boardingOnlyMixed(contract: ComponentContract): boolean {
-  const ids = new Set(contract.params.map((field) => field.id));
-  return (
-    ids.has("espacoMinimoPorPassageiroEmbarqueInternacional") &&
-    !ids.has("espacoMinimoPorPassageiroDesembarqueDomestico")
-  );
-}
-
 function boardingConnectionColumn(
   contract: ComponentContract,
   pair: (typeof BOARDING_CONNECTION_CATALOG)[number]["pair"],
 ): { emp: ComponentParamId; toi: ComponentParamId } {
-  if (boardingOnlyMixed(contract) && (pair === "domInt" || pair === "intInt")) {
+  const ids = new Set(contract.params.map((field) => field.id));
+  const international = pair === "domInt" || pair === "intInt";
+  if (international && ids.has("espacoMinimoPorPassageiroEmbarqueInternacional")) {
     return {
       emp: "espacoMinimoPorPassageiroEmbarqueInternacional",
       toi: "tempoDeOcupacaoEmbarqueInternacional",
+    };
+  }
+  if (international && ids.has("espacoMinimoPorPassageiroInternacional")) {
+    return {
+      emp: "espacoMinimoPorPassageiroInternacional",
+      toi: "tempoDeOcupacaoInternacional",
+    };
+  }
+  if (!international && ids.has("espacoMinimoPorPassageiroEmbarqueDomestico")) {
+    return {
+      emp: "espacoMinimoPorPassageiroEmbarqueDomestico",
+      toi: "tempoDeOcupacaoEmbarqueDomestico",
+    };
+  }
+  if (!international && ids.has("espacoMinimoPorPassageiroDomestico")) {
+    return {
+      emp: "espacoMinimoPorPassageiroDomestico",
+      toi: "tempoDeOcupacaoDomestico",
     };
   }
   return connectionSizing(contract);
@@ -559,7 +571,8 @@ export function getNatureSheetLayout(
             });
             row += 1;
           }
-        } else if (contractHasConnection(contract)) {
+        }
+        if (boardingConnectionRows(contract).length > 0) {
           for (const spec of boardingConnectionRows(contract)) {
             const column = boardingConnectionColumn(contract, spec.pair);
             const connectionRow = layoutConnectionAreaRow(

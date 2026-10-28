@@ -75,6 +75,7 @@ const CONNECTION_FLOW_KEY: Record<
   intInt: "conexaoIntInt",
 };
 
+/** A primeira letra é o voo. DOM-INT lê chegada_dom_int; INT-DOM lê chegada_int_dom. */
 const ARRIVAL_FLOW_KEY: Record<ArrivalsConnectionPair, BoardingFlowKey> = {
   domDom: "chegadaDomDom",
   domInt: "chegadaDomInt",
@@ -246,7 +247,7 @@ export function boardingPonderation(
   return pesos;
 }
 
-/** Contagem da 30ª hora. INT/DOM e INT/INT do desembarque somam no mesmo DHp. */
+/** Contagem da 30ª hora. Cada par grava a sua. */
 export function boardingDemandsFromHour(
   flows: readonly BoardingFlowWeight[],
   hour: BoardingHourCounts,

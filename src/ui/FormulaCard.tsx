@@ -17,6 +17,7 @@ import {
   beltConnectionSymbol,
   beltNumerator,
   salaArrivalsSumDisplay,
+  checkinConnectionEmpSuffix,
   mixedAreaSumDisplay,
   mixedBoardingConnectionEmpSuffix,
   simpleConnectionSumDisplay,
@@ -278,14 +279,36 @@ export function SplitLoungeEquation() {
 }
 
 export function SplitLoungeFormulaCard({
+  connectionPairs = [],
   afterEquation,
 }: {
+  connectionPairs?: readonly BoardingConnectionPair[];
   afterEquation?: ReactNode;
 }) {
+  const sum =
+    connectionPairs.length > 0
+      ? `Ad + ${boardingConnectionAreaList(connectionPairs)}`
+      : "";
   return (
     <div className="formula-card">
-      <p className="formula-kicker">Fórmula do requisito de área</p>
+      <p className="formula-kicker">
+        {connectionPairs.length > 0
+          ? "Fórmulas da sala e da conexão"
+          : "Fórmula do requisito de área"}
+      </p>
       <SplitLoungeEquation />
+      {connectionPairs.length > 0 ? (
+        <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_s" />
+      ) : null}
+      {connectionPairs.length > 0 ? (
+        <div className="tex" role="img" aria-label={`Ad = ${sum}`}>
+          <span className="tex-lhs">Ad</span>
+          <span className="tex-eq">=</span>
+          <span>
+            <TexText text={sum} />
+          </span>
+        </div>
+      ) : null}
       {afterEquation}
       <dl className="formula-legend">
         {SPLIT_LOUNGE_NOTATIONS.map((item) => (
@@ -306,6 +329,8 @@ export function SplitLoungeFormulaCard({
 interface FormulaCardProps {
   companions: boolean;
   hasConnection?: boolean;
+  /** Saguão de embarque: a base é Ad_e. Nos demais, Ad. */
+  connectionHall?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
   arrivalsEmpSuffix?: (pair: ArrivalsConnectionPair) => ArrivalsEmpSuffix;
@@ -316,6 +341,7 @@ interface FormulaCardProps {
 export function FormulaCard({
   companions,
   hasConnection = false,
+  connectionHall = false,
   connectionPairs = [],
   arrivalsPairs = [],
   arrivalsEmpSuffix,
@@ -356,27 +382,31 @@ export function FormulaCard({
     );
   }
   const linked = hasConnection || connectionPairs.length > 0;
-  const sum = simpleConnectionSumDisplay(connectionPairs);
+  const sum = simpleConnectionSumDisplay(connectionPairs, connectionHall);
+  const base = connectionHall ? "Ad_e" : "Ad";
+  const suffix = connectionHall ? "_e" : "";
   const sumBody =
     connectionPairs.length > 0
-      ? `Ad_e + ${boardingConnectionAreaList(connectionPairs)}`
-      : "Ad_e + Ad_c";
+      ? `${base} + ${boardingConnectionAreaList(connectionPairs)}`
+      : `${base} + Ad_c`;
   return (
     <div className="formula-card">
       <p className="formula-kicker">
         {linked
-          ? "Fórmulas de embarque e conexão"
+          ? connectionHall
+            ? "Fórmulas de embarque e conexão"
+            : "Fórmulas do componente e da conexão"
           : "Fórmula do requisito de área"}
       </p>
       <AreaEquation
         companions={companions}
-        lhs={linked ? "Ad_e" : "Ad"}
-        numerator={linked ? areaNumerator(companions, "_e") : undefined}
+        lhs={linked ? base : "Ad"}
+        numerator={linked ? areaNumerator(companions, suffix) : undefined}
       />
       {connectionPairs.length > 0 ? (
-        <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_e" />
+        <BoardingConnectionEquations pairs={connectionPairs} empSuffix={suffix} />
       ) : hasConnection ? (
-        <ConnectionEquation empSuffix="_e" />
+        <ConnectionEquation empSuffix={suffix} />
       ) : null}
       {linked ? (
         <div className="tex" role="img" aria-label={sum}>
@@ -408,6 +438,7 @@ interface DualFormulaCardProps {
   companions: boolean;
   hasConnection?: boolean;
   connectionPairs?: readonly BoardingConnectionPair[];
+  arrivalsPairs?: readonly ArrivalsConnectionPair[];
   afterEquation?: ReactNode;
 }
 
@@ -415,9 +446,10 @@ export function DualAreaFormulaCard({
   companions,
   hasConnection = false,
   connectionPairs = [],
+  arrivalsPairs = [],
   afterEquation,
 }: DualFormulaCardProps) {
-  const sum = dualAreaSumDisplay(hasConnection, connectionPairs);
+  const sum = dualAreaSumDisplay(hasConnection, connectionPairs, arrivalsPairs);
   return (
     <div className="formula-card">
       <p className="formula-kicker">
@@ -437,9 +469,17 @@ export function DualAreaFormulaCard({
       />
       {connectionPairs.length > 0 ? (
         <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_e" />
-      ) : hasConnection ? (
+      ) : hasConnection && arrivalsPairs.length === 0 ? (
         <ConnectionEquation empSuffix="_e" />
       ) : null}
+      {arrivalsPairs.map((pair) => (
+        <AreaEquation
+          key={pair}
+          companions={false}
+          lhs={arrivalsConnectionSpec(pair).areaSymbol}
+          numerator={arrivalsConnectionNumerator(pair, "_d")}
+        />
+      ))}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>
         <span className="tex-eq">=</span>
@@ -471,11 +511,14 @@ export function MixedNatureAreaFormulaCard({
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
 }) {
   if (singleFunction) {
-    const sum = singleFunctionMixedSumDisplay();
+    const sum = singleFunctionMixedSumDisplay(connectionPairs);
+    const sumBody = sum.replace("Ad = ", "");
     return (
       <div className="formula-card">
         <p className="formula-kicker">
-          Fórmulas dos dois fluxos (doméstico e internacional)
+          {connectionPairs.length > 0
+            ? "Fórmulas dos dois fluxos e das conexões"
+            : "Fórmulas dos dois fluxos (doméstico e internacional)"}
         </p>
         <AreaEquation
           companions={companions}
@@ -487,11 +530,18 @@ export function MixedNatureAreaFormulaCard({
           lhs="Ad_int"
           numerator={areaNumerator(companions, "_int")}
         />
+        {connectionPairs.length > 0 ? (
+          <BoardingConnectionEquations
+            pairs={connectionPairs}
+            empSuffix="_dom"
+            empSuffixOf={checkinConnectionEmpSuffix}
+          />
+        ) : null}
         <div className="tex" role="img" aria-label={sum}>
           <span className="tex-lhs">Ad</span>
           <span className="tex-eq">=</span>
           <span>
-            <TexText text="Ad_dom + Ad_int" />
+            <TexText text={sumBody} />
           </span>
         </div>
         {afterEquation}
@@ -568,19 +618,17 @@ export function MixedNatureAreaFormulaCard({
         <BoardingConnectionEquations
           pairs={connectionPairs}
           empSuffix="_e,dom"
-          empSuffixOf={boardingOnly ? mixedBoardingConnectionEmpSuffix : undefined}
+          empSuffixOf={mixedBoardingConnectionEmpSuffix}
         />
       ) : null}
-      {arrivalsOnly
-        ? arrivalsPairs.map((pair) => (
-            <AreaEquation
-              key={pair}
-              companions={false}
-              lhs={arrivalsConnectionSpec(pair).areaSymbol}
-              numerator={arrivalsConnectionNumerator(pair)}
-            />
-          ))
-        : null}
+      {arrivalsPairs.map((pair) => (
+        <AreaEquation
+          key={pair}
+          companions={false}
+          lhs={arrivalsConnectionSpec(pair).areaSymbol}
+          numerator={arrivalsConnectionNumerator(pair)}
+        />
+      ))}
       <div className="tex" role="img" aria-label={sum}>
         <span className="tex-lhs">Ad</span>
         <span className="tex-eq">=</span>
