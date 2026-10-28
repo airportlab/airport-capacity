@@ -551,6 +551,15 @@ export function organAllowsEquipment(entry: { kind?: string }): boolean {
   return EQUIPMENT_KINDS.has(entry.kind as OrganKind);
 }
 
+/** Emigração e imigração ficam em 100%. Não há taxa de utilização nos equipamentos. */
+export function organAllowsEquipmentTaxa(entry: { kind?: string }): boolean {
+  return (
+    organAllowsEquipment(entry) &&
+    entry.kind !== "emigracao" &&
+    entry.kind !== "imigracao"
+  );
+}
+
 export function suggestedCompanions(
   template: OrganTemplate | undefined,
 ): boolean {

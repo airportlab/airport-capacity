@@ -24,6 +24,7 @@ import {
   instantiableOrgans,
   naturesForTemplate,
   organAllowsEquipment,
+  organAllowsEquipmentTaxa,
   PMD_LINE_ORGANS,
   requirementsFromPreset,
   type OrganKind,
@@ -169,7 +170,9 @@ function exampleRequirements(template: OrganTemplate): ComponentRequirements {
     requirements.area = { companions: true };
   }
   if (organAllowsEquipment({ kind: template.kind })) {
-    requirements.equipment = { taxaDiferente: true };
+    requirements.equipment = organAllowsEquipmentTaxa({ kind: template.kind })
+      ? { taxaDiferente: true }
+      : {};
   }
   if (template.kind === "sala-desembarque") {
     requirements.esteira = { taxaDiferente: true };

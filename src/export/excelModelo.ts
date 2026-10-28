@@ -30,7 +30,7 @@ import {
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../domain/types";
-import { journeyRank } from "../domain/templates/organs";
+import { journeyRank, organAllowsEquipmentTaxa } from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
 import { formatEvaluationPeriod } from "../ui/format";
 
@@ -165,10 +165,18 @@ type ParamLine = {
   value: number;
 };
 
-/** Tu de 100% sem a marcação. A célula entra na fórmula; o valor gravado é 100, não o zero do contrato. */
-function implicitUtilizationIds(contract: ComponentContract): ComponentParamId[] {
+/** Tu de 100% sem a marcação. A célula entra na fórmula; o valor gravado é 100, não o zero do contrato. Emigração e imigração não têm essa célula. */
+function implicitUtilizationIds(
+  contract: ComponentContract,
+  entry?: RegistryEntry,
+): ComponentParamId[] {
   const ids: ComponentParamId[] = [];
-  if (hasEquipment(contract.requirements) && !usesEquipmentTaxa(contract.requirements)) {
+  const fixedHundred = entry != null && !organAllowsEquipmentTaxa(entry);
+  if (
+    hasEquipment(contract.requirements) &&
+    !usesEquipmentTaxa(contract.requirements) &&
+    !fixedHundred
+  ) {
     if (isSplitCheckinEquipment(contract.equipmentTerms ?? [])) {
       ids.push(
         "taxaDeUsoEquipamentoDomestico",
@@ -226,7 +234,7 @@ function collectParamLines(
       if (!wanted.has(formula.id)) continue;
       for (const id of paramsTouched(formula)) seen.add(id);
     }
-    const atHundred = new Set(implicitUtilizationIds(item.contract));
+    const atHundred = new Set(implicitUtilizationIds(item.contract, item.entry));
     for (const id of atHundred) seen.add(id);
     for (const paramId of COMPONENT_PARAM_IDS) {
       if (!seen.has(paramId) || paramId.startsWith("demanda")) continue;
@@ -2193,9 +2201,13 @@ function writeMemoryAccount(
   if (!formula || !evaluation) return { nextRow: rowNumber, meetsRow: 0 };
   const implicitIds =
     kind === "equipment"
-      ? implicitUtilizationIds(item.contract).filter((id) => id !== "taxaDeUsoEsteira")
+      ? implicitUtilizationIds(item.contract, item.entry).filter(
+          (id) => id !== "taxaDeUsoEsteira",
+        )
       : kind === "belt"
-        ? implicitUtilizationIds(item.contract).filter((id) => id === "taxaDeUsoEsteira")
+        ? implicitUtilizationIds(item.contract, item.entry).filter(
+            (id) => id === "taxaDeUsoEsteira",
+          )
         : [];
   const lines = buildMemoryLines(item.entry, formula, implicitIds);
   if (lines.length === 0) return { nextRow: rowNumber, meetsRow: 0 };

@@ -25,6 +25,7 @@ import {
   naturesForTemplate,
   organAllowsCompanions,
   organAllowsEquipment,
+  organAllowsEquipmentTaxa,
   organNatureLabel,
   templateForEntry,
   type OrganNature,
@@ -369,9 +370,11 @@ export function ComponentEditor({
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
   const allowsEquipment = organAllowsEquipment(entry);
+  const allowsEquipmentTaxa = organAllowsEquipmentTaxa(entry);
   const equipment = allowsEquipment && hasEquipment(contract.requirements);
   const esteira = hasEsteira(contract.requirements);
-  const equipmentTaxa = usesEquipmentTaxa(contract.requirements);
+  const equipmentTaxa =
+    allowsEquipmentTaxa && usesEquipmentTaxa(contract.requirements);
   const esteiraTaxa = usesEsteiraTaxa(contract.requirements);
   const identityIds = identityParamIds(entry);
   const identityIdSet = new Set(identityIds);
@@ -870,14 +873,16 @@ export function ComponentEditor({
               <EquipmentResults contract={contract} evaluation={evaluation} />
             }
           />
-          <label className="choice">
-            <input
-              type="checkbox"
-              checked={equipmentTaxa}
-              onChange={(event) => onSetEquipmentTaxa(event.target.checked)}
-            />
-            Taxa de utilização diferente de 100%
-          </label>
+          {allowsEquipmentTaxa ? (
+            <label className="choice">
+              <input
+                type="checkbox"
+                checked={equipmentTaxa}
+                onChange={(event) => onSetEquipmentTaxa(event.target.checked)}
+              />
+              Taxa de utilização diferente de 100%
+            </label>
+          ) : null}
           {equipmentTaxa && equipmentTaxaFields.length > 0 ? (
             <FieldList
               fields={equipmentTaxaFields}

@@ -37,6 +37,7 @@ import {
   natureOfEntry,
   organAllowsCompanions,
   organAllowsEquipment,
+  organAllowsEquipmentTaxa,
   organNatureLabel,
   rebindOrganNature,
   remapDemandaOnNatureChange,
@@ -666,7 +667,9 @@ export function AirportEditor() {
 
   function handleSetEquipmentTaxa(id: ComponentId, taxaDiferente: boolean) {
     updateRequirements(id, (entry) => {
-      if (!entry.requirements.equipment) return entry;
+      if (!entry.requirements.equipment || !organAllowsEquipmentTaxa(entry)) {
+        return entry;
+      }
       return {
         ...entry,
         requirements: {

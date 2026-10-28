@@ -54,7 +54,11 @@ import {
   standardTsecForParam,
   TSEC_MANUAL_CITATION,
 } from "../pmd";
-import { organAllowsCompanions, organAllowsEquipment } from "../templates/organs";
+import {
+  organAllowsCompanions,
+  organAllowsEquipment,
+  organAllowsEquipmentTaxa,
+} from "../templates/organs";
 
 export function emptyRequirements(): ComponentRequirements {
   return {};
@@ -132,9 +136,15 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   };
   if (!organAllowsEquipment(entry)) delete requirements.equipment;
   if (entry.kind !== "sala-desembarque") delete requirements.esteira;
+  if (requirements.equipment && !organAllowsEquipmentTaxa(entry)) {
+    const equipment = { ...requirements.equipment };
+    delete equipment.taxaDiferente;
+    requirements.equipment = equipment;
+  }
   const equipment = hasEquipment(requirements);
   const belt = hasEsteira(requirements);
-  const includeEquipmentTaxa = usesEquipmentTaxa(requirements);
+  const includeEquipmentTaxa =
+    organAllowsEquipmentTaxa(entry) && usesEquipmentTaxa(requirements);
   const includeBeltTaxa = usesEsteiraTaxa(requirements);
   const splitLounge = Boolean(area) && isSplitLoungeEntry(entry);
   const seats = Boolean(area) && !splitLounge && roundHasSeats(entry);
@@ -456,6 +466,7 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeSeats: seats && !mixedNature,
       includeSplitLounge: splitLounge,
       includeEquipmentTaxa,
+      excelEquipmentTaxa: organAllowsEquipmentTaxa(entry),
       includeBeltTaxa,
       includeBelt: belt,
       companions,

@@ -22,6 +22,7 @@ import { makeContract } from "../domain/contracts/factory";
 import {
   organAllowsCompanions,
   organAllowsEquipment,
+  organAllowsEquipmentTaxa,
   rebindOrganNature,
   remapDemandaOnNatureChange,
 } from "../domain/templates/organs";
@@ -221,6 +222,17 @@ function clampArrivalsRequirements(entry: RegistryEntry): RegistryEntry {
   return { ...next, requirements };
 }
 
+function clampEquipmentTaxa(entry: RegistryEntry): RegistryEntry {
+  const equipment = entry.requirements.equipment;
+  if (!equipment?.taxaDiferente || organAllowsEquipmentTaxa(entry)) return entry;
+  const next = { ...equipment };
+  delete next.taxaDiferente;
+  return {
+    ...entry,
+    requirements: { ...entry.requirements, equipment: next },
+  };
+}
+
 function clampAreaCompanions(entry: RegistryEntry): RegistryEntry {
   const area = entry.requirements.area;
   if (!area?.companions || organAllowsCompanions(entry)) return entry;
@@ -295,7 +307,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const conexoes = parseConexoes(item.conexoes);
     entries.push(
       ensureAreaRequirement(
-        clampArrivalsRequirements(clampAreaCompanions({
+        clampEquipmentTaxa(clampArrivalsRequirements(clampAreaCompanions({
           id: item.id,
           title: item.title,
           kind: typeof item.kind === "string" ? item.kind : undefined,
@@ -306,7 +318,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
           observacoes,
           ...(item.hasConnection === true ? { hasConnection: true } : {}),
           ...(conexoes ? { conexoes } : {}),
-        })),
+        }))),
       ),
     );
   }

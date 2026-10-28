@@ -376,6 +376,8 @@ export function capacityFormulas(copy: {
   includeSeats?: boolean;
   includeSplitLounge?: boolean;
   includeEquipmentTaxa?: boolean;
+  /** false na emigração e na imigração: o Excel de N não referencia Tu. */
+  excelEquipmentTaxa?: boolean;
   includeBeltTaxa?: boolean;
   companions?: boolean;
   flows?: FlowParamIds[];
@@ -432,6 +434,8 @@ export function capacityFormulas(copy: {
   const equipmentTaxaId: ComponentParamId | null = includeEquipmentTaxa
     ? "taxaDeUsoEquipamento"
     : null;
+  const excelEquipmentTaxaId: ComponentParamId | null =
+    copy.excelEquipmentTaxa === false ? null : "taxaDeUsoEquipamento";
   const includeBelt = copy.includeBelt ?? false;
   const includeBeltTaxa = copy.includeBeltTaxa ?? false;
   const beltTaxaId: ComponentParamId | null = includeBeltTaxa
@@ -846,7 +850,7 @@ export function capacityFormulas(copy: {
           const demanda = equipmentDemandExcel(
             cells,
             term.demandIds,
-            term.taxa ?? "taxaDeUsoEquipamento",
+            term.taxa ?? excelEquipmentTaxaId,
           );
           return `(${demanda}*${requiredCell(cells, term.tsec)})/(60*(60+${requiredCell(cells, term.toi)}))`;
         });
