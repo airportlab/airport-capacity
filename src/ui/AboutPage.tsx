@@ -62,8 +62,9 @@ export function AboutPage({ onBack }: AboutPageProps) {
           hoje. A lista segue a jornada — Embarque, Desembarque e Outros — com
           um cartão por componente. O cartão mostra Atende / Não atende em área
           e, quando o requisito existe, em equipamentos ou, na sala de
-          desembarque, na esteira. Sem equipamentos ou esteira, a tabela
-          mostra “—”. Sala de embarque de outra conta aparece como
+          desembarque, na esteira. Na tabela, a esteira conta na coluna
+          Equipamentos. Sem equipamentos nem esteira, essa coluna mostra “—”.
+          Sala de embarque de outra conta aparece como
           “Não vale para este contrato”; os dois Excel ficam desligados até ela
           ser apagada ou o aeroporto voltar à conta em que ela nasceu. O único
           botão <strong>Carregar exemplo fictício</strong> fica nesta aba e

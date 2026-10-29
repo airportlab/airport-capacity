@@ -23,6 +23,7 @@ import {
   complianceLabel,
   equipmentColumn,
   requirementFailureTally,
+  summaryEquipmentCheck,
 } from "./SummaryPage";
 
 interface ReportViewProps {
@@ -75,23 +76,20 @@ export function ReportView({
               <th>Componente</th>
               <th>Área</th>
               <th>Equipamentos</th>
-              <th>Esteira</th>
             </tr>
           </thead>
           <tbody>
             {contracts.map((contract) => {
               const evaluation = evaluations[contract.id];
+              const equipment = summaryEquipmentCheck(evaluation);
               return (
                 <tr key={contract.id}>
                   <td>{contract.title}</td>
                   <td className={complianceClass(evaluation?.areaCheck)}>
                     {complianceLabel(evaluation?.areaCheck)}
                   </td>
-                  <td className={complianceClass(evaluation?.equipmentCheck)}>
-                    {complianceLabel(evaluation?.equipmentCheck)}
-                  </td>
-                  <td className={complianceClass(evaluation?.esteiraCheck)}>
-                    {complianceLabel(evaluation?.esteiraCheck)}
+                  <td className={complianceClass(equipment)}>
+                    {complianceLabel(equipment)}
                   </td>
                 </tr>
               );
