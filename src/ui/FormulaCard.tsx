@@ -250,20 +250,22 @@ const SPLIT_LOUNGE_NOTATIONS = [
   { symbol: "Toi_p", meaning: "Tempo de ocupação do passageiro em pé", unit: "min" },
 ] as const;
 
-export function splitLoungeNumerator(): string {
-  return "DHp × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)]";
-}
-
-export function SplitLoungeEquation() {
-  const numerator = splitLoungeNumerator();
+export function SplitLoungeEquation({
+  lhs = "Ad",
+  demand = "DHp",
+}: {
+  lhs?: string;
+  demand?: string;
+}) {
+  const numerator = `${demand} × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)]`;
   return (
     <div
       className="tex"
       role="img"
-      aria-label={`Ad = (${numerator}) / (Ocup_max%)`}
+      aria-label={`${lhs} = (${numerator}) / (Ocup_max%)`}
     >
       <span className="tex-lhs">
-        <TexText text="Ad" />
+        <TexText text={lhs} />
       </span>
       <span className="tex-eq">=</span>
       <span className="tex-frac">
@@ -297,9 +299,13 @@ export function SplitLoungeFormulaCard({
           : "Fórmula do requisito de área"}
       </p>
       <SplitLoungeEquation />
-      {connectionPairs.length > 0 ? (
-        <BoardingConnectionEquations pairs={connectionPairs} empSuffix="_s" />
-      ) : null}
+      {connectionPairs.map((pair) => (
+        <SplitLoungeEquation
+          key={pair}
+          lhs={boardingConnectionSpec(pair).areaSymbol}
+          demand={boardingConnectionSpec(pair).dhpSymbol}
+        />
+      ))}
       {connectionPairs.length > 0 ? (
         <div className="tex" role="img" aria-label={`Ad = ${sum}`}>
           <span className="tex-lhs">Ad</span>

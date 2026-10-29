@@ -32,14 +32,26 @@ export function areaFormulaRhs(companions: boolean): string {
   return `(${areaNumerator(companions)}) / 60`;
 }
 
+const SPLIT_LOUNGE_FACTOR =
+  "[(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)] / (Ocup_max%)";
+
 export function splitLoungeFormulaDisplay(
   pairs: readonly BoardingConnectionPair[] = [],
 ): string {
-  const base =
-    "Ad = DHp × [(Pa%) × Emp_s × (Toi_s/60) + (1 − Pa%) × Emp_p × (Toi_p/60)] / (Ocup_max%)";
+  const base = `Ad = DHp × ${SPLIT_LOUNGE_FACTOR}`;
   if (pairs.length === 0) return base;
-  const pieces = pairs.map((pair) => boardingConnectionAreaDisplay(pair, "_s"));
+  const pieces = pairs.map((pair) => {
+    const spec = boardingConnectionSpec(pair);
+    return `${spec.areaSymbol} = ${spec.dhpSymbol} × ${SPLIT_LOUNGE_FACTOR}`;
+  });
   return `${base}; ${pieces.join("; ")}; Ad = Ad + ${boardingConnectionAreaList(pairs)}`;
+}
+
+export function splitLoungeConnectionDisplay(
+  pair: BoardingConnectionPair,
+): string {
+  const spec = boardingConnectionSpec(pair);
+  return `${spec.areaSymbol} = ${spec.dhpSymbol} × ${SPLIT_LOUNGE_FACTOR}`;
 }
 
 export function areaFormulaDisplay(companions: boolean): string {

@@ -36,6 +36,7 @@ import {
   equipmentFormulaDisplay,
   equipmentTermDisplay,
   splitEquipmentFormulaDisplay,
+  splitLoungeConnectionDisplay,
   splitLoungeFormulaDisplay,
   mixedAreaSumDisplay,
   simpleConnectionFormulaDisplay,
@@ -142,23 +143,45 @@ function usedDemandExcel(
   return `${dhp}*(${requiredCell(cells, taxaId)}/100)`;
 }
 
-function splitLoungeArea(inputs: ResolvedInputs): number {
+/** Coeficiente da área sentado e em pé, sem o DHp. A conexão usa o mesmo. */
+export function splitLoungeCoefficient(inputs: ResolvedInputs): number {
   const share = inputs.percentualMinimoAssentos / 100;
   const occupancy = inputs.percentualOcupacaoMaxima / 100;
-  if (!Number.isFinite(occupancy) || occupancy === 0) return Number.NaN;
+  if (!Number.isFinite(share) || !Number.isFinite(occupancy) || occupancy === 0) {
+    return Number.NaN;
+  }
   const seated =
     share * inputs.espacoMinimoPorPassageiro * (inputs.tempoDeOcupacao / 60);
   const standing =
     (1 - share) * inputs.espacoMinimoEmPe * (inputs.tempoDeOcupacaoEmPe / 60);
-  return (inputs.demandaPico * (seated + standing)) / occupancy;
+  if (!Number.isFinite(seated) || !Number.isFinite(standing)) return Number.NaN;
+  return (seated + standing) / occupancy;
 }
 
-function splitLoungeExcel(cells: ExcelCellMap["inputs"]): string {
+function splitLoungeExcelOf(
+  cells: ExcelCellMap["inputs"],
+  demand: string,
+): string {
   const share = `(${requiredCell(cells, "percentualMinimoAssentos")}/100)`;
   const occupancy = `(${requiredCell(cells, "percentualOcupacaoMaxima")}/100)`;
   const seated = `${share}*${requiredCell(cells, "espacoMinimoPorPassageiro")}*(${requiredCell(cells, "tempoDeOcupacao")}/60)`;
   const standing = `(1-${share})*${requiredCell(cells, "espacoMinimoEmPe")}*(${requiredCell(cells, "tempoDeOcupacaoEmPe")}/60)`;
-  return `(${requiredCell(cells, "demandaPico")}*(${seated}+${standing}))/${occupancy}`;
+  return `(${demand}*(${seated}+${standing}))/${occupancy}`;
+}
+
+function splitLoungeExcel(
+  cells: ExcelCellMap["inputs"],
+  demanda: ComponentParamId = "demandaPico",
+): string {
+  return splitLoungeExcelOf(cells, requiredCell(cells, demanda));
+}
+
+function splitLoungeExcelSum(
+  cells: ExcelCellMap["inputs"],
+  demands: readonly ComponentParamId[],
+): string {
+  const demand = demands.map((id) => requiredCell(cells, id)).join("+");
+  return splitLoungeExcelOf(cells, `(${demand})`);
 }
 
 /** Coeficiente da área, sem o DHp. Com acompanhante, entra (1 + v.a.). */
@@ -730,40 +753,40 @@ export function capacityFormulas(copy: {
       for (const item of looseConnections) {
         const pair = boardingPairOfArea(item.area);
         const display = pair
-          ? boardingConnectionAreaDisplay(pair, "_s")
+          ? splitLoungeConnectionDisplay(pair)
           : connectionExpression(item, false);
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
           unit: "m²",
-          origem: `${display}. Conexões sem acompanhante. Emp_s e Toi_s da sala.`,
+          origem: `${display}. A conexão vale o passageiro sentado e em pé da sala.`,
           expression: display,
           evaluate: (inputs) =>
-            areaValue(inputs, item.demanda, item.emp, item.toi),
-          toExcel: (cells) =>
-            areaExcel(cells, item.demanda, item.emp, item.toi),
+            inputs[item.demanda] * splitLoungeCoefficient(inputs),
+          toExcel: (cells) => splitLoungeExcel(cells, item.demanda),
         });
       }
       formulas.push({
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
         unit: "m²",
-        origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé. Cada conexão soma (DHp_c × Emp_s × Toi_s) / 60.`,
+        origem: `${expression}. Pa é o acesso a assentos, Ocup_max a máxima ocupação das salas. Emp_s e Toi_s do passageiro sentado; Emp_p e Toi_p do passageiro em pé. Cada conexão entra com o mesmo coeficiente, como uma DHp maior.`,
         expression,
-        evaluate: (inputs) =>
-          splitLoungeArea(inputs) +
-          looseConnections.reduce(
-            (sum, item) =>
-              sum + areaValue(inputs, item.demanda, item.emp, item.toi),
-            0,
-          ),
+        evaluate: (inputs) => {
+          const coefficient = splitLoungeCoefficient(inputs);
+          const people =
+            inputs.demandaPico +
+            looseConnections.reduce(
+              (sum, item) => sum + inputs[item.demanda],
+              0,
+            );
+          return coefficient * people;
+        },
         toExcel: (cells) =>
-          [
-            splitLoungeExcel(cells),
-            ...looseConnections.map((item) =>
-              areaExcel(cells, item.demanda, item.emp, item.toi),
-            ),
-          ].join("+"),
+          splitLoungeExcelSum(cells, [
+            "demandaPico",
+            ...looseConnections.map((item) => item.demanda),
+          ]),
       });
     } else if (looseConnections.length > 0) {
       for (const item of looseConnections) {

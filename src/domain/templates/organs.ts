@@ -169,7 +169,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-pontes-sentado" }],
     detail:
-      "Espera em pontes. Ocup_max, Pa, sentado e em pé. Sem contagem separada de assentos. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
+      "Espera em pontes. Ocup_max, Pa, sentado e em pé. Sem contagem separada de assentos. Conexão opcional: cada par entra com o mesmo coeficiente do passageiro da sala, como uma DHp maior.",
   },
   {
     kind: "sala-embarque-remotas-sentado",
@@ -178,7 +178,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "sala-embarque-remotas-sentado" }],
     detail:
-      "Espera em posições remotas. Mesmos números de sentado e em pé das pontes. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
+      "Espera em posições remotas. Mesmos números de sentado e em pé das pontes. Conexão opcional: cada par entra com o mesmo coeficiente do passageiro da sala, como uma DHp maior.",
   },
   {
     kind: "salas-embarque",
@@ -187,7 +187,7 @@ export const PREDEFINED_ORGANS: OrganTemplate[] = [
     preset: "areaSeats",
     flows: [{ role: "embarque", rowId: "salas-embarque" }],
     detail:
-      "Contrato com sentado e em pé. Ocup_max, Pa, Emp_s, Toi_s, Emp_p e Toi_p. Sem contagem separada de assentos. Conexão opcional: cada par soma (DHp_c × Emp_s × Toi_s) / 60.",
+      "Contrato com sentado e em pé. Ocup_max, Pa, Emp_s, Toi_s, Emp_p e Toi_p. Sem contagem separada de assentos. Conexão opcional: cada par entra com o mesmo coeficiente do passageiro da sala, como uma DHp maior.",
   },
   {
     kind: "sala-desembarque",

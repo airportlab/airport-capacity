@@ -70,6 +70,7 @@ import {
   SplitLoungeFormulaCard,
   MixedNatureAreaFormulaCard,
 } from "./FormulaCard";
+import { boardingWeightInputIds } from "../domain/boardingDhp";
 import {
   boardingDhpMark,
   BoardingDhpButton,
@@ -394,9 +395,8 @@ export function ComponentEditor({
   const boardingIdentityFields = identityFields.filter(
     (field) => !field.id.startsWith("demandaPicoConexao"),
   );
-  const dhpHall =
-    entry.kind === "saguao-embarque" || entry.kind === "saguao-desembarque";
-  const dhpMark = dhpHall
+  const dhpAvailable = boardingWeightInputIds(entry) != null;
+  const dhpMark = dhpAvailable
     ? boardingDhpMark(dhpStamp, airport.icao, entry, drafts, dhpPlaces)
     : null;
   const dhpIds = dhpStamp
@@ -723,7 +723,7 @@ export function ComponentEditor({
             />
           </>
         ) : null}
-        {dhpHall ? (
+        {dhpAvailable ? (
           <BoardingDhpButton
             icao={airport.icao}
             airportName={airport.name}

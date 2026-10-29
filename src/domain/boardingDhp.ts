@@ -1,5 +1,6 @@
-import { areaCoefficient } from "./contracts/formulas";
+import { areaCoefficient, splitLoungeCoefficient } from "./contracts/formulas";
 import { connectionFlows, entryFlowParams } from "./contracts/flowParams";
+import { isSplitLoungeEntry } from "./pmd";
 import type {
   ComponentParamId,
   RegistryEntry,
@@ -8,9 +9,6 @@ import type {
 import {
   ARRIVALS_CONNECTION_CATALOG,
   BOARDING_CONNECTION_CATALOG,
-  hasArrivalsConnection,
-  hasBoardingConnection,
-  isMixedNature,
   natureOfEntry,
   type ArrivalsConnectionPair,
 } from "./types";
@@ -63,7 +61,18 @@ interface WeightSpec {
   emp: ComponentParamId;
   toi: ComponentParamId;
   va?: ComponentParamId;
+  /** Sala sentado e em pé: o peso é o coeficiente do passageiro normal. */
+  sentado?: boolean;
 }
+
+const SPLIT_LOUNGE_WEIGHT_IDS: readonly ComponentParamId[] = [
+  "percentualMinimoAssentos",
+  "percentualOcupacaoMaxima",
+  "espacoMinimoPorPassageiro",
+  "tempoDeOcupacao",
+  "espacoMinimoEmPe",
+  "tempoDeOcupacaoEmPe",
+];
 
 const CONNECTION_FLOW_KEY: Record<
   (typeof BOARDING_CONNECTION_CATALOG)[number]["pair"],
@@ -83,125 +92,143 @@ const ARRIVAL_FLOW_KEY: Record<ArrivalsConnectionPair, BoardingFlowKey> = {
   intInt: "chegadaIntInt",
 };
 
-function arrivalWeightSpecs(entry: RegistryEntry): WeightSpec[] | null {
-  if (entry.kind !== "saguao-desembarque" || !entry.requirements.area) return null;
+function arrivalComponent(entry: RegistryEntry): boolean {
+  return (
+    entry.kind === "saguao-desembarque" ||
+    entry.kind === "sala-desembarque" ||
+    entry.kind === "imigracao" ||
+    entry.kind === "aduana"
+  );
+}
+
+function flowKey(
+  nature: "domestico" | "internacional",
+  leg: "embarque" | "desembarque",
+): BoardingFlowKey {
+  if (leg === "embarque") {
+    return nature === "internacional" ? "origemInt" : "origemDom";
+  }
+  return nature === "internacional" ? "destinoInt" : "destinoDom";
+}
+
+function flowLabel(key: BoardingFlowKey): string {
+  switch (key) {
+    case "origemDom":
+      return "origem DOM";
+    case "origemInt":
+      return "origem INT";
+    case "destinoDom":
+      return "destino DOM";
+    case "destinoInt":
+      return "destino INT";
+    default:
+      return key;
+  }
+}
+
+function packFlow(
+  nature: "domestico" | "internacional",
+  leg: "embarque" | "desembarque",
+): { key: BoardingFlowKey; label: string } {
+  const key = flowKey(nature, leg);
+  return { key, label: flowLabel(key) };
+}
+
+function demandFlow(
+  entry: RegistryEntry,
+  demanda: ComponentParamId,
+): { key: BoardingFlowKey; label: string } | null {
+  const boarding = BOARDING_CONNECTION_CATALOG.find(
+    (pair) => pair.demanda === demanda,
+  );
+  if (boarding) {
+    return {
+      key: CONNECTION_FLOW_KEY[boarding.pair],
+      label: `conexão ${boarding.label}`,
+    };
+  }
+  const arrival = ARRIVALS_CONNECTION_CATALOG.find(
+    (pair) => pair.demanda === demanda,
+  );
+  if (arrival) {
+    return {
+      key: ARRIVAL_FLOW_KEY[arrival.pair],
+      label: `conexão ${arrival.label}`,
+    };
+  }
+  const leg = arrivalComponent(entry) ? "desembarque" : "embarque";
   const nature = natureOfEntry(entry);
-  if (!nature) return null;
-  const companions = entry.requirements.area.companions === true;
-  const specs: WeightSpec[] = [];
-  if (isMixedNature(entry)) {
-    for (const flow of entryFlowParams(entry)) {
-      if (flow.demanda === "demandaPicoDesembarqueDomestico") {
-        specs.push({
-          demanda: flow.demanda,
-          label: "destino DOM",
-          key: "destinoDom",
-          emp: flow.emp,
-          toi: flow.toi,
-          va: companions ? flow.va : undefined,
-        });
-      }
-      if (flow.demanda === "demandaPicoDesembarqueInternacional") {
-        specs.push({
-          demanda: flow.demanda,
-          label: "destino INT",
-          key: "destinoInt",
-          emp: flow.emp,
-          toi: flow.toi,
-          va: companions ? flow.va : undefined,
-        });
-      }
-    }
-  } else {
-    const international = nature === "internacional";
-    const arrivals = entryFlowParams(entry).find(
-      (flow) => flow.area === "areaMinimaDesembarque",
-    );
-    specs.push({
-      demanda: arrivals?.demanda ?? "demandaPico",
-      label: international ? "destino INT" : "destino DOM",
-      key: international ? "destinoInt" : "destinoDom",
-      emp: arrivals?.emp ?? "espacoMinimoPorPassageiro",
-      toi: arrivals?.toi ?? "tempoDeOcupacao",
-      va: companions ? (arrivals?.va ?? "va") : undefined,
-    });
+  if (demanda === "demandaPicoEmbarqueDomestico") return packFlow("domestico", "embarque");
+  if (demanda === "demandaPicoEmbarqueInternacional") {
+    return packFlow("internacional", "embarque");
   }
-  if (hasArrivalsConnection(entry)) {
-    for (const item of connectionFlows(entry)) {
-      const spec = ARRIVALS_CONNECTION_CATALOG.find(
-        (pair) => pair.demanda === item.demanda,
-      );
-      if (!spec) continue;
-      specs.push({
-        demanda: item.demanda,
-        label: `conexão ${spec.label}`,
-        key: ARRIVAL_FLOW_KEY[spec.pair],
-        emp: item.emp,
-        toi: item.toi,
-      });
-    }
+  if (demanda === "demandaPicoDesembarqueDomestico") {
+    return packFlow("domestico", "desembarque");
   }
-  return specs.length > 0 ? specs : null;
+  if (demanda === "demandaPicoDesembarqueInternacional") {
+    return packFlow("internacional", "desembarque");
+  }
+  if (demanda === "demandaPicoDomestico") return packFlow("domestico", leg);
+  if (demanda === "demandaPicoInternacional") return packFlow("internacional", leg);
+  if (demanda === "demandaPicoEmbarque") {
+    if (nature !== "domestico" && nature !== "internacional") return null;
+    return packFlow(nature, "embarque");
+  }
+  if (demanda === "demandaPicoDesembarque") {
+    if (nature !== "domestico" && nature !== "internacional") return null;
+    return packFlow(nature, "desembarque");
+  }
+  if (demanda === "demandaPico") {
+    if (nature !== "domestico" && nature !== "internacional") return null;
+    return packFlow(nature, leg);
+  }
+  return null;
 }
 
 function weightSpecs(entry: RegistryEntry): WeightSpec[] | null {
-  if (entry.kind === "saguao-desembarque") return arrivalWeightSpecs(entry);
-  if (entry.kind !== "saguao-embarque" || !entry.requirements.area) return null;
-  const nature = natureOfEntry(entry);
-  if (!nature) return null;
-  const companions = entry.requirements.area.companions === true;
-  const specs: WeightSpec[] = [];
-  if (isMixedNature(entry)) {
-    for (const flow of entryFlowParams(entry)) {
-      if (flow.demanda === "demandaPicoEmbarqueDomestico") {
-        specs.push({
-          demanda: flow.demanda,
-          label: "origem DOM",
-          key: "origemDom",
-          emp: flow.emp,
-          toi: flow.toi,
-          va: companions ? flow.va : undefined,
-        });
-      }
-      if (flow.demanda === "demandaPicoEmbarqueInternacional") {
-        specs.push({
-          demanda: flow.demanda,
-          label: "origem INT",
-          key: "origemInt",
-          emp: flow.emp,
-          toi: flow.toi,
-          va: companions ? flow.va : undefined,
-        });
-      }
-    }
-  } else {
-    const international = nature === "internacional";
-    const boarding = entryFlowParams(entry).find(
-      (flow) => flow.area === "areaMinimaEmbarque",
-    );
-    specs.push({
-      demanda: boarding?.demanda ?? "demandaPico",
-      label: international ? "origem INT" : "origem DOM",
-      key: international ? "origemInt" : "origemDom",
-      emp: boarding?.emp ?? "espacoMinimoPorPassageiro",
-      toi: boarding?.toi ?? "tempoDeOcupacao",
-      va: companions ? (boarding?.va ?? "va") : undefined,
-    });
+  if (!entry.requirements.area) return null;
+  if (!entry.kind || entry.kind === "generic" || entry.kind === "special") {
+    return null;
   }
-  if (hasBoardingConnection(entry)) {
-    for (const item of connectionFlows(entry)) {
-      const spec = BOARDING_CONNECTION_CATALOG.find(
-        (pair) => pair.demanda === item.demanda,
-      );
-      if (!spec) continue;
+  const sentado = isSplitLoungeEntry(entry);
+  const companions = entry.requirements.area.companions === true && !sentado;
+  const specs: WeightSpec[] = [];
+  const flows = entryFlowParams(entry);
+  if (flows.length === 0) {
+    const mapped = demandFlow(entry, "demandaPico");
+    if (!mapped) return null;
+    specs.push({
+      demanda: "demandaPico",
+      ...mapped,
+      emp: "espacoMinimoPorPassageiro",
+      toi: "tempoDeOcupacao",
+      va: companions ? "va" : undefined,
+      sentado,
+    });
+  } else {
+    for (const flow of flows) {
+      const mapped = demandFlow(entry, flow.demanda);
+      if (!mapped) continue;
       specs.push({
-        demanda: item.demanda,
-        label: `conexão ${spec.label}`,
-        key: CONNECTION_FLOW_KEY[spec.pair],
-        emp: item.emp,
-        toi: item.toi,
+        demanda: flow.demanda,
+        ...mapped,
+        emp: flow.emp,
+        toi: flow.toi,
+        va: companions ? flow.va : undefined,
+        sentado,
       });
     }
+  }
+  for (const item of connectionFlows(entry)) {
+    const mapped = demandFlow(entry, item.demanda);
+    if (!mapped) continue;
+    specs.push({
+      demanda: item.demanda,
+      ...mapped,
+      emp: item.emp,
+      toi: item.toi,
+      sentado,
+    });
   }
   return specs.length > 0 ? specs : null;
 }
@@ -212,6 +239,7 @@ export function boardingWeightInputIds(
 ): ComponentParamId[] | null {
   const specs = weightSpecs(entry);
   if (!specs) return null;
+  if (specs.some((spec) => spec.sentado)) return [...SPLIT_LOUNGE_WEIGHT_IDS];
   const ids = new Set<ComponentParamId>();
   for (const spec of specs) {
     ids.add(spec.emp);
@@ -221,18 +249,24 @@ export function boardingWeightInputIds(
   return [...ids];
 }
 
-/** Peso de cada fluxo ligado do saguão: coeficiente da área, sem o DHp. */
+/** Peso de cada fluxo ligado: coeficiente da área, sem o DHp. */
 export function boardingFlowWeights(
   entry: RegistryEntry,
   inputs: ResolvedInputs,
 ): BoardingFlowWeight[] | null {
   const specs = weightSpecs(entry);
   if (!specs) return null;
+  const sentado = specs.some((spec) => spec.sentado)
+    ? splitLoungeCoefficient(inputs)
+    : null;
   return specs.map((spec) => ({
     demanda: spec.demanda,
     label: spec.label,
     key: spec.key,
-    peso: areaCoefficient(inputs, spec.emp, spec.toi, spec.va),
+    peso:
+      sentado != null
+        ? sentado
+        : areaCoefficient(inputs, spec.emp, spec.toi, spec.va),
   }));
 }
 
