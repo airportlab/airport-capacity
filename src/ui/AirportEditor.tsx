@@ -34,6 +34,7 @@ import {
 } from "../domain/pmd";
 import {
   instantiateOrgan,
+  journeyRank,
   natureOfEntry,
   organAllowsCompanions,
   organAllowsEquipment,
@@ -137,6 +138,25 @@ export function AirportEditor() {
     void restoreMovimento();
   }, []);
   const contracts = useMemo(() => resolveContracts(registry), [registry]);
+  const componentKinds = useMemo(
+    () =>
+      Object.fromEntries(
+        registry.map((entry) => [
+          entry.id,
+          entry.kind ?? templateForEntry(entry)?.kind,
+        ]),
+      ) as Record<ComponentId, string | undefined>,
+    [registry],
+  );
+  const tabContracts = useMemo(
+    () =>
+      [...contracts].sort(
+        (left, right) =>
+          journeyRank(componentKinds[left.id]) -
+          journeyRank(componentKinds[right.id]),
+      ),
+    [contracts, componentKinds],
+  );
   const invalidLoungeIds = useMemo(
     () =>
       registry
@@ -1026,7 +1046,7 @@ export function AirportEditor() {
           </button>
         </div>
         <div className="tabs-scroll">
-          {contracts.map((contract) => {
+          {tabContracts.map((contract) => {
             const active = tab === contract.id;
             const invalid = invalidLoungeIds.includes(contract.id);
             return (
@@ -1065,12 +1085,7 @@ export function AirportEditor() {
           onEvaluationYearChange={setEvaluationYear}
           sourceNote={sourceCitation(airport)}
           contracts={contracts}
-          kinds={Object.fromEntries(
-            registry.map((entry) => [
-              entry.id,
-              entry.kind ?? templateForEntry(entry)?.kind,
-            ]),
-          )}
+          kinds={componentKinds}
           evaluations={evaluations}
           invalidIds={invalidLoungeIds}
           onOpenComponent={setTab}
