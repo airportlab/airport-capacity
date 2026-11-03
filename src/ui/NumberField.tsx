@@ -53,7 +53,14 @@ export function NumberField({
       <span className="field-value">
         {field.unit ? <span className="unit">[{field.unit}]</span> : null}
         <input
-          className={dhpMark === "calculado" ? "dhp-calculado" : undefined}
+          className={
+            [
+              field.id === "areaMedida" ? "input-area" : "",
+              dhpMark === "calculado" ? "dhp-calculado" : "",
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           inputMode="decimal"
           value={draft}
           onChange={(event) => onValueChange(event.target.value)}

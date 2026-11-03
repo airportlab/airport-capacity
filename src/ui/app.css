@@ -905,6 +905,10 @@ button.dhp-gear svg {
   padding: 8px 10px;
 }
 
+.field.field-inline input.input-area:not([type="checkbox"]) {
+  width: calc(9ch);
+}
+
 .field.field-inline .origem-edit {
   grid-column: 1 / -1;
 }
