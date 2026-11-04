@@ -1112,7 +1112,14 @@ export function AirportEditor() {
         />
       ) : null}
 
-      {tab === "dhp" ? <DhpSearchPage airportId={airport.id} /> : null}
+      {tab === "dhp" ? (
+        <DhpSearchPage
+          airportId={airport.id}
+          registry={registry}
+          drafts={componentDrafts}
+          dhpPlaces={dhpPlaces}
+        />
+      ) : null}
 
       {activeContract && evaluations[activeContract.id] ? (
         <ComponentEditor

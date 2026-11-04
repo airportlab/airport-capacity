@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { airportById, type AirportId } from "../domain/airports";
+import type { ComponentId, ComponentParamId, RegistryEntry } from "../domain/types";
 import {
   dhpCoverageText,
   loadDhpCoverage,
   loadMovimento,
+  type BoardingPlaceFilter,
   type DhpCoverage,
 } from "../dhp/duckdb";
+import { ComponentsDhpCurves } from "./ComponentsDhpCurves";
 import { arquivoTexto, useMovimento } from "./useMovimento";
 
 const EMPTY_COVERAGE: DhpCoverage = {
@@ -29,9 +32,19 @@ function parquetFileName(url: string): string {
 
 interface DhpSearchPageProps {
   airportId: AirportId;
+  registry: readonly RegistryEntry[];
+  drafts: Record<ComponentId, Record<ComponentParamId, string>>;
+  dhpPlaces: Partial<
+    Record<ComponentId, Partial<Record<string, BoardingPlaceFilter>>>
+  >;
 }
 
-export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
+export function DhpSearchPage({
+  airportId,
+  registry,
+  drafts,
+  dhpPlaces,
+}: DhpSearchPageProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const movimento = useMovimento();
   const [coverage, setCoverage] = useState<DhpCoverage>(EMPTY_COVERAGE);
@@ -152,6 +165,13 @@ export function DhpSearchPage({ airportId }: DhpSearchPageProps) {
         <p className="panel-lead">O endereço da movimentação não está configurado.</p>
       )}
       {error ? <p className="panel-lead">{error}</p> : null}
+      <ComponentsDhpCurves
+        icao={airport.icao}
+        airportName={airport.name}
+        registry={registry}
+        drafts={drafts}
+        dhpPlaces={dhpPlaces}
+      />
     </section>
   );
 }

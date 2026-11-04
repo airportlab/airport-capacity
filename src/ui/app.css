@@ -595,6 +595,25 @@ button.pmd-card.empty {
   align-items: center;
 }
 
+.dhp-rule {
+  border: 0;
+  border-top: 1px dashed var(--border-strong);
+  margin: 8px 0 18px;
+}
+
+.dhp-curve-block {
+  margin-top: 28px;
+}
+
+.dhp-curve-block h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
+}
+
 button.dhp-gear {
   display: inline-grid;
   place-items: center;

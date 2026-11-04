@@ -8,6 +8,7 @@ import {
   BOARDING_FLOW_KEYS,
   type BoardingFlowKey,
   type BoardingHourCounts,
+  type BoardingHourSlot,
   type BoardingPonderation,
 } from "../domain/boardingDhp";
 import { readMovimento, writeMovimento } from "./movimentoStore";
@@ -69,6 +70,11 @@ export interface BoardingDhpResult {
   quantidadeJanelas: number;
   janelas: BoardingDhpWindow[];
   coverage: DhpCoverage;
+}
+
+export interface BoardingHourCountsResult {
+  coverage: DhpCoverage;
+  hours: BoardingHourSlot[];
 }
 
 export interface BoardingPlaceFilter {
@@ -548,20 +554,8 @@ function rankLimit(value: number): number {
   return n;
 }
 
-function boardingQuery(
-  icao: string,
-  pesos: BoardingPonderation,
-  limit = BOARDING_RANK_LIMIT,
-  filter?: BoardingPlaceFilter,
-): string {
-  const weight = Object.fromEntries(
-    BOARDING_FLOW_KEYS.map((key) => [key, sqlWeight(pesos[key])]),
-  ) as Record<BoardingFlowKey, string>;
-  const demanda = BOARDING_FLOW_KEYS.map(
-    (key) => `${FLOW_SQL[key]} * ${weight[key]}`,
-  ).join("\n            + ");
+function movementsSql(icao: string, filter?: BoardingPlaceFilter): string {
   return `
-WITH ${coverageCte(icao)},
 movimentos AS (
     SELECT
         CAST(DT_CALCO || ' ' || HH_CALCO AS TIMESTAMP) AS instante,
@@ -593,7 +587,30 @@ classificados AS (
         CASE WHEN NOT embarque AND natureza = 'I' THEN conexao_dom ELSE 0 END AS chegada_int_dom,
         CASE WHEN NOT embarque AND natureza = 'I' THEN conexao_int ELSE 0 END AS chegada_int_int
     FROM movimentos
-),
+)`;
+}
+
+const FLOW_SUM_SQL = BOARDING_FLOW_KEYS.map(
+  (key) => `SUM(${FLOW_SQL[key]}) AS ${FLOW_SQL[key]}`,
+).join(",\n        ");
+
+const FLOW_COLUMN_SQL = BOARDING_FLOW_KEYS.map((key) => FLOW_SQL[key]).join(",\n    ");
+
+function boardingQuery(
+  icao: string,
+  pesos: BoardingPonderation,
+  limit = BOARDING_RANK_LIMIT,
+  filter?: BoardingPlaceFilter,
+): string {
+  const weight = Object.fromEntries(
+    BOARDING_FLOW_KEYS.map((key) => [key, sqlWeight(pesos[key])]),
+  ) as Record<BoardingFlowKey, string>;
+  const demanda = BOARDING_FLOW_KEYS.map(
+    (key) => `${FLOW_SQL[key]} * ${weight[key]}`,
+  ).join("\n            + ");
+  return `
+WITH ${coverageCte(icao)},
+${movementsSql(icao, filter)},
 janelas AS (
     SELECT
         date_trunc('hour', instante) AS inicio,
@@ -660,6 +677,30 @@ LEFT JOIN (
     FROM janelas
 ) AS ranqueadas ON ranqueadas.posicao <= ${rankLimit(limit)}
 ORDER BY ranqueadas.posicao DESC
+`;
+}
+
+function hourCountsQuery(icao: string, filter?: BoardingPlaceFilter): string {
+  return `
+WITH ${coverageCte(icao)},
+${movementsSql(icao, filter)},
+janelas AS (
+    SELECT
+        date_trunc('hour', instante) AS inicio,
+        date_trunc('hour', instante) + INTERVAL '60 minutes' AS fim,
+        ${FLOW_SUM_SQL}
+    FROM classificados
+    GROUP BY date_trunc('hour', instante)
+)
+SELECT
+    ${coverageColumns()},
+    strftime(janelas.inicio, '%Y-%m-%d %H:%M:%S') AS inicio_ord,
+    strftime(janelas.inicio, '%d/%m/%Y %H:%M') AS inicio,
+    strftime(janelas.fim, '%d/%m/%Y %H:%M') AS fim,
+    ${FLOW_COLUMN_SQL}
+FROM periodo
+LEFT JOIN janelas ON TRUE
+ORDER BY janelas.inicio
 `;
 }
 
@@ -753,6 +794,45 @@ export async function searchBoardingDhp(
         janelas,
         coverage,
       };
+    });
+  } catch (error) {
+    throw searchFailure(error);
+  }
+}
+
+function hourSlot(record: Record<string, unknown>): BoardingHourSlot | null {
+  const inicioOrd = textOrNull(record.inicio_ord);
+  if (!inicioOrd) return null;
+  return {
+    inicioOrd,
+    inicio: cellText(record.inicio),
+    fim: cellText(record.fim),
+    counts: countsFrom(record),
+  };
+}
+
+/** Horas do período, sem peso e sem ranque. O mesmo filtro agrupa vários componentes. */
+export async function loadBoardingHourCounts(
+  icao: string,
+  filter?: BoardingPlaceFilter,
+): Promise<BoardingHourCountsResult> {
+  const code = catalogIcao(icao);
+  if (!code) throw new Error("Aeroporto fora do catálogo.");
+  const advanced = boardingPlaceActive(filter);
+  try {
+    return await withConnection(async (conn) => {
+      if (advanced) await assertPlaceColumns(conn);
+      const table = await conn.query(
+        hourCountsQuery(code, advanced ? filter : undefined),
+      );
+      const rows = table.toArray() as Record<string, unknown>[];
+      const coverage = coverageFrom(rows[0]);
+      const hours: BoardingHourSlot[] = [];
+      for (const record of rows) {
+        const hour = hourSlot(record);
+        if (hour) hours.push(hour);
+      }
+      return { coverage, hours };
     });
   } catch (error) {
     throw searchFailure(error);

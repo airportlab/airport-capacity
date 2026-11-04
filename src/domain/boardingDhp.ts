@@ -281,6 +281,51 @@ export function boardingPonderation(
   return pesos;
 }
 
+export interface BoardingHourSlot {
+  /** Início ordenável. No empate de área, o mais cedo recebe o Nº menor. */
+  inicioOrd: string;
+  inicio: string;
+  fim: string;
+  counts: BoardingHourCounts;
+}
+
+export interface RankedBoardingHour extends BoardingHourSlot {
+  posicao: number;
+  demandaPonderada: number;
+}
+
+function weightedDemand(
+  counts: BoardingHourCounts,
+  pesos: BoardingPonderation,
+): number {
+  let sum = 0;
+  for (const key of BOARDING_FLOW_KEYS) {
+    const term = counts[key] * pesos[key];
+    if (Number.isFinite(term)) sum += term;
+  }
+  return sum;
+}
+
+/** Mesmo critério da consulta: demanda decrescente e, no empate, início mais cedo. */
+export function rankBoardingHours(
+  hours: readonly BoardingHourSlot[],
+  pesos: BoardingPonderation,
+): RankedBoardingHour[] {
+  const scored = hours.map((hour) => ({
+    ...hour,
+    demandaPonderada: weightedDemand(hour.counts, pesos),
+  }));
+  scored.sort((left, right) => {
+    if (left.demandaPonderada !== right.demandaPonderada) {
+      return right.demandaPonderada - left.demandaPonderada;
+    }
+    if (left.inicioOrd < right.inicioOrd) return -1;
+    if (left.inicioOrd > right.inicioOrd) return 1;
+    return 0;
+  });
+  return scored.map((hour, index) => ({ ...hour, posicao: index + 1 }));
+}
+
 /** Contagem da 30ª hora. Cada par grava a sua. */
 export function boardingDemandsFromHour(
   flows: readonly BoardingFlowWeight[],
