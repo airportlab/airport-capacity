@@ -32,13 +32,24 @@ export function formatFixed(value: number, digits = 2): string {
   }).format(value);
 }
 
-export function formatSaturacao(percent: number): string {
-  if (!Number.isFinite(percent)) return "—";
-  const text = new Intl.NumberFormat("pt-BR", {
+function saturacaoNumero(percent: number): string | null {
+  if (!Number.isFinite(percent)) return null;
+  return new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(percent);
+}
+
+export function formatSaturacao(percent: number): string {
+  const text = saturacaoNumero(percent);
+  if (text === null) return "—";
   return `${text}% de saturação`;
+}
+
+export function formatSaturacaoTitulo(percent: number): string {
+  const text = saturacaoNumero(percent);
+  if (text === null) return "Saturação —";
+  return `Saturação ${text}%`;
 }
 
 export function formatEditable(value: number): string {

@@ -18,10 +18,12 @@ import {
   type BoardingPlaceFilter,
   type DhpCoverage,
 } from "../dhp/duckdb";
+import { chartNeedsMoreHours, OrderedDemandChart, visibleDhpWindows } from "./DhpDemandChart";
 import {
   formatEditable,
   formatFixed,
   formatNumber,
+  formatSaturacaoTitulo,
   parseLocaleNumber,
   sameNumber,
 } from "./format";
@@ -51,7 +53,7 @@ export function boardingDhpMark(
   places: BoardingPlaceFilter = EMPTY_BOARDING_PLACES,
 ): BoardingDhpMark | null {
   if (!stamp) return null;
-  const prepared = flowsFromDrafts(entry, drafts);
+  const prepared = prepareBoardingFlows(entry, drafts);
   const signature = Array.isArray(prepared)
     ? flowSignature(icao, prepared, places)
     : null;
@@ -92,19 +94,38 @@ function janelasTitulo(range: string | null, airportName: string): string {
   return `${durante} — ${airportName}`;
 }
 
-function graficoTitulo(
+/** Área da 30ª hora dividida pela área medida. Sem hora 30 ou sem área, fica indefinida. */
+export function saturacaoDaCurva(
+  janelas: readonly { posicao: number; demandaPonderada: number }[],
+  areaMedida: number | null,
+): number {
+  const hora = janelas.find((item) => item.posicao === 30);
+  if (
+    !hora ||
+    areaMedida === null ||
+    !Number.isFinite(hora.demandaPonderada) ||
+    !Number.isFinite(areaMedida) ||
+    areaMedida <= 0
+  ) {
+    return Number.NaN;
+  }
+  return (hora.demandaPonderada / areaMedida) * 100;
+}
+
+export function graficoTitulo(
   range: string | null,
   componentName: string,
   airportName: string,
+  saturacao: number,
 ): string {
-  return `Curva de DHP de ${range ?? "—"} do ${componentName} — ${airportName}`;
+  return `Curva de DHP de ${range ?? "—"} do ${componentName} — ${airportName} — ${formatSaturacaoTitulo(saturacao)}`;
 }
 
-const AREA_MESSAGE = "O peso sai do requisito de área.";
-const INVALID_MESSAGE = "Informe os parâmetros da área.";
+export const BOARDING_AREA_MISSING_MESSAGE = "O peso sai do requisito de área.";
+export const BOARDING_AREA_INVALID_MESSAGE = "Informe os parâmetros da área.";
 const SHORT_MESSAGE = "Não há 30 janelas no período.";
 
-function flowsFromDrafts(
+export function prepareBoardingFlows(
   entry: RegistryEntry,
   drafts: Record<ComponentParamId, string>,
 ): BoardingFlowWeight[] | "invalid" | "no-area" {
@@ -159,324 +180,6 @@ function pessoasNaHora(
   flows: readonly BoardingFlowWeight[],
 ): number {
   return flows.reduce((sum, flow) => sum + item.counts[flow.key], 0);
-}
-
-const CHART_WIDTH = 854;
-const CHART_HEIGHT = 360;
-const CHART_PAD = { top: 20, right: 20, bottom: 56, left: 210 };
-const AREA_TITLE_X = 16;
-const HOURS_WHEN_CAPACITY_ABOVE = 100;
-const HOURS_AFTER_CAPACITY = 50;
-const RANK_LABEL_GAP = 28;
-
-function capacityCrossIndex(
-  ordered: readonly BoardingDhpWindow[],
-  capacidade: number | null,
-): number {
-  if (ordered.length === 0 || capacidade === null) return -1;
-  if (capacidade > ordered[0].demandaPonderada) return -1;
-  return ordered.findIndex((item) => item.demandaPonderada <= capacidade);
-}
-
-function visibleDhpWindows(
-  janelas: readonly BoardingDhpWindow[],
-  capacidade: number | null,
-): BoardingDhpWindow[] {
-  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
-  if (ordered.length === 0 || capacidade === null) return ordered;
-  const first = ordered[0].demandaPonderada;
-  if (capacidade > first) return ordered.slice(0, HOURS_WHEN_CAPACITY_ABOVE);
-  const cross = capacityCrossIndex(ordered, capacidade);
-  if (cross < 0) return ordered;
-  return ordered.slice(0, cross + 1 + HOURS_AFTER_CAPACITY);
-}
-
-function chartNeedsMoreHours(
-  janelas: readonly BoardingDhpWindow[],
-  capacidade: number | null,
-  quantidadeJanelas: number,
-): boolean {
-  if (capacidade === null || janelas.length === 0) return false;
-  if (quantidadeJanelas > 0 && janelas.length >= quantidadeJanelas) return false;
-  const ordered = [...janelas].sort((a, b) => a.posicao - b.posicao);
-  if (capacidade > ordered[0].demandaPonderada) return false;
-  const cross = capacityCrossIndex(ordered, capacidade);
-  if (cross < 0) return true;
-  return cross + 1 + HOURS_AFTER_CAPACITY > ordered.length;
-}
-
-function separateRankLabels(
-  peakX: number | null,
-  crossX: number | null,
-): { peak: number | null; cross: number | null } {
-  if (peakX === null || crossX === null) return { peak: peakX, cross: crossX };
-  const gap = Math.abs(peakX - crossX);
-  if (gap >= RANK_LABEL_GAP) return { peak: peakX, cross: crossX };
-  const shift = (RANK_LABEL_GAP - gap) / 2;
-  if (crossX < peakX) return { peak: peakX + shift, cross: crossX - shift };
-  return { peak: peakX - shift, cross: crossX + shift };
-}
-
-function chartYMax(
-  ordered: readonly BoardingDhpWindow[],
-  capacidade: number | null,
-): number {
-  let max = 0;
-  for (const item of ordered) max = Math.max(max, item.demandaPonderada);
-  if (capacidade !== null) max = Math.max(max, capacidade);
-  return max > 0 ? max : 1;
-}
-
-const AXIS_LABEL_GAP = 14;
-
-function axisLabelYs(
-  demandY: number | null,
-  capacityY: number | null,
-  floor: number,
-): { demand: number | null; capacity: number | null } {
-  const aboveZero = (y: number) => Math.min(y, floor);
-  if (demandY === null || capacityY === null) {
-    return {
-      demand: demandY === null ? null : aboveZero(demandY),
-      capacity: capacityY === null ? null : aboveZero(capacityY),
-    };
-  }
-  let demand = aboveZero(demandY);
-  let capacity = aboveZero(capacityY);
-  if (Math.abs(demand - capacity) >= AXIS_LABEL_GAP) {
-    return { demand, capacity };
-  }
-  const top = Math.min(demand, capacity);
-  let bottom = top + AXIS_LABEL_GAP;
-  let nextTop = top;
-  if (bottom > floor) {
-    bottom = floor;
-    nextTop = floor - AXIS_LABEL_GAP;
-  }
-  if (demand <= capacity) return { demand: nextTop, capacity: bottom };
-  return { demand: bottom, capacity: nextTop };
-}
-
-function OrderedDemandChart({
-  janelas,
-  capacidade,
-}: {
-  janelas: readonly BoardingDhpWindow[];
-  capacidade: number | null;
-}) {
-  const ordered = visibleDhpWindows(janelas, capacidade);
-  const yMax = chartYMax(ordered, capacidade);
-  const innerW = CHART_WIDTH - CHART_PAD.left - CHART_PAD.right;
-  const innerH = CHART_HEIGHT - CHART_PAD.top - CHART_PAD.bottom;
-  const xOf = (index: number) =>
-    CHART_PAD.left +
-    (ordered.length === 1 ? innerW / 2 : (index / (ordered.length - 1)) * innerW);
-  const yOf = (value: number) =>
-    CHART_PAD.top + (1 - value / yMax) * innerH;
-  const baseline = CHART_PAD.top + innerH;
-  const points = ordered
-    .map((item, index) => `${xOf(index)},${yOf(item.demandaPonderada)}`)
-    .join(" ");
-  const peakIndex = ordered.findIndex((item) => item.posicao === 30);
-  const peak = peakIndex >= 0 ? ordered[peakIndex] : null;
-  const peakY = peak ? yOf(peak.demandaPonderada) : null;
-  const capacityY = capacidade === null ? null : yOf(capacidade);
-  const cuts = axisLabelYs(peakY, capacityY, baseline - AXIS_LABEL_GAP);
-  const axisTitleY = CHART_PAD.top + innerH / 2;
-  const crossIndex = capacityCrossIndex(ordered, capacidade);
-  const cross = crossIndex >= 0 ? ordered[crossIndex] : null;
-  const showCross = cross !== null && cross.posicao !== 30;
-  const rankLabels = separateRankLabels(
-    peakIndex >= 0 ? xOf(peakIndex) : null,
-    showCross ? xOf(crossIndex) : null,
-  );
-  const markedRanks = new Set<number>();
-  if (peak) markedRanks.add(peak.posicao);
-  if (cross) markedRanks.add(cross.posicao);
-  const legendItems = [
-    { label: "Área mínima necessária", mark: "dhp-chart-curve" },
-    ...(peak
-      ? [{ label: "Demanda da 30ª hora", mark: "dhp-chart-demand" }]
-      : []),
-    ...(capacidade !== null
-      ? [{ label: "Capacidade (área medida)", mark: "dhp-chart-capacity" }]
-      : []),
-  ];
-  const legendWidth = 228;
-  const legendHeight = 14 + legendItems.length * 18;
-  const legendX = CHART_WIDTH - CHART_PAD.right - legendWidth;
-  const legendY = 8;
-  const first = ordered[0];
-  const last = ordered[ordered.length - 1];
-
-  return (
-    <>
-      <svg
-        className="dhp-chart"
-        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-        role="img"
-        aria-labelledby="dhp-grafico-titulo"
-      >
-        <line
-          className="dhp-chart-axis"
-          x1={CHART_PAD.left}
-          y1={CHART_PAD.top}
-          x2={CHART_PAD.left}
-          y2={baseline}
-        />
-        <line
-          className="dhp-chart-axis"
-          x1={CHART_PAD.left}
-          y1={baseline}
-          x2={CHART_PAD.left + innerW}
-          y2={baseline}
-        />
-        <polyline className="dhp-chart-curve" points={points} />
-        {peak && peakY !== null ? (
-          <line
-            className="dhp-chart-demand"
-            x1={xOf(0)}
-            y1={peakY}
-            x2={xOf(ordered.length - 1)}
-            y2={peakY}
-          />
-        ) : null}
-        {capacidade !== null && capacityY !== null ? (
-          <line
-            className="dhp-chart-capacity"
-            x1={xOf(0)}
-            y1={capacityY}
-            x2={xOf(ordered.length - 1)}
-            y2={capacityY}
-          />
-        ) : null}
-        {peak && peakY !== null && cuts.demand !== null ? (
-          <text
-            className="dhp-chart-cut"
-            x={CHART_PAD.left - 8}
-            y={cuts.demand + 4}
-            textAnchor="end"
-          >
-            {formatNumber(peak.demandaPonderada, 2)}m²(Requisito)
-          </text>
-        ) : null}
-        {capacidade !== null && cuts.capacity !== null ? (
-          <text
-            className="dhp-chart-cut"
-            x={CHART_PAD.left - 8}
-            y={cuts.capacity + 4}
-            textAnchor="end"
-          >
-            {formatNumber(capacidade, 2)}m²(Capacidade)
-          </text>
-        ) : null}
-        <text
-          className="dhp-chart-cut"
-          x={CHART_PAD.left - 8}
-          y={baseline + 4}
-          textAnchor="end"
-        >
-          0
-        </text>
-        <text
-          x={AREA_TITLE_X}
-          y={axisTitleY}
-          textAnchor="middle"
-          transform={`rotate(-90 ${AREA_TITLE_X} ${axisTitleY})`}
-        >
-          Área
-        </text>
-        {peak && peakY !== null ? (
-          <>
-            <line
-              className="dhp-chart-rank"
-              x1={xOf(peakIndex)}
-              y1={peakY}
-              x2={xOf(peakIndex)}
-              y2={baseline}
-            />
-            <circle
-              className="dhp-chart-peak"
-              cx={xOf(peakIndex)}
-              cy={peakY}
-              r={4}
-            />
-            <text x={rankLabels.peak ?? xOf(peakIndex)} y={baseline + 18} textAnchor="middle">
-              30º
-            </text>
-          </>
-        ) : null}
-        {showCross && cross ? (
-          <>
-            <line
-              className="dhp-chart-rank"
-              x1={xOf(crossIndex)}
-              y1={yOf(cross.demandaPonderada)}
-              x2={xOf(crossIndex)}
-              y2={baseline}
-            />
-            <circle
-              className="dhp-chart-peak"
-              cx={xOf(crossIndex)}
-              cy={yOf(cross.demandaPonderada)}
-              r={4}
-            />
-            <text
-              x={rankLabels.cross ?? xOf(crossIndex)}
-              y={baseline + 18}
-              textAnchor="middle"
-            >
-              {cross.posicao}º
-            </text>
-          </>
-        ) : null}
-        {first && !markedRanks.has(first.posicao) ? (
-          <text x={xOf(0)} y={baseline + 18} textAnchor="middle">
-            {first.posicao}
-          </text>
-        ) : null}
-        {last && last.posicao !== first?.posicao && !markedRanks.has(last.posicao) ? (
-          <text x={xOf(ordered.length - 1)} y={baseline + 18} textAnchor="middle">
-            {last.posicao}
-          </text>
-        ) : null}
-        <text
-          x={CHART_PAD.left + innerW / 2}
-          y={baseline + 38}
-          textAnchor="middle"
-        >
-          DHPº(h)
-        </text>
-        <g className="dhp-legend">
-          <rect
-            className="dhp-legend-box"
-            x={legendX}
-            y={legendY}
-            width={legendWidth}
-            height={legendHeight}
-            rx={4}
-          />
-          {legendItems.map((item, index) => {
-            const y = legendY + 16 + index * 18;
-            return (
-              <g key={item.label}>
-                <line
-                  className={item.mark}
-                  x1={legendX + 10}
-                  y1={y}
-                  x2={legendX + 34}
-                  y2={y}
-                />
-                <text x={legendX + 42} y={y + 4}>
-                  {item.label}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      </svg>
-    </>
-  );
 }
 
 function PlaceLines({
@@ -556,7 +259,7 @@ export function BoardingDhpButton({
     value: DhpCoverage;
   } | null>(null);
   const prepared = useMemo(
-    () => flowsFromDrafts(entry, drafts),
+    () => prepareBoardingFlows(entry, drafts),
     [entry, drafts],
   );
   const flows = Array.isArray(prepared) ? prepared : null;
@@ -577,10 +280,15 @@ export function BoardingDhpButton({
   const shownCoverage = coverage?.icao === icao ? coverage.value : null;
   const periodRange = shownCoverage ? dhpPeriodRange(shownCoverage) : null;
   const tituloJanelas = janelasTitulo(periodRange, airportName);
-  const tituloGrafico = graficoTitulo(periodRange, entry.title, airportName);
   const areaMedida = parseLocaleNumber(drafts.areaMedida ?? "");
   const capacidade =
     areaMedida !== null && areaMedida > 0 ? areaMedida : null;
+  const tituloGrafico = graficoTitulo(
+    periodRange,
+    entry.title,
+    airportName,
+    saturacaoDaCurva(janelas ?? [], capacidade),
+  );
   const graficoJanelas = janelas ? visibleDhpWindows(janelas, capacidade) : null;
   const ultimaHoraGrafico = graficoJanelas?.[graficoJanelas.length - 1]?.posicao;
 
@@ -726,7 +434,7 @@ export function BoardingDhpButton({
         </p>
       ) : (
         <p className="panel-lead">
-          {prepared === "invalid" ? INVALID_MESSAGE : AREA_MESSAGE}
+          {prepared === "invalid" ? BOARDING_AREA_INVALID_MESSAGE : BOARDING_AREA_MISSING_MESSAGE}
         </p>
       )}
       {mark ? (
