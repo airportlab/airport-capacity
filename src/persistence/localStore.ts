@@ -1,3 +1,4 @@
+import { parseAirside, emptyAirside, type AirsideState } from "../domain/airside";
 import {
   airportById,
   defaultAirport,
@@ -70,6 +71,7 @@ export interface PersistedAirportState {
   componentOrigens: Record<ComponentId, Record<ComponentParamId, string>>;
   justificativas: Record<ComponentId, ComponentJustificativas>;
   circulations: HorizontalCirculation[];
+  airside: AirsideState;
 }
 
 export type EditorState = Omit<PersistedAirportState, "savedAt"> & {
@@ -509,6 +511,7 @@ export function parsePersistedState(raw: unknown): PersistedAirportState | null 
       raw.circulations,
       new Set(registry.map((entry) => entry.id)),
     ),
+    airside: parseAirside(raw.airside),
   };
 }
 
@@ -535,6 +538,7 @@ export function emptyEditorState(): EditorState {
     componentOrigens: {},
     justificativas: {},
     circulations: [],
+    airside: emptyAirside(),
   };
 }
 
@@ -543,6 +547,7 @@ export function exampleEditorState(
   airportId: AirportId = defaultAirport().id,
   evaluationMonth: number | null = null,
   evaluationYear: number | null = null,
+  airside: AirsideState = emptyAirside(),
 ): EditorState {
   const airport = airportById(airportId);
   const study = exampleStudy(airport);
@@ -554,5 +559,6 @@ export function exampleEditorState(
     ...study,
     evaluationMonth,
     evaluationYear,
+    airside,
   };
 }

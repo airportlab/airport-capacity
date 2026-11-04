@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { restoreMovimento, type BoardingPlaceFilter } from "../dhp/duckdb";
+import { type AirsideState } from "../domain/airside";
 import {
   airportById,
   shouldReplaceAirportName,
@@ -80,6 +81,7 @@ import {
   unpackSnapshot,
 } from "../persistence/snapshot";
 import { AboutPage } from "./AboutPage";
+import { AirsideTab } from "./AirsideTab";
 import { CirculationsTab } from "./CirculationsTab";
 import { DhpSearchPage } from "./DhpSearchPage";
 import { ComponentEditor } from "./ComponentEditor";
@@ -128,6 +130,7 @@ export function AirportEditor() {
   const [circulations, setCirculations] = useState<HorizontalCirculation[]>(
     initial.circulations,
   );
+  const [airside, setAirside] = useState<AirsideState>(initial.airside);
   const [dhpStamps, setDhpStamps] = useState<
     Partial<Record<ComponentId, BoardingDhpStamp>>
   >({});
@@ -255,6 +258,7 @@ export function AirportEditor() {
     setComponentOrigens(next.componentOrigens);
     setJustificativas(next.justificativas);
     setCirculations(next.circulations);
+    setAirside(next.airside);
     setDhpStamps({});
     rebuildDrafts(next.registry, next.components);
   }
@@ -286,6 +290,7 @@ export function AirportEditor() {
         componentOrigens,
         justificativas,
         circulations,
+        airside,
       });
       const blob = await packSnapshot(persisted);
       const base = slugify(airportName.trim() || "aeroporto", []);
@@ -346,6 +351,7 @@ export function AirportEditor() {
         airport.id,
         evaluationMonth,
         evaluationYear,
+        airside,
       ),
     );
     setTab("summary");
@@ -934,6 +940,7 @@ export function AirportEditor() {
         componentOrigens,
         justificativas,
         circulations,
+        airside,
       };
       if (kind === "componente") {
         const { exportModeloPorComponente } = await import("../export/excelModelo");
@@ -961,6 +968,7 @@ export function AirportEditor() {
     tab === "summary" ||
     tab === "circulations" ||
     tab === "dhp" ||
+    tab === "airside" ||
     viewingAbout
       ? null
       : (contracts.find((contract) => contract.id === tab) ?? null);
@@ -1044,6 +1052,14 @@ export function AirportEditor() {
           >
             DHP
           </button>
+          <button
+            type="button"
+            className={tab === "airside" ? "tab active" : "tab"}
+            aria-current={tab === "airside" ? "page" : undefined}
+            onClick={() => setTab("airside")}
+          >
+            Lado Ar
+          </button>
         </div>
         <div className="tabs-scroll">
           {tabContracts.map((contract) => {
@@ -1119,6 +1135,10 @@ export function AirportEditor() {
           drafts={componentDrafts}
           dhpPlaces={dhpPlaces}
         />
+      ) : null}
+
+      {tab === "airside" ? (
+        <AirsideTab airside={airside} onChange={setAirside} />
       ) : null}
 
       {activeContract && evaluations[activeContract.id] ? (

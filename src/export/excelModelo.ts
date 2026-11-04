@@ -1,4 +1,10 @@
 import ExcelJS from "exceljs";
+import {
+  bridgeMinimumMet,
+  bridgeShareRatio,
+  emptyAirside,
+  type AirsideState,
+} from "../domain/airside";
 import { defaultAirport, type AirportSource } from "../domain/airports";
 import {
   WIDTH_FLOOR_M,
@@ -32,7 +38,7 @@ import {
 } from "../domain/types";
 import { journeyRank, organAllowsEquipmentTaxa } from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
-import { formatEvaluationPeriod } from "../ui/format";
+import { formatEditable, formatEvaluationPeriod } from "../ui/format";
 
 const INK = "FF1C2430";
 const SLATE = "FF2F4A63";
@@ -88,6 +94,7 @@ export interface ModeloExcelModel {
   componentOrigens?: Record<ComponentId, Record<ComponentParamId, string>>;
   justificativas?: Record<ComponentId, ComponentJustificativas>;
   airportName?: string;
+  airside?: AirsideState;
 }
 
 function paramsTouched(
@@ -543,6 +550,222 @@ function blankValue(
     wrapText: true,
   };
   return rowNumber + 1;
+}
+
+function labeledCount(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  text: string,
+  value: number | null,
+  striped: boolean,
+): { nextRow: number; cell: string } {
+  const row = sheet.getRow(rowNumber);
+  row.getCell(PAGE_START).value = text;
+  const valueCell = row.getCell(PAGE_END);
+  valueCell.value = value;
+  if (value !== null) valueCell.numFmt = "#,##0.00";
+  valueCell.alignment = { horizontal: "right", vertical: "middle" };
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END - 1);
+  band(row, PAGE_START, PAGE_END, "data", striped);
+  row.getCell(PAGE_START).alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true,
+  };
+  return {
+    nextRow: rowNumber + 1,
+    cell: `${columnName(PAGE_END)}${rowNumber}`,
+  };
+}
+
+function labeledShare(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  text: string,
+  processed: string,
+  total: string,
+  excluded: string,
+  ratio: number | null,
+  striped: boolean,
+): number {
+  const row = sheet.getRow(rowNumber);
+  row.getCell(PAGE_START).value = text;
+  writeFormula(
+    row.getCell(PAGE_END),
+    `IF(OR(${processed}="",${total}="",${excluded}="",${total}-${excluded}<=0),"",${processed}/(${total}-${excluded}))`,
+    ratio === null ? "" : ratio,
+    "0.00%",
+  );
+  row.getCell(PAGE_END).alignment = { horizontal: "right", vertical: "middle" };
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END - 1);
+  band(row, PAGE_START, PAGE_END, "data", striped);
+  row.getCell(PAGE_START).alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true,
+  };
+  return rowNumber + 1;
+}
+
+function excelNumber(value: number): string {
+  return Number(value.toPrecision(12)).toString();
+}
+
+function labeledMinimum(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  shareCell: string,
+  minimo: number | null,
+  ratio: number | null,
+  striped: boolean,
+  meetsPriority: number,
+): number {
+  const row = sheet.getRow(rowNumber);
+  const shown = minimo === null ? "—%" : `${formatEditable(minimo)}%`;
+  row.getCell(PAGE_START).value =
+    `Atende percentual mínimo de atendimento de ${shown}`;
+  const answer = row.getCell(PAGE_END);
+  const met = bridgeMinimumMet(ratio, minimo);
+  if (minimo === null) {
+    answer.value = null;
+  } else {
+    writeFormula(
+      answer,
+      `IF(${shareCell}="","",IF(${shareCell}>=${excelNumber(minimo)}/100,"SIM","NÃO"))`,
+      met === null ? "" : met ? "SIM" : "NÃO",
+    );
+  }
+  answer.alignment = { horizontal: "right", vertical: "middle" };
+  sheet.mergeCells(rowNumber, PAGE_START, rowNumber, PAGE_END - 1);
+  band(row, PAGE_START, PAGE_END, "data", striped);
+  row.getCell(PAGE_START).alignment = {
+    horizontal: "left",
+    vertical: "middle",
+    wrapText: true,
+  };
+  paintMeets(sheet, rowNumber, rowNumber, meetsPriority);
+  return rowNumber + 1;
+}
+
+function writeAirsideSection(
+  sheet: ExcelJS.Worksheet,
+  rowNumber: number,
+  airside: AirsideState,
+  meetsPriority = 5,
+): { nextRow: number; written: boolean } {
+  const domestic = airside.domestic.includeInReport;
+  const international = airside.international.includeInReport;
+  if (!domestic && !international) {
+    return { nextRow: rowNumber, written: false };
+  }
+
+  let cursor = rowNumber + 2;
+  let answerPriority = meetsPriority + 2;
+  cursor = sectionTitle(
+    sheet,
+    cursor,
+    "3. PROCESSAMENTO EM POSIÇÕES PRÓXIMAS (PONTES DE EMBARQUE)",
+  );
+  if (domestic) {
+    cursor = sectionTitle(sheet, cursor, "DOMÉSTICO");
+    const total = labeledCount(
+      sheet,
+      cursor,
+      "TD - Passageiros domésticos processados no período",
+      airside.domestic.td,
+      true,
+    );
+    const excluded = labeledCount(
+      sheet,
+      total.nextRow,
+      "TED - Passageiros domésticos transportados em aeronaves que impedem pontes de embarque",
+      airside.domestic.ted,
+      false,
+    );
+    const processed = labeledCount(
+      sheet,
+      excluded.nextRow,
+      "PD - Passageiros domésticos processados em pontes de embarque no período",
+      airside.domestic.pd,
+      true,
+    );
+    const domesticRatio = bridgeShareRatio(
+      airside.domestic.pd,
+      airside.domestic.td,
+      airside.domestic.ted,
+    );
+    const domesticShare = processed.nextRow;
+    cursor = labeledShare(
+      sheet,
+      domesticShare,
+      "RAD% - Percentual de passageiros domésticos processados em pontes de embarque",
+      processed.cell,
+      total.cell,
+      excluded.cell,
+      domesticRatio,
+      false,
+    );
+    cursor = labeledMinimum(
+      sheet,
+      cursor,
+      `${columnName(PAGE_END)}${domesticShare}`,
+      airside.domestic.minimo,
+      domesticRatio,
+      true,
+      answerPriority,
+    );
+    answerPriority += 2;
+  }
+  if (international) {
+    cursor = sectionTitle(sheet, cursor, "INTERNACIONAL");
+    const total = labeledCount(
+      sheet,
+      cursor,
+      "TI - Passageiros internacionais processados no período",
+      airside.international.ti,
+      true,
+    );
+    const excluded = labeledCount(
+      sheet,
+      total.nextRow,
+      "TEI - Passageiros internacionais transportados em aeronaves que impedem pontes de embarque",
+      airside.international.tei,
+      false,
+    );
+    const processed = labeledCount(
+      sheet,
+      excluded.nextRow,
+      "PI - Passageiros internacionais processados em pontes de embarque no período",
+      airside.international.pi,
+      true,
+    );
+    const internationalRatio = bridgeShareRatio(
+      airside.international.pi,
+      airside.international.ti,
+      airside.international.tei,
+    );
+    const internationalShare = processed.nextRow;
+    cursor = labeledShare(
+      sheet,
+      internationalShare,
+      "RAI% - Percentual de passageiros internacionais processados em pontes de embarque",
+      processed.cell,
+      total.cell,
+      excluded.cell,
+      internationalRatio,
+      false,
+    );
+    cursor = labeledMinimum(
+      sheet,
+      cursor,
+      `${columnName(PAGE_END)}${internationalShare}`,
+      airside.international.minimo,
+      internationalRatio,
+      true,
+      answerPriority,
+    );
+  }
+  return { nextRow: cursor, written: true };
 }
 
 function blankNote(
@@ -1066,6 +1289,7 @@ function appendUnmodeled(
   rowNumber: number,
   circulations: HorizontalCirculation[],
   registry: RegistryEntry[],
+  airside: AirsideState,
   meetsPriority = 5,
   wideName = false,
 ): { endRow: number; circulationRows: CirculationExportRow[] } {
@@ -1075,27 +1299,13 @@ function appendUnmodeled(
     hatched = !hatched;
   };
 
-  rowNumber += 2;
-  rowNumber = sectionTitle(
+  const bridges = writeAirsideSection(
     sheet,
     rowNumber,
-    "3. PROCESSAMENTO EM POSIÇÕES PRÓXIMAS (PONTES DE EMBARQUE)",
+    airside,
+    meetsPriority,
   );
-  rowNumber = sectionTitle(sheet, rowNumber, "DOMÉSTICO");
-  hatched = true;
-  line("TD - Passageiros domésticos processados no período");
-  line("TED - Passageiros domésticos transportados em aeronaves que impedem pontes de embarque");
-  line("PD - Passageiros domésticos processados em pontes de embarque no período");
-  line("RAD% - Percentual de passageiros domésticos processados em pontes de embarque");
-  rowNumber = sectionTitle(sheet, rowNumber, "INTERNACIONAL");
-  hatched = true;
-  line("TI - Passageiros internacionais processados no período");
-  line("TEI - Passageiros internacionais transportados em aeronaves que impedem pontes de embarque");
-  line("PI - Passageiros internacionais processados em pontes de embarque no período");
-  line("RAI% - Percentual de passageiros internacionais processados em pontes de embarque");
-  line("ATENDE PMD - Piso de 70% de passageiros processados em pontes (RAD% e RAI%)");
-
-  rowNumber += 1;
+  rowNumber = bridges.written ? bridges.nextRow + 1 : rowNumber + 2;
   rowNumber = sectionTitle(
     sheet,
     rowNumber,
@@ -1923,6 +2133,7 @@ export async function exportModeloExcel(model: ModeloExcelModel): Promise<void> 
     rowNumber - 1,
     model.circulations,
     model.registry,
+    model.airside ?? emptyAirside(),
   );
   let paramRow = sectionTitle(
     sheet,
@@ -2716,6 +2927,7 @@ export async function exportModeloPorComponente(
     rowNumber - 1,
     model.circulations,
     model.registry,
+    model.airside ?? emptyAirside(),
     priority,
     true,
   );

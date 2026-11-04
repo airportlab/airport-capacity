@@ -928,6 +928,91 @@ button.dhp-gear svg {
   width: calc(9ch);
 }
 
+.field.field-inline input.input-count:not([type="checkbox"]) {
+  width: calc(12ch + 24px);
+}
+
+.airside-share {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.airside-share .airside-title {
+  margin-top: 0;
+}
+
+.airside-title label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.airside-title input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0.2rem 0 0;
+  flex: none;
+}
+
+.airside-share .formula-card {
+  margin-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  column-gap: 0.85rem;
+}
+
+.airside-share .formula-card .tex {
+  margin: 0;
+  width: auto;
+  max-width: 100%;
+}
+
+.airside-sep,
+.airside-result {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.airside-result {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45em;
+}
+
+.airside-result strong {
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.airside-share .field-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.55em;
+  row-gap: 2px;
+}
+
+.airside-share .field-copy .field-label {
+  flex: none;
+}
+
+.airside-share .field-copy .airside-minimum {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.airside-share .field-copy .origem {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 .field.field-inline .origem-edit {
   grid-column: 1 / -1;
 }

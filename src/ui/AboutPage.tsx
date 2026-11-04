@@ -134,6 +134,21 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Lt. O exemplo fictício inclui quatro circulações. A circulação
           vertical não é cadastrada aqui.
         </p>
+        <p>
+          A aba <strong>Lado Ar</strong> traz o percentual de passageiros
+          processados em ponte de embarque, doméstico e internacional. O
+          interruptor fica no título de cada um e nasce desligado. Desligado, a
+          aba mostra só o título e o Excel não leva aquele lado. Ligado,
+          aparecem a fórmula e os números. Cada lado tem o percentual mínimo de
+          passageiros processados em posições próximas, em %. Com os dois
+          desligados, a seção de pontes não é exportada. A conta do doméstico é
+          R<sub>AD%</sub> = PD / (TD − TED); a do internacional, R
+          <sub>AI%</sub> = PI / (TI − TEI). Os números são digitados. O
+          percentual aparece quando os três daquele lado existem e o
+          denominador é maior que zero. O Excel responde, naquele lado, se o
+          percentual atende o mínimo digitado. Não depende do contrato do
+          aeroporto.
+        </p>
       </section>
 
       <section className="panel">

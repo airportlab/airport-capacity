@@ -644,4 +644,5 @@ export type EditorTab =
   | "about"
   | "circulations"
   | "dhp"
+  | "airside"
   | ComponentId;
