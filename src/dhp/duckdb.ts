@@ -108,6 +108,7 @@ const FLOW_SQL: Record<BoardingFlowKey, string> = {
 
 export interface MovimentoState {
   nome: string | null;
+  registros: number | null;
   restaurando: boolean;
   enviando: boolean;
   erro: string | null;
@@ -121,6 +122,7 @@ interface Session {
 const listeners = new Set<() => void>();
 let state: MovimentoState = {
   nome: null,
+  registros: null,
   restaurando: false,
   enviando: false,
   erro: null,
@@ -256,6 +258,21 @@ async function assertPlaceColumns(conn: duckdb.AsyncDuckDBConnection): Promise<v
   }
 }
 
+async function parquetRowCount(conn: duckdb.AsyncDuckDBConnection): Promise<number> {
+  let rows: Record<string, unknown>[];
+  try {
+    const table = await conn.query(
+      `SELECT COUNT(*) AS registros FROM read_parquet('${PARQUET_NAME}')`,
+    );
+    rows = table.toArray() as Record<string, unknown>[];
+  } catch {
+    throw new Error(UNREADABLE);
+  }
+  const count = cellNumber(rows[0]?.registros);
+  if (!Number.isInteger(count) || count < 0) throw new Error(UNREADABLE);
+  return count;
+}
+
 async function openRegistered(
   nome: string,
   bytes: Uint8Array,
@@ -264,10 +281,12 @@ async function openRegistered(
   await closeSession();
   const db = await createDb();
   let conn: duckdb.AsyncDuckDBConnection;
+  let registros: number;
   try {
     await db.registerFileBuffer(PARQUET_NAME, bytes.slice());
     conn = await db.connect();
     await assertColumns(conn);
+    registros = await parquetRowCount(conn);
   } catch (error) {
     await db.terminate().catch(() => undefined);
     if (
@@ -287,7 +306,13 @@ async function openRegistered(
     }
   }
   session = { db, conn };
-  publish({ nome, restaurando: false, enviando: state.enviando, erro: null });
+  publish({
+    nome,
+    registros,
+    restaurando: false,
+    enviando: state.enviando,
+    erro: null,
+  });
 }
 
 async function reopenStored(): Promise<void> {
@@ -295,11 +320,23 @@ async function reopenStored(): Promise<void> {
   try {
     stored = await readMovimento();
   } catch {
-    publish({ nome: null, restaurando: false, enviando: false, erro: null });
+    publish({
+      nome: null,
+      registros: null,
+      restaurando: false,
+      enviando: false,
+      erro: null,
+    });
     return;
   }
   if (!stored) {
-    publish({ nome: null, restaurando: false, enviando: false, erro: null });
+    publish({
+      nome: null,
+      registros: null,
+      restaurando: false,
+      enviando: false,
+      erro: null,
+    });
     return;
   }
   try {
@@ -307,6 +344,7 @@ async function reopenStored(): Promise<void> {
   } catch (error) {
     publish({
       nome: null,
+      registros: null,
       restaurando: false,
       enviando: false,
       erro: error instanceof Error ? error.message : UNREADABLE,
@@ -316,18 +354,31 @@ async function reopenStored(): Promise<void> {
 
 export function restoreMovimento(): Promise<void> {
   if (restoring) return restoring;
-  publish({ nome: state.nome, restaurando: true, enviando: false, erro: null });
+  publish({
+    nome: state.nome,
+    registros: state.registros,
+    restaurando: true,
+    enviando: false,
+    erro: null,
+  });
   restoring = lock(async () => {
     try {
       const stored = await readMovimento();
       if (!stored) {
-        publish({ nome: null, restaurando: false, enviando: false, erro: null });
+        publish({
+          nome: null,
+          registros: null,
+          restaurando: false,
+          enviando: false,
+          erro: null,
+        });
         return;
       }
       await openRegistered(stored.nome, stored.bytes, false);
     } catch (error) {
       publish({
         nome: null,
+        registros: null,
         restaurando: false,
         enviando: false,
         erro: error instanceof Error ? error.message : UNREADABLE,

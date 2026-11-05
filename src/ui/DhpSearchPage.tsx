@@ -9,6 +9,7 @@ import {
   type DhpCoverage,
 } from "../dhp/duckdb";
 import { ComponentsDhpCurves } from "./ComponentsDhpCurves";
+import { formatNumber } from "./format";
 import { arquivoTexto, useMovimento } from "./useMovimento";
 
 const EMPTY_COVERAGE: DhpCoverage = {
@@ -137,6 +138,12 @@ export function DhpSearchPage({
         {movimento.restaurando || (!movimento.nome && movimento.erro)
           ? arquivoTexto(movimento, "")
           : `Nome do arquivo de movimentações: ${movimento.nome ?? "—"}`}
+      </p>
+      <p className="dhp-meta">
+        Registros:{" "}
+        {movimento.restaurando || movimento.registros == null
+          ? "—"
+          : formatNumber(movimento.registros, 0)}
       </p>
       <div className="actions dhp-actions">
         <input
