@@ -31,21 +31,6 @@ const REQUIRED_COLUMNS = [
 const PLACE_COLUMNS = ["NR_BOX", "NR_TERMINAL"] as const;
 const MISSING_PLACE = "O arquivo não tem NR_BOX e NR_TERMINAL.";
 
-const MONTH_CODES = [
-  "JAN",
-  "FEV",
-  "MAR",
-  "ABR",
-  "MAI",
-  "JUN",
-  "JUL",
-  "AGO",
-  "SET",
-  "OUT",
-  "NOV",
-  "DEZ",
-] as const;
-
 export interface DhpCoverage {
   dataRecente: string | null;
   periodoInicio: string | null;
@@ -416,37 +401,23 @@ function sqlWeight(value: number): string {
   return value.toFixed(12);
 }
 
-function coverageCte(icao: string): string {
+function coverageCte(): string {
   return `
 cobertura AS (
-    SELECT MAX(CAST(DT_CALCO AS DATE)) AS ultima
-    FROM read_parquet('${PARQUET_NAME}')
-    WHERE NR_AEROPORTO_REFERENCIA = '${icao}'
-),
-mes AS (
     SELECT
-        ultima,
-        date_trunc('month', ultima) AS inicio_mes,
-        CAST(ultima AS DATE) = CAST(
-            date_trunc('month', ultima) + INTERVAL '1' MONTH - INTERVAL '1' DAY
-            AS DATE
-        ) AS completo
-    FROM cobertura
+        MIN(CAST(DT_CALCO AS DATE)) AS primeira,
+        MAX(CAST(DT_CALCO AS DATE)) AS ultima
+    FROM read_parquet('${PARQUET_NAME}')
 ),
 periodo AS (
     SELECT
         ultima,
+        primeira AS inicio_periodo,
         CASE
             WHEN ultima IS NULL THEN NULL
-            WHEN completo THEN inicio_mes - INTERVAL '11' MONTH
-            ELSE inicio_mes - INTERVAL '12' MONTH
-        END AS inicio_periodo,
-        CASE
-            WHEN ultima IS NULL THEN NULL
-            WHEN completo THEN inicio_mes + INTERVAL '1' MONTH
-            ELSE inicio_mes
+            ELSE ultima + INTERVAL '1' DAY
         END AS fim_periodo
-    FROM mes
+    FROM cobertura
 )`;
 }
 
@@ -467,24 +438,23 @@ function periodFilter(): string {
         AND CAST(DT_CALCO AS DATE) < CAST(periodo.fim_periodo AS DATE)`;
 }
 
-function periodToken(iso: string): string {
-  const match = /^(\d{4})-(\d{2})/.exec(iso);
+function periodDate(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (!match) return iso;
-  const code = MONTH_CODES[Number(match[2]) - 1];
-  return code ? `${code}${match[1]}` : iso;
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 export function dhpPeriodRange(coverage: DhpCoverage): string | null {
   if (!coverage.periodoInicio || !coverage.periodoFim) return null;
-  return `${periodToken(coverage.periodoInicio)} a ${periodToken(coverage.periodoFim)}`;
+  return `${periodDate(coverage.periodoInicio)} a ${periodDate(coverage.periodoFim)}`;
 }
 
 export function dhpCoverageText(coverage: DhpCoverage): string {
   const range = dhpPeriodRange(coverage);
   if (!coverage.dataRecente || !range) {
-    return "DHP Calculado no Período de —.";
+    return "Dados lidos no período de —.";
   }
-  return `DHP Calculado no Período de ${range}`;
+  return `Dados lidos no período de ${range}`;
 }
 
 function textOrNull(value: unknown): string | null {
@@ -507,9 +477,9 @@ const EMPTY_COVERAGE: DhpCoverage = {
   periodoFim: null,
 };
 
-function coverageQuery(icao: string): string {
+function coverageQuery(): string {
   return `
-WITH ${coverageCte(icao)}
+WITH ${coverageCte()}
 SELECT
     ${coverageColumns()}
 FROM periodo
@@ -517,11 +487,10 @@ FROM periodo
 }
 
 export async function loadDhpCoverage(icao: string): Promise<DhpCoverage> {
-  const code = catalogIcao(icao);
-  if (!code) throw new Error("Aeroporto fora do catálogo.");
+  if (!catalogIcao(icao)) throw new Error("Aeroporto fora do catálogo.");
   try {
     return await withConnection(async (conn) => {
-      const table = await conn.query(coverageQuery(code));
+      const table = await conn.query(coverageQuery());
       const rows = table.toArray() as Record<string, unknown>[];
       return rows.length === 0 ? EMPTY_COVERAGE : coverageFrom(rows[0]);
     });
@@ -660,7 +629,7 @@ function boardingQuery(
     (key) => `${FLOW_SQL[key]} * ${weight[key]}`,
   ).join("\n            + ");
   return `
-WITH ${coverageCte(icao)},
+WITH ${coverageCte()},
 ${movementsSql(icao, filter)},
 janelas AS (
     SELECT
@@ -733,7 +702,7 @@ ORDER BY ranqueadas.posicao DESC
 
 function hourCountsQuery(icao: string, filter?: BoardingPlaceFilter): string {
   return `
-WITH ${coverageCte(icao)},
+WITH ${coverageCte()},
 ${movementsSql(icao, filter)},
 janelas AS (
     SELECT
@@ -763,7 +732,7 @@ function countsFrom(record: Record<string, unknown>): BoardingHourCounts {
 
 function placesQuery(icao: string): string {
   return `
-WITH ${coverageCte(icao)}
+WITH ${coverageCte()}
 SELECT DISTINCT
     NULLIF(TRIM(CAST(NR_BOX AS VARCHAR)), '') AS box,
     NULLIF(TRIM(CAST(NR_TERMINAL AS VARCHAR)), '') AS terminal
