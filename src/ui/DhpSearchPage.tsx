@@ -19,6 +19,8 @@ const EMPTY_COVERAGE: DhpCoverage = {
 };
 
 const PARQUET_URL = import.meta.env.VITE_PARQUET_URL?.trim() ?? "";
+const BUSY_HOUR_STUDY_URL =
+  "https://airportlab.github.io/airport-busy-hour-analysis/";
 const DOWNLOAD_ERROR = "Não foi possível baixar a movimentação.";
 
 function parquetFileName(url: string): string {
@@ -132,6 +134,16 @@ export function DhpSearchPage({
       <h2>DHP</h2>
       <p className="panel-lead">
         O navegador guarda este arquivo até um envio novo.
+      </p>
+      <p className="round-meta">
+        Para saber mais:{" "}
+        <a
+          href={BUSY_HOUR_STUDY_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          estudo e criação de parquet
+        </a>
       </p>
       <p className="dhp-meta">{dhpCoverageText(coverage)}</p>
       <p className="dhp-meta">
