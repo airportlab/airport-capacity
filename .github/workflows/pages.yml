@@ -10,9 +10,11 @@ permissions:
   pages: write
   id-token: write
 
+# One deploy at a time. Do not cancel an in-flight publish: Pages can
+# leave that deployment stuck on updating_pages and block the next one.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
