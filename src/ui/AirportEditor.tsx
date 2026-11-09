@@ -21,6 +21,12 @@ import { resolveContracts, slugify } from "../domain/contracts/factory";
 import { evaluateAll } from "../domain/engine";
 import { UNOFFICIAL_NOTICE } from "../domain/notice";
 import {
+  lerPranchasNivelServico,
+  separarPranchas,
+  tituloDaPrancha,
+  type PranchaIgnorada,
+} from "../domain/plantaNivelServico";
+import {
   loungeInvalidForAirport,
   overlaySizingSources,
   pmdOrigem,
@@ -43,6 +49,7 @@ import {
   organNatureLabel,
   rebindOrganNature,
   remapDemandaOnNatureChange,
+  salasEmbarqueDoAeroporto,
   templateByKind,
   templateForEntry,
   type OrganKind,
@@ -97,6 +104,8 @@ import {
 } from "./format";
 import { ParametersTab } from "./ParametersTab";
 import { RegisterComponent } from "./RegisterComponent";
+import { PlantaJanela } from "./PlantaJanela";
+import { desenharPagina, esquecerPlanta, prepararPlanta } from "./plantaDesenho";
 import { SummaryPage } from "./SummaryPage";
 
 function draftsFromRecord<K extends string>(
@@ -182,9 +191,25 @@ export function AirportEditor() {
   const [savedAt, setSavedAt] = useState<string | null>(initial.savedAt);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState<
-    "excel-modelo" | "excel-modelo-componente" | "save" | "load" | null
+    | "excel-modelo"
+    | "excel-modelo-componente"
+    | "save"
+    | "load"
+    | "planta"
+    | null
   >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const plantaFileRef = useRef<HTMLInputElement>(null);
+  const plantaLock = useRef(false);
+  const plantaImagens = useRef<Record<string, string>>({});
+  const plantaPng = useRef<Record<string, ArrayBuffer>>({});
+  const plantaPdf = useRef<ArrayBuffer | null>(null);
+  const plantaPedido = useRef(0);
+  const plantaEmCurso = useRef<Set<string>>(new Set());
+  const [plantaPaginas, setPlantaPaginas] = useState<Record<string, number>>({});
+  const [plantaUrls, setPlantaUrls] = useState<Record<string, string>>({});
+  const [plantaAberta, setPlantaAberta] = useState<ComponentId | null>(null);
+  const [plantaErros, setPlantaErros] = useState<Record<string, string>>({});
 
   const evaluations = useMemo(
     () => evaluateAll(contracts, components),
@@ -248,6 +273,67 @@ export function AirportEditor() {
     );
   }
 
+  function limparPlanta() {
+    plantaPedido.current += 1;
+    plantaPdf.current = null;
+    esquecerPlanta();
+    for (const url of Object.values(plantaImagens.current)) {
+      URL.revokeObjectURL(url);
+    }
+    plantaImagens.current = {};
+    plantaPng.current = {};
+    plantaEmCurso.current.clear();
+    setPlantaUrls({});
+    setPlantaPaginas({});
+    setPlantaAberta(null);
+    setPlantaErros({});
+  }
+
+  useEffect(() => {
+    const id = tab;
+    const pagina = plantaPaginas[id];
+    const data = plantaPdf.current;
+    if (pagina == null || !data) return;
+    if (plantaImagens.current[id] || plantaEmCurso.current.has(id)) return;
+    plantaEmCurso.current.add(id);
+    const epoca = plantaPedido.current;
+    void desenharPagina(data, pagina)
+      .then(async (blob) => {
+        if (plantaPedido.current !== epoca) return;
+        const bytes = await blob.arrayBuffer();
+        if (plantaPedido.current !== epoca) return;
+        plantaPng.current = { ...plantaPng.current, [id]: bytes };
+        const url = URL.createObjectURL(blob);
+        plantaImagens.current = { ...plantaImagens.current, [id]: url };
+        setPlantaUrls({ ...plantaImagens.current });
+        setPlantaErros((current) => {
+          if (!current[id]) return current;
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+      })
+      .catch(() => {
+        if (plantaPedido.current !== epoca) return;
+        setPlantaErros((current) => ({
+          ...current,
+          [id]: "Não foi possível desenhar a planta.",
+        }));
+      })
+      .finally(() => {
+        plantaEmCurso.current.delete(id);
+      });
+  }, [tab, plantaPaginas]);
+
+  useEffect(() => {
+    return () => {
+      esquecerPlanta();
+      for (const url of Object.values(plantaImagens.current)) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, []);
+
   function applyState(next: EditorState | PersistedAirportState) {
     setAirportName(next.airportName);
     setAirportId(next.airportId);
@@ -261,6 +347,7 @@ export function AirportEditor() {
     setAirside(next.airside);
     setDhpStamps({});
     rebuildDrafts(next.registry, next.components);
+    limparPlanta();
   }
 
   function handleAirportChange(nextId: AirportId) {
@@ -358,6 +445,95 @@ export function AirportEditor() {
     setMessage(
       "Exemplo fictício carregado: componentes, variantes e circulações ilustrativos.",
     );
+  }
+
+  function mensagemPlanta(
+    quantidade: number,
+    ignoradas: PranchaIgnorada[],
+  ): string {
+    const componente = quantidade === 1 ? "componente" : "componentes";
+    const partes = [`Planta carregada: ${quantidade} ${componente}.`];
+    if (ignoradas.length > 0) {
+      const lista = ignoradas
+        .map((item) =>
+          item.motivo === "desconhecida" ? `${item.nome} (sem tipo)` : item.nome,
+        )
+        .join("; ");
+      partes.push(`Não criadas: ${lista}.`);
+    }
+    return partes.join(" ");
+  }
+
+  function handleLoadPlanta() {
+    if (plantaLock.current || busy !== null) return;
+    plantaFileRef.current?.click();
+  }
+
+  async function handlePlantaSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || plantaLock.current || busy !== null) return;
+    plantaLock.current = true;
+    setBusy("planta");
+    try {
+      const buffer = await file.arrayBuffer();
+      const salasEmbarque = salasEmbarqueDoAeroporto(airport);
+      const { criar, ignoradas } = separarPranchas(
+        await lerPranchasNivelServico(buffer),
+        salasEmbarque,
+      );
+      if (criar.length === 0) {
+        setMessage("A planta não tem prancha reconhecida.");
+        return;
+      }
+      if (
+        registry.length > 0 &&
+        !window.confirm(
+          "Substituir os componentes operacionais atuais pelos da planta?",
+        )
+      ) {
+        return;
+      }
+      const ids: ComponentId[] = [];
+      const entries: RegistryEntry[] = [];
+      const paginas: Record<string, number> = {};
+      setComponents({});
+      setComponentOrigens({});
+      setComponentDrafts({});
+      setJustificativas({});
+      setDhpStamps({});
+      setDhpPlaces({});
+      limparPlanta();
+      const copia = buffer.slice(0);
+      plantaPdf.current = copia;
+      prepararPlanta(copia);
+      for (const item of criar) {
+        const template = templateByKind(item.kind);
+        if (!template) continue;
+        const entry = instantiateOrgan(
+          template,
+          item.nature,
+          tituloDaPrancha(item.nome, item.kind, salasEmbarque.length > 1),
+          ids,
+        );
+        ids.push(entry.id);
+        entries.push(entry);
+        if (item.pagina != null) paginas[entry.id] = item.pagina;
+        applyComponentRecords(entry.id, entry, undefined, undefined, undefined, {
+          identityOverrides: { areaMedida: item.areaM2 },
+        });
+      }
+      setPlantaPaginas(paginas);
+      setRegistry(entries);
+      setCirculations((current) => clearCirculationLinks(current));
+      setTab("summary");
+      setMessage(mensagemPlanta(ids.length, ignoradas));
+    } catch {
+      setMessage("Não foi possível ler a planta.");
+    } finally {
+      plantaLock.current = false;
+      setBusy(null);
+    }
   }
 
   function handleCreate(kind: OrganKind, nature: OrganNature, title: string) {
@@ -535,6 +711,9 @@ export function AirportEditor() {
       params.demandaPicoConexaoDesembarqueIntDom = 0;
       params.demandaPicoConexaoDesembarqueIntInt = 0;
       params.areaMedida = 0;
+      if (options?.identityOverrides?.areaMedida !== undefined) {
+        params.areaMedida = options.identityOverrides.areaMedida;
+      }
     }
     for (const field of contract.params) {
       if (!isTsecParam(field.id)) continue;
@@ -807,6 +986,7 @@ export function AirportEditor() {
     setJustificativas({});
     setCirculations((current) => clearCirculationLinks(current));
     setDhpStamps({});
+    limparPlanta();
     rebuildDrafts([], {});
     setTab("summary");
     setMessage("Todos os componentes operacionais foram apagados.");
@@ -831,6 +1011,28 @@ export function AirportEditor() {
     setComponentDrafts(nextDrafts);
     setJustificativas(nextJust);
     setDhpStamps((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    const url = plantaImagens.current[id];
+    if (url) URL.revokeObjectURL(url);
+    const imagens = { ...plantaImagens.current };
+    delete imagens[id];
+    plantaImagens.current = imagens;
+    const pngs = { ...plantaPng.current };
+    delete pngs[id];
+    plantaPng.current = pngs;
+    setPlantaUrls(imagens);
+    setPlantaPaginas((current) => {
+      if (current[id] == null) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    if (plantaAberta === id) setPlantaAberta(null);
+    setPlantaErros((current) => {
+      if (!current[id]) return current;
       const next = { ...current };
       delete next[id];
       return next;
@@ -925,6 +1127,28 @@ export function AirportEditor() {
     });
   }
 
+  async function desenhosDaPlanta(): Promise<Record<string, ArrayBuffer>> {
+    const data = plantaPdf.current;
+    if (!data) return {};
+    const out: Record<string, ArrayBuffer> = {};
+    for (const [id, pagina] of Object.entries(plantaPaginas)) {
+      const pronto = plantaPng.current[id];
+      if (pronto && pronto.byteLength > 0) {
+        out[id] = pronto;
+        continue;
+      }
+      try {
+        const blob = await desenharPagina(data, pagina);
+        const bytes = await blob.arrayBuffer();
+        plantaPng.current = { ...plantaPng.current, [id]: bytes };
+        out[id] = bytes;
+      } catch {
+        continue;
+      }
+    }
+    return out;
+  }
+
   async function handleModelo(kind: "agregado" | "componente") {
     setBusy(kind === "agregado" ? "excel-modelo" : "excel-modelo-componente");
     try {
@@ -944,7 +1168,7 @@ export function AirportEditor() {
       };
       if (kind === "componente") {
         const { exportModeloPorComponente } = await import("../export/excelModelo");
-        await exportModeloPorComponente(payload);
+        await exportModeloPorComponente(payload, await desenhosDaPlanta());
         setMessage("Planilha modelo por componente exportada.");
       } else {
         const { exportModeloExcel } = await import("../export/excelModelo");
@@ -1107,6 +1331,8 @@ export function AirportEditor() {
           onOpenComponent={setTab}
           onRegister={() => setRegisterOpen(true)}
           onLoadExample={handleLoadExample}
+          onLoadPlanta={handleLoadPlanta}
+          plantaBusy={busy === "planta"}
           onRemove={handleRemove}
           onRemoveAll={handleRemoveAll}
         />
@@ -1234,6 +1460,15 @@ export function AirportEditor() {
               },
             }))
           }
+          plantaQuadro={
+            plantaPaginas[activeContract.id] == null
+              ? null
+              : {
+                  imageUrl: plantaUrls[activeContract.id] ?? null,
+                  error: plantaErros[activeContract.id] ?? null,
+                  onOpen: () => setPlantaAberta(activeContract.id),
+                }
+          }
         />
       ) : null}
 
@@ -1244,6 +1479,13 @@ export function AirportEditor() {
           accept={`.${SNAPSHOT_EXTENSION}`}
           hidden
           onChange={(event) => void handleFileSelected(event)}
+        />
+        <input
+          ref={plantaFileRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          hidden
+          onChange={(event) => void handlePlantaSelected(event)}
         />
         <button
           type="button"
@@ -1288,6 +1530,17 @@ export function AirportEditor() {
         </p>
       ) : null}
       {message ? <p className="flash">{message}</p> : null}
+
+      {plantaAberta && plantaUrls[plantaAberta] ? (
+        <PlantaJanela
+          title={
+            registry.find((entry) => entry.id === plantaAberta)?.title ??
+            "Planta"
+          }
+          imageUrl={plantaUrls[plantaAberta]}
+          onClose={() => setPlantaAberta(null)}
+        />
+      ) : null}
 
       <RegisterComponent
         open={registerOpen}
