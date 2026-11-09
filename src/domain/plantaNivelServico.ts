@@ -9,6 +9,8 @@ export type PranchaLida = {
 export type PranchaCriada = PranchaLida & {
   kind: OrganKind;
   nature: OrganNature;
+  /** Nome do carimbo da reversível, na aba da sala fixa com essa área. */
+  com?: string;
 };
 
 export type PranchaIgnorada = PranchaLida & {
@@ -250,20 +252,28 @@ export async function lerPranchasNivelServico(
   return pranchas;
 }
 
-/** “Dom e Int” no carimbo vira o título misto. Com duas contas, a aba ganha pontes ou remotas. */
+function rotuloDaPrancha(nome: string): string {
+  return nome
+    .replace(/\s*\(\s*dom\s+e\s+int\s*\)/gi, " misto")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** “Dom e Int” no carimbo vira o título misto. Com duas contas, a aba ganha pontes ou remotas. A combinação acrescenta “ com ” e o nome da reversível. */
 export function tituloDaPrancha(
   nome: string,
   kind?: OrganKind,
   varias = false,
+  com?: string,
 ): string {
-  const base = nome
-    .replace(/\s*\(\s*dom\s+e\s+int\s*\)/gi, " misto")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!varias || !kind) return base;
-  if (kind.includes("remotas")) return `${base} remotas`;
-  if (kind.startsWith("sala-embarque")) return `${base} pontes`;
-  return base;
+  const titulo = rotuloDaPrancha(nome);
+  let base = titulo;
+  if (varias && kind) {
+    if (kind.includes("remotas")) base = `${titulo} remotas`;
+    else if (kind.startsWith("sala-embarque")) base = `${titulo} pontes`;
+  }
+  const complemento = com ? rotuloDaPrancha(com) : "";
+  return complemento ? `${base} com ${complemento}` : base;
 }
 
 function fold(nome: string): string {
@@ -274,6 +284,45 @@ function fold(nome: string): string {
     .replace(/[()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+type FamiliaPlanta =
+  | "checkin-bagagens"
+  | "saguao-desembarque"
+  | "saguao-embarque"
+  | "inspecao"
+  | "emigracao"
+  | "imigracao"
+  | "aduana"
+  | "sala-desembarque"
+  | "sala-embarque";
+
+function semReversivel(folded: string): string {
+  return folded.replaceAll("reversivel", " ").replace(/\s+/g, " ").trim();
+}
+
+/** A função da prancha, na mesma ordem de `classificar`, sem exigir natureza. */
+function familiaDaPrancha(folded: string): FamiliaPlanta | null {
+  if (folded.includes("check-in") || folded.includes("check in")) {
+    return "checkin-bagagens";
+  }
+  if (folded.includes("saguao") && folded.includes("desembarque")) {
+    return "saguao-desembarque";
+  }
+  if (folded.includes("saguao") && folded.includes("embarque")) {
+    return "saguao-embarque";
+  }
+  if (folded.includes("inspec")) return "inspecao";
+  if (folded.includes("emigracao")) return "emigracao";
+  if (folded.includes("imigracao")) return "imigracao";
+  if (folded.includes("aduana")) return "aduana";
+  if (folded.includes("desembarque")) return "sala-desembarque";
+  if (folded.includes("embarque")) return "sala-embarque";
+  return null;
+}
+
+function somarArea(fixa: number, reversivel: number): number {
+  return Math.round((fixa + reversivel) * 100) / 100;
 }
 
 function naturezaDoNome(folded: string): OrganNature | null {
@@ -338,30 +387,92 @@ function classificar(
   return "desconhecida";
 }
 
-/** Reversíveis e nomes sem tipo ficam de fora. A sala de embarque segue as contas do aeroporto. */
+type PranchaFixada = {
+  familia: FamiliaPlanta;
+  prancha: PranchaCriada;
+};
+
+/** Sem “remoto” no nome, a conta é a de pontes. Com “remoto”, a de remotas. Uma conta só, como na 5ª rodada, permanece. */
+function contaDeEmbarque(
+  folded: string,
+  salasEmbarque: OrganKind[],
+): OrganKind | null {
+  if (salasEmbarque.length === 0) return null;
+  if (salasEmbarque.length === 1) return salasEmbarque[0];
+  const remoto = /\bremot/.test(folded);
+  return (
+    salasEmbarque.find((kind) =>
+      remoto ? kind.includes("remotas") : kind.includes("pontes"),
+    ) ?? null
+  );
+}
+
+/** Nome sem tipo fica de fora. A reversível não vira aba: cada fixa da mesma função ganha a aba com a área somada. A sala de embarque sem remoto fica na conta de pontes. */
 export function separarPranchas(
   pranchas: PranchaLida[],
   salasEmbarque: OrganKind[] = [],
 ): PlantaSeparada {
-  const criar: PranchaCriada[] = [];
+  const fixas: PranchaFixada[] = [];
+  const reversiveis: PranchaLida[] = [];
   const ignoradas: PranchaIgnorada[] = [];
   for (const prancha of pranchas) {
-    const destino = classificar(fold(prancha.nome));
+    const folded = fold(prancha.nome);
+    if (folded.includes("reversivel")) {
+      reversiveis.push(prancha);
+      continue;
+    }
+    const destino = classificar(folded);
     if (destino === "reversivel" || destino === "desconhecida") {
       ignoradas.push({ ...prancha, motivo: destino });
       continue;
     }
     if ("salaEmbarque" in destino) {
-      if (salasEmbarque.length === 0) {
+      const kind = contaDeEmbarque(folded, salasEmbarque);
+      if (!kind) {
         ignoradas.push({ ...prancha, motivo: "desconhecida" });
         continue;
       }
-      for (const kind of salasEmbarque) {
-        criar.push({ ...prancha, kind, nature: destino.salaEmbarque });
-      }
+      fixas.push({
+        familia: "sala-embarque",
+        prancha: { ...prancha, kind, nature: destino.salaEmbarque },
+      });
       continue;
     }
-    criar.push({ ...prancha, ...destino });
+    const familia = familiaDaPrancha(folded);
+    if (!familia) {
+      ignoradas.push({ ...prancha, motivo: "desconhecida" });
+      continue;
+    }
+    fixas.push({
+      familia,
+      prancha: { ...prancha, ...destino },
+    });
+  }
+
+  const criar = fixas.map((item) => item.prancha);
+  for (const reversivel of reversiveis) {
+    const folded = semReversivel(fold(reversivel.nome));
+    const familia = familiaDaPrancha(folded);
+    const nature = naturezaDoNome(folded);
+    const pares =
+      familia === null
+        ? []
+        : fixas.filter(
+            (item) =>
+              item.familia === familia &&
+              (nature === null || item.prancha.nature === nature),
+          );
+    if (pares.length === 0) {
+      ignoradas.push({ ...reversivel, motivo: "reversivel" });
+      continue;
+    }
+    for (const par of pares) {
+      criar.push({
+        ...par.prancha,
+        areaM2: somarArea(par.prancha.areaM2, reversivel.areaM2),
+        com: reversivel.nome,
+      });
+    }
   }
   return { criar, ignoradas };
 }

@@ -477,11 +477,12 @@ export function AirportEditor() {
     setBusy("planta");
     try {
       const buffer = await file.arrayBuffer();
+      const lidas = await lerPranchasNivelServico(buffer);
       const salasEmbarque = salasEmbarqueDoAeroporto(airport);
-      const { criar, ignoradas } = separarPranchas(
-        await lerPranchasNivelServico(buffer),
-        salasEmbarque,
-      );
+      const { criar, ignoradas } = separarPranchas(lidas, salasEmbarque);
+      const variasContas =
+        criar.some((item) => item.kind.includes("pontes")) &&
+        criar.some((item) => item.kind.includes("remotas"));
       if (criar.length === 0) {
         setMessage("A planta não tem prancha reconhecida.");
         return;
@@ -513,7 +514,12 @@ export function AirportEditor() {
         const entry = instantiateOrgan(
           template,
           item.nature,
-          tituloDaPrancha(item.nome, item.kind, salasEmbarque.length > 1),
+          tituloDaPrancha(
+            item.nome,
+            item.kind,
+            variasContas,
+            item.com,
+          ),
           ids,
         );
         ids.push(entry.id);

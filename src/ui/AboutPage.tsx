@@ -77,10 +77,11 @@ export function AboutPage({ onBack }: AboutPageProps) {
           processadores e quatro circulações horizontais, com comentários nos
           campos de texto. Em <strong>Carregar planta (experimental)</strong> o
           usuário escolhe o PDF. O botão cria um componente por prancha, com o
-          nome e a área do carimbo. A sala de embarque segue as contas do
-          aeroporto selecionado: uma na 5ª rodada e, nas outras, pontes e
-          remotas. Onde o nome diz Dom e Int, o título fica
-          misto. Prancha reversível não entra. No quadro Entradas do
+          nome e a área do carimbo. Sala de embarque sem a palavra remoto usa a
+          conta de pontes; com remoto, a de remotas. Na 5ª rodada permanece a
+          conta única. Onde o nome diz Dom e Int, o título fica
+          misto. Prancha reversível não vira componente: cada prancha fixa da
+          mesma função ganha também a aba com a área somada. No quadro Entradas do
           componente, abaixo do título, a aba mostra o desenho da folha. O
           clique abre essa folha na tela toda. O desenho fica na sessão. No
           Excel modelo por componente, ele fica à direita das contas daquele
