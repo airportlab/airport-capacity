@@ -66,7 +66,7 @@ export function AboutPage({ onBack }: AboutPageProps) {
           Equipamentos. Sem equipamentos nem esteira, essa coluna mostra “—”.
           Sala de embarque de outra conta aparece como
           “Não vale para este contrato”; os dois Excel ficam desligados até ela
-          ser apagada ou o aeroporto voltar à conta em que ela nasceu. O único
+          ser apagada ou o aeroporto voltar à conta em que ela nasceu. O
           botão <strong>Carregar exemplo fictício</strong> fica nesta aba e
           preenche um estudo ilustrativo — não são valores operacionais do
           aeroporto selecionado. Entram um componente de cada tipo da tabela
@@ -75,7 +75,17 @@ export function AboutPage({ onBack }: AboutPageProps) {
           aduana e na esteira (emigração e imigração ficam em 100%, sem essa
           taxa), equipamentos nos
           processadores e quatro circulações horizontais, com comentários nos
-          campos de texto.
+          campos de texto. Em <strong>Carregar planta (experimental)</strong> o
+          usuário escolhe o PDF. O botão cria um componente por prancha, com o
+          nome e a área do carimbo. Sala de embarque sem a palavra remoto usa a
+          conta de pontes; com remoto, a de remotas. Na 5ª rodada permanece a
+          conta única. Onde o nome diz Dom e Int, o título fica
+          misto. Prancha reversível não vira componente: cada prancha fixa da
+          mesma função ganha também a aba com a área somada. No quadro Entradas do
+          componente, abaixo do título, a aba mostra o desenho da folha. O
+          clique abre essa folha na tela toda. O desenho fica na sessão. No
+          Excel modelo por componente, ele fica à direita das contas daquele
+          componente, no mesmo retângulo.
         </p>
         <p>
           Em <strong>+ Componente</strong> o cadastro usa a lista exaustiva do

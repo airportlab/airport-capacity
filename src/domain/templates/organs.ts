@@ -238,6 +238,21 @@ export function instantiableOrgans(source: AirportSource): OrganTemplate[] {
   );
 }
 
+const SALA_EMBARQUE_KINDS = new Set<OrganKind>([
+  "sala-embarque-pontes",
+  "sala-embarque-remotas",
+  "sala-embarque-pontes-sentado",
+  "sala-embarque-remotas-sentado",
+  "salas-embarque",
+]);
+
+/** Contas de sala de embarque da tabela do aeroporto, na ordem da lista. */
+export function salasEmbarqueDoAeroporto(source: AirportSource): OrganKind[] {
+  return instantiableOrgans(source)
+    .map((template) => template.kind)
+    .filter((kind) => SALA_EMBARQUE_KINDS.has(kind));
+}
+
 /** Ordem da jornada no Resumo: embarque e, em seguida, desembarque. */
 export const JOURNEY_ORDER: readonly {
   kind: OrganKind;

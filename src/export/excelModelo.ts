@@ -72,6 +72,10 @@ const PAINEL_NAME_WIDTH = 28;
 const PAINEL_DHP_WIDTH = 32;
 const MEMORY_END = 9;
 const MEMORY_COLUMN_WIDTHS = [3, 42, 14, 28, 12, 16, 14, 14, 12];
+const PLANTA_COLUMN = MEMORY_END + 1;
+const PLANTA_WIDTH = 72;
+const A3_LANDSCAPE_HEIGHT = 842 / 1191;
+const DEFAULT_ROW_POINTS = 15;
 const MODELO_COLUMN_WIDTHS = [3, 6, 38, 26, 14, 13, 8];
 const MODELO_NAME_WIDTH = MODELO_COLUMN_WIDTHS[2];
 const MODELO_PARAM_WIDTH = MODELO_COLUMN_WIDTHS[3];
@@ -2681,7 +2685,13 @@ function writeComponentModeloBlock(
   item: ModeloIndexed,
   model: ModeloExcelModel,
   addresses: Map<string, string>,
-): { nextRow: number; areaRow: number; equipmentRow: number; beltRow: number } {
+): {
+  nextRow: number;
+  areaRow: number;
+  equipmentRow: number;
+  beltRow: number;
+  titleRow: number;
+} {
   const titleRow = rowNumber;
   rowNumber = sectionTitle(sheet, rowNumber, item.contract.title, MEMORY_END);
   sheet.getRow(titleRow).height = fittedRowHeight(
@@ -2767,7 +2777,75 @@ function writeComponentModeloBlock(
     beltRow = belt.meetsRow;
   }
 
-  return { nextRow: rowNumber, areaRow, equipmentRow, beltRow };
+  return { nextRow: rowNumber, areaRow, equipmentRow, beltRow, titleRow };
+}
+
+function plantaHeightPoints(): number {
+  const px = Math.trunc(
+    ((256 * PLANTA_WIDTH + Math.trunc(128 / 7)) / 256) * 7,
+  );
+  return ((px * 72) / 96) * A3_LANDSCAPE_HEIGHT;
+}
+
+function rowPoints(sheet: ExcelJS.Worksheet, row: number): number {
+  const height = sheet.getRow(row).height;
+  return height != null && height > 0 ? height : DEFAULT_ROW_POINTS;
+}
+
+function plantaBrRow(
+  sheet: ExcelJS.Worksheet,
+  titleRow: number,
+  contentNext: number,
+): { brRow: number; nextRow: number } {
+  const target = plantaHeightPoints();
+  let used = 0;
+  let row = titleRow;
+  while (row < contentNext) {
+    const height = rowPoints(sheet, row);
+    if (used + height >= target - 0.01) {
+      const fraction = Math.min(1, (target - used) / height);
+      return { brRow: row - 1 + fraction, nextRow: contentNext };
+    }
+    used += height;
+    row += 1;
+  }
+  while (used < target - 0.01) {
+    const height = Math.min(LINE_HEIGHT, Math.max(target - used, 1));
+    sheet.getRow(row).height = height;
+    used += height;
+    row += 1;
+  }
+  return { brRow: row - 1, nextRow: row };
+}
+
+function pngBase64(bytes: ArrayBuffer): string {
+  const view = new Uint8Array(bytes);
+  let binary = "";
+  const step = 0x8000;
+  for (let index = 0; index < view.length; index += step) {
+    binary += String.fromCharCode(...view.subarray(index, index + step));
+  }
+  return btoa(binary);
+}
+
+function placePlanta(
+  workbook: ExcelJS.Workbook,
+  sheet: ExcelJS.Worksheet,
+  bytes: ArrayBuffer,
+  titleRow: number,
+  brRow: number,
+): void {
+  const imageId = workbook.addImage({
+    base64: pngBase64(bytes),
+    extension: "png",
+  });
+  const media = workbook.getImage(imageId) as { name?: string };
+  if (!media.name) media.name = `planta${imageId}`;
+  sheet.addImage(imageId, {
+    tl: { col: PLANTA_COLUMN - 1, row: titleRow - 1 },
+    br: { col: PLANTA_COLUMN, row: brRow },
+    editAs: "twoCell",
+  } as unknown as ExcelJS.ImageRange);
 }
 
 
@@ -2853,6 +2931,7 @@ function blockPainelSources(
 
 export async function exportModeloPorComponente(
   model: ModeloExcelModel,
+  desenhos: Record<string, ArrayBuffer> = {},
 ): Promise<void> {
   const airport = model.airport ?? defaultAirport();
   const workbook = new ExcelJS.Workbook();
@@ -2861,7 +2940,9 @@ export async function exportModeloPorComponente(
   const sheet = workbook.addWorksheet(POR_COMPONENTE_SHEET_NAME, {
     views: [{ showGridLines: false, showRowColHeaders: true }],
   });
+  const temDesenho = Object.values(desenhos).some((bytes) => bytes.byteLength > 0);
   sheet.columns = MEMORY_COLUMN_WIDTHS.map((width) => ({ width }));
+  if (temDesenho) sheet.getColumn(PLANTA_COLUMN).width = PLANTA_WIDTH;
   writeModeloHeader(
     sheet,
     airport,
@@ -2905,7 +2986,14 @@ export async function exportModeloPorComponente(
       beltMeets.push(block.beltRow);
       beltRows.set(item.contract.id, block.beltRow);
     }
-    rowNumber = block.nextRow + 1;
+    const desenho = desenhos[item.contract.id];
+    let nextRow = block.nextRow;
+    if (desenho && desenho.byteLength > 0) {
+      const placed = plantaBrRow(sheet, block.titleRow, block.nextRow);
+      placePlanta(workbook, sheet, desenho, block.titleRow, placed.brRow);
+      nextRow = Math.max(block.nextRow, placed.nextRow);
+    }
+    rowNumber = nextRow + 1;
   }
 
   let priority = 1;
@@ -2948,7 +3036,11 @@ export async function exportModeloPorComponente(
     endRow = paramRow;
   }
   applyCirculationFormulas(sheet, unmodeled.circulationRows, addresses);
-  fitReportPage(sheet, columnName(MEMORY_END), Math.max(endRow - 1, 1));
+  fitReportPage(
+    sheet,
+    columnName(temDesenho ? PLANTA_COLUMN : MEMORY_END),
+    Math.max(endRow - 1, 1),
+  );
   writePainel(
     workbook,
     { ...model, contracts: ordered },

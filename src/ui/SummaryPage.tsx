@@ -30,6 +30,8 @@ interface SummaryPageProps {
   onOpenComponent: (id: ComponentId) => void;
   onRegister: () => void;
   onLoadExample: () => void;
+  onLoadPlanta: () => void;
+  plantaBusy: boolean;
   onRemove: (id: ComponentId) => void;
   onRemoveAll: () => void;
 }
@@ -151,6 +153,8 @@ export function SummaryPage({
   onOpenComponent,
   onRegister,
   onLoadExample,
+  onLoadPlanta,
+  plantaBusy,
   onRemove,
   onRemoveAll,
 }: SummaryPageProps) {
@@ -245,6 +249,14 @@ export function SummaryPage({
           </button>
           <button type="button" className="ghost" onClick={onLoadExample}>
             Carregar exemplo fictício
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={onLoadPlanta}
+            disabled={plantaBusy}
+          >
+            {plantaBusy ? "A carregar planta…" : "Carregar planta (experimental)"}
           </button>
           <button
             type="button"
