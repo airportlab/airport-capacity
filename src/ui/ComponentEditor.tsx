@@ -314,6 +314,7 @@ interface ComponentEditorProps {
   canRemove: boolean;
   onTitleChange: (title: string) => void;
   onObservacoesChange: (raw: string) => void;
+  onConferidoChange: (conferido: boolean) => void;
   onRemove: () => void;
   onSetCompanions: (companions: boolean) => void;
   onAddEquipment: () => void;
@@ -354,6 +355,7 @@ export function ComponentEditor({
   canRemove,
   onTitleChange,
   onObservacoesChange,
+  onConferidoChange,
   onRemove,
   onSetCompanions,
   onAddEquipment,
@@ -496,7 +498,18 @@ export function ComponentEditor({
         .join(" ")}
     >
       <section className="panel balloon" aria-labelledby={`${contract.id}-entradas`}>
-        <h2 id={`${contract.id}-entradas`}>Entradas do componente</h2>
+        <div className="panel-heading">
+          <h2 id={`${contract.id}-entradas`}>Entradas do componente</h2>
+          <button
+            type="button"
+            className="conferido-toggle"
+            aria-pressed={entry.conferido === true}
+            aria-label="Marcar como feito"
+            onClick={() => onConferidoChange(entry.conferido !== true)}
+          >
+            <span aria-hidden="true">✓</span>
+          </button>
+        </div>
         {loungeInvalid ? (
           <p className="contract-invalid-warn">{LOUNGE_INVALID_MESSAGE}</p>
         ) : null}

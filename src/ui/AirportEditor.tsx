@@ -856,6 +856,18 @@ export function AirportEditor() {
     );
   }
 
+  function handleConferidoChange(id: ComponentId, conferido: boolean) {
+    setRegistry((current) =>
+      current.map((entry) => {
+        if (entry.id !== id) return entry;
+        if (conferido) return { ...entry, conferido: true };
+        const next = { ...entry };
+        delete next.conferido;
+        return next;
+      }),
+    );
+  }
+
   function handleJustificationChange(
     componentId: ComponentId,
     id: JustificativaId,
@@ -1065,11 +1077,19 @@ export function AirportEditor() {
           {tabContracts.map((contract) => {
             const active = tab === contract.id;
             const invalid = invalidLoungeIds.includes(contract.id);
+            const conferido = registry.some(
+              (entry) => entry.id === contract.id && entry.conferido === true,
+            );
             return (
             <button
               key={contract.id}
               type="button"
-              className={["tab", active ? "active" : "", invalid ? "invalid" : ""]
+              className={[
+                "tab",
+                active ? "active" : "",
+                invalid ? "invalid" : "",
+                conferido ? "conferido" : "",
+              ]
                 .filter(Boolean)
                 .join(" ")}
               aria-current={active ? "page" : undefined}
@@ -1170,6 +1190,9 @@ export function AirportEditor() {
           onTitleChange={(title) => handleRename(activeContract.id, title)}
           onObservacoesChange={(raw) =>
             handleObservacoesChange(activeContract.id, raw)
+          }
+          onConferidoChange={(conferido) =>
+            handleConferidoChange(activeContract.id, conferido)
           }
           onRemove={() => handleRemove(activeContract.id)}
           onSetCompanions={(companions) =>

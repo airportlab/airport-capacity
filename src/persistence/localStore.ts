@@ -319,6 +319,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
           flows: parseFlows(item.flows),
           sizingSources: parseSizingSources(item.sizingSources),
           observacoes,
+          ...(item.conferido === true ? { conferido: true } : {}),
           ...(item.hasConnection === true ? { hasConnection: true } : {}),
           ...(conexoes ? { conexoes } : {}),
           ...(item.hasDesembarqueConnection === true

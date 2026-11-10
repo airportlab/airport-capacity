@@ -398,6 +398,7 @@ export function rebindOrganNature(
     kind: template.kind,
     requirements: entry.requirements,
     observacoes: entry.observacoes,
+    ...(entry.conferido === true ? { conferido: true as const } : {}),
     hasConnection: entry.hasConnection,
     hasDesembarqueConnection: entry.hasDesembarqueConnection,
     conexoes:

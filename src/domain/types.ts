@@ -196,6 +196,8 @@ export interface RegistryEntry {
   flows?: RegistryFlow[];
   sizingSources?: SizingSources;
   observacoes?: string;
+  /** Marca visual de revisão. Ausente equivale a desmarcado. */
+  conferido?: boolean;
   /** Embarque via conexão. No componente só de desembarque, é a conexão desse lado. */
   hasConnection?: boolean;
   conexoes?: BoardingConnections;
