@@ -341,6 +341,11 @@ interface ComponentEditorProps {
   onDhpStamp: (stamp: BoardingDhpStamp) => void;
   dhpPlaces: BoardingPlaceFilter;
   onDhpPlacesChange: (places: BoardingPlaceFilter) => void;
+  plantaQuadro?: {
+    imageUrl: string | null;
+    error: string | null;
+    onOpen: () => void;
+  } | null;
 }
 
 export function ComponentEditor({
@@ -374,6 +379,7 @@ export function ComponentEditor({
   onDhpStamp,
   dhpPlaces,
   onDhpPlacesChange,
+  plantaQuadro,
 }: ComponentEditorProps) {
   const area = contract.requirements.area;
   const arrivalsHall = entry.kind === "sala-desembarque";
@@ -497,6 +503,24 @@ export function ComponentEditor({
     >
       <section className="panel balloon" aria-labelledby={`${contract.id}-entradas`}>
         <h2 id={`${contract.id}-entradas`}>Entradas do componente</h2>
+        {plantaQuadro ? (
+          <div className="planta-quadro" aria-label="Planta da área">
+            {plantaQuadro.error ? (
+              <p className="panel-lead">{plantaQuadro.error}</p>
+            ) : plantaQuadro.imageUrl ? (
+              <button
+                type="button"
+                className="planta-quadro-botao"
+                onClick={plantaQuadro.onOpen}
+                aria-label="Abrir a planta em tela cheia"
+              >
+                <img src={plantaQuadro.imageUrl} alt="" />
+              </button>
+            ) : (
+              <p className="panel-lead">A desenhar a planta…</p>
+            )}
+          </div>
+        ) : null}
         {loungeInvalid ? (
           <p className="contract-invalid-warn">{LOUNGE_INVALID_MESSAGE}</p>
         ) : null}
