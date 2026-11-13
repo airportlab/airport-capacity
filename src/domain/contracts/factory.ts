@@ -16,6 +16,7 @@ import {
   isDualFunction,
   isMixedNature,
   natureOfEntry,
+  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../types";
@@ -57,6 +58,7 @@ import {
 import {
   organAllowsCompanions,
   organAllowsEquipment,
+  organAllowsAreaTaxa,
   organAllowsEquipmentTaxa,
 } from "../templates/organs";
 
@@ -140,8 +142,15 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
     delete equipment.taxaDiferente;
     requirements.equipment = equipment;
   }
+  if (requirements.area && !organAllowsAreaTaxa(entry)) {
+    const stripped = { ...requirements.area };
+    delete stripped.taxaDiferente;
+    requirements.area = stripped;
+  }
   const equipment = hasEquipment(requirements);
   const belt = hasEsteira(requirements);
+  const includeAreaTaxa =
+    organAllowsAreaTaxa(entry) && usesAreaTaxa(requirements);
   const includeEquipmentTaxa =
     organAllowsEquipmentTaxa(entry) && usesEquipmentTaxa(requirements);
   const includeBeltTaxa = usesEsteiraTaxa(requirements);
@@ -222,6 +231,14 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
 
   const paramIds: ComponentParamId[] = [
     ...demandIds,
+    ...(area && includeAreaTaxa
+      ? singleFunctionMixed
+        ? ([
+            "taxaDeUsoAreaDomestico",
+            "taxaDeUsoAreaInternacional",
+          ] as const)
+        : (["taxaDeUsoArea"] as const)
+      : []),
     ...(area ? areaIds : []),
     ...(equipment
       ? [
@@ -257,7 +274,11 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
   const areaCopy = splitLounge
     ? splitLoungeFormulaDisplay(boardingPairs)
     : singleFunctionMixed
-    ? singleFunctionMixedFormulaDisplay(companions, boardingPairs)
+    ? singleFunctionMixedFormulaDisplay(
+        companions,
+        boardingPairs,
+        includeAreaTaxa,
+      )
     : mixedNature
       ? mixedAreaFormulaDisplay(
           companions,
@@ -285,8 +306,9 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
               companions,
               boardingPairs,
               hallConnection,
+              includeAreaTaxa ? "Tu" : "",
             )
-          : areaFormulaDisplay(companions);
+          : areaFormulaDisplay(companions, includeAreaTaxa ? "Tu" : "");
 
   let subtitle = "Componente sem requisitos. Cadastre área ou outros depois.";
   if (area && equipment && seats) {
@@ -452,6 +474,8 @@ export function makeContract(entry: RegistryEntry): ComponentContract {
       includeSplitLounge: splitLounge,
       includeEquipmentTaxa,
       excelEquipmentTaxa: organAllowsEquipmentTaxa(entry),
+      includeAreaTaxa,
+      excelAreaTaxa: organAllowsAreaTaxa(entry),
       includeBeltTaxa,
       includeBelt: belt,
       connectionHall: hallConnection,

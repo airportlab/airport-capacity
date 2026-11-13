@@ -168,16 +168,18 @@ function areaLegend(
 function ConnectionEquation({
   empSuffix,
   pair,
+  tu = "",
 }: {
   empSuffix: string;
   pair?: BoardingConnectionPair;
+  tu?: string;
 }) {
   if (!pair) {
     return (
       <AreaEquation
         companions={false}
         lhs="Ad_c"
-        numerator={connectionAreaNumerator(empSuffix)}
+        numerator={connectionAreaNumerator(empSuffix, tu)}
       />
     );
   }
@@ -186,7 +188,7 @@ function ConnectionEquation({
     <AreaEquation
       companions={false}
       lhs={spec.areaSymbol}
-      numerator={boardingConnectionNumerator(pair, empSuffix)}
+      numerator={boardingConnectionNumerator(pair, empSuffix, tu)}
     />
   );
 }
@@ -195,10 +197,14 @@ function BoardingConnectionEquations({
   pairs,
   empSuffix,
   empSuffixOf,
+  tu = "",
+  tuOf,
 }: {
   pairs: readonly BoardingConnectionPair[];
   empSuffix: string;
   empSuffixOf?: (pair: BoardingConnectionPair) => string;
+  tu?: string;
+  tuOf?: (pair: BoardingConnectionPair) => string;
 }) {
   return (
     <>
@@ -207,6 +213,7 @@ function BoardingConnectionEquations({
           key={pair}
           empSuffix={empSuffixOf?.(pair) ?? empSuffix}
           pair={pair}
+          tu={tuOf?.(pair) ?? tu}
         />
       ))}
     </>
@@ -341,6 +348,7 @@ interface FormulaCardProps {
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
   arrivalsEmpSuffix?: (pair: ArrivalsConnectionPair) => ArrivalsEmpSuffix;
   includeSeats?: boolean;
+  includeAreaTaxa?: boolean;
   afterEquation?: ReactNode;
 }
 
@@ -352,6 +360,7 @@ export function FormulaCard({
   arrivalsPairs = [],
   arrivalsEmpSuffix,
   includeSeats = false,
+  includeAreaTaxa = false,
   afterEquation,
 }: FormulaCardProps) {
   if (arrivalsPairs.length > 0) {
@@ -391,6 +400,7 @@ export function FormulaCard({
   const sum = simpleConnectionSumDisplay(connectionPairs, connectionHall);
   const base = connectionHall ? "Ad_e" : "Ad";
   const suffix = connectionHall ? "_e" : "";
+  const areaTu = includeAreaTaxa ? "Tu" : "";
   const sumBody =
     connectionPairs.length > 0
       ? `${base} + ${boardingConnectionAreaList(connectionPairs)}`
@@ -407,12 +417,20 @@ export function FormulaCard({
       <AreaEquation
         companions={companions}
         lhs={linked ? base : "Ad"}
-        numerator={linked ? areaNumerator(companions, suffix) : undefined}
+        numerator={
+          linked || includeAreaTaxa
+            ? areaNumerator(companions, suffix, areaTu)
+            : undefined
+        }
       />
       {connectionPairs.length > 0 ? (
-        <BoardingConnectionEquations pairs={connectionPairs} empSuffix={suffix} />
+        <BoardingConnectionEquations
+          pairs={connectionPairs}
+          empSuffix={suffix}
+          tu={areaTu}
+        />
       ) : hasConnection ? (
-        <ConnectionEquation empSuffix={suffix} />
+        <ConnectionEquation empSuffix={suffix} tu={areaTu} />
       ) : null}
       {linked ? (
         <div className="tex" role="img" aria-label={sum}>
@@ -509,16 +527,20 @@ export function MixedNatureAreaFormulaCard({
   singleFunction = false,
   arrivalsOnly = false,
   arrivalsPairs = [],
+  includeAreaTaxa = false,
   afterEquation,
 }: DualFormulaCardProps & {
   flowCount?: number;
   singleFunction?: boolean;
   arrivalsOnly?: boolean;
   arrivalsPairs?: readonly ArrivalsConnectionPair[];
+  includeAreaTaxa?: boolean;
 }) {
   if (singleFunction) {
     const sum = singleFunctionMixedSumDisplay(connectionPairs);
     const sumBody = sum.replace("Ad = ", "");
+    const domTu = includeAreaTaxa ? "Tu_dom" : "";
+    const intTu = includeAreaTaxa ? "Tu_int" : "";
     return (
       <div className="formula-card">
         <p className="formula-kicker">
@@ -529,18 +551,21 @@ export function MixedNatureAreaFormulaCard({
         <AreaEquation
           companions={companions}
           lhs="Ad_dom"
-          numerator={areaNumerator(companions, "_dom")}
+          numerator={areaNumerator(companions, "_dom", domTu)}
         />
         <AreaEquation
           companions={companions}
           lhs="Ad_int"
-          numerator={areaNumerator(companions, "_int")}
+          numerator={areaNumerator(companions, "_int", intTu)}
         />
         {connectionPairs.length > 0 ? (
           <BoardingConnectionEquations
             pairs={connectionPairs}
             empSuffix="_dom"
             empSuffixOf={checkinConnectionEmpSuffix}
+            tuOf={(pair) =>
+              checkinConnectionEmpSuffix(pair) === "_int" ? intTu : domTu
+            }
           />
         ) : null}
         <div className="tex" role="img" aria-label={sum}>

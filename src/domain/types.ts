@@ -4,6 +4,8 @@ export type ComponentId = string;
 
 export interface AreaRequirement {
   companions: boolean;
+  /** Só no check-in: a área pode usar menos de 100% do DHp. */
+  taxaDiferente?: boolean;
 }
 
 export interface EquipmentRequirement {
@@ -31,6 +33,12 @@ export function hasEsteira(
   requirements: ComponentRequirements,
 ): boolean {
   return requirements.esteira != null;
+}
+
+export function usesAreaTaxa(
+  requirements: ComponentRequirements,
+): boolean {
+  return requirements.area?.taxaDiferente === true;
 }
 
 export function usesEquipmentTaxa(
@@ -85,6 +93,9 @@ export const COMPONENT_PARAM_IDS = [
   "taxaDeUsoEquipamentoDomestico",
   "taxaDeUsoEquipamentoInternacional",
   "taxaDeUsoEsteira",
+  "taxaDeUsoArea",
+  "taxaDeUsoAreaDomestico",
+  "taxaDeUsoAreaInternacional",
   "areaMedida",
   "espacoMinimoPorPassageiro",
   "espacoMinimoPorPassageiroEmbarque",

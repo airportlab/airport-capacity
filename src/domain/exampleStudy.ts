@@ -57,6 +57,8 @@ export interface ExampleStudy {
 
 const EQUIPMENT_TU = 90;
 const BELT_TU = 80;
+const AREA_TU = 70;
+const AREA_TU_INT = 60;
 
 const EXTRA_INSTANCES: ReadonlyArray<{
   kind: OrganKind;
@@ -169,6 +171,9 @@ function exampleRequirements(template: OrganTemplate): ComponentRequirements {
   if (requirements.area && template.preset === "areaCompanions") {
     requirements.area = { companions: true };
   }
+  if (requirements.area && template.kind === "checkin-bagagens") {
+    requirements.area = { ...requirements.area, taxaDiferente: true };
+  }
   if (organAllowsEquipment({ kind: template.kind })) {
     requirements.equipment = organAllowsEquipmentTaxa({ kind: template.kind })
       ? { taxaDiferente: true }
@@ -237,6 +242,13 @@ function fillOperations(entry: RegistryEntry, params: ComponentParams): void {
       params.taxaDeUsoEquipamentoInternacional = 80;
     }
     if (field.id === "taxaDeUsoEsteira") params.taxaDeUsoEsteira = BELT_TU;
+    if (field.id === "taxaDeUsoArea") params.taxaDeUsoArea = AREA_TU;
+    if (field.id === "taxaDeUsoAreaDomestico") {
+      params.taxaDeUsoAreaDomestico = AREA_TU;
+    }
+    if (field.id === "taxaDeUsoAreaInternacional") {
+      params.taxaDeUsoAreaInternacional = AREA_TU_INT;
+    }
   }
 }
 

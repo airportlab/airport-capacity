@@ -196,25 +196,27 @@ export function areaCoefficient(
   );
 }
 
-function areaValue(
+function computeAreaValue(
   inputs: ResolvedInputs,
   demanda: ComponentParamId,
   emp: ComponentParamId,
   toi: ComponentParamId,
   va?: ComponentParamId,
+  taxaId: ComponentParamId | null = null,
 ): number {
-  return inputs[demanda] * areaCoefficient(inputs, emp, toi, va);
+  return usedDemand(inputs, demanda, taxaId) * areaCoefficient(inputs, emp, toi, va);
 }
 
-function areaExcel(
+function computeAreaExcel(
   cells: ExcelCellMap["inputs"],
   demanda: ComponentParamId,
   emp: ComponentParamId,
   toi: ComponentParamId,
   va?: ComponentParamId,
+  taxaId: ComponentParamId | null = null,
 ): string {
   const factors = [
-    requiredCell(cells, demanda),
+    usedDemandExcel(cells, demanda, taxaId),
     requiredCell(cells, emp),
     requiredCell(cells, toi),
   ];
@@ -222,6 +224,60 @@ function areaExcel(
     factors.push(`(1+${requiredCell(cells, va)})`);
   }
   return `(${factors.join("*")})/60`;
+}
+
+type AreaTaxaMode = "off" | "single" | "split";
+
+function areaTaxaMode(enabled: boolean, split: boolean): AreaTaxaMode {
+  if (!enabled) return "off";
+  return split ? "split" : "single";
+}
+
+function areaTaxaParam(
+  mode: AreaTaxaMode,
+  emp: ComponentParamId,
+): ComponentParamId | null {
+  if (mode === "off") return null;
+  if (mode === "single") return "taxaDeUsoArea";
+  return emp === "espacoMinimoPorPassageiroInternacional"
+    ? "taxaDeUsoAreaInternacional"
+    : "taxaDeUsoAreaDomestico";
+}
+
+function areaTuSymbol(mode: AreaTaxaMode, emp: ComponentParamId): string {
+  const id = areaTaxaParam(mode, emp);
+  if (id === "taxaDeUsoAreaInternacional") return "Tu_int";
+  if (id === "taxaDeUsoAreaDomestico") return "Tu_dom";
+  if (id === "taxaDeUsoArea") return "Tu";
+  return "";
+}
+
+/** Demanda da área já com Tu. Fora da marcação, o DHp inteiro. */
+export function utilizedAreaDemand(
+  inputs: ResolvedInputs,
+  ids: readonly ComponentParamId[],
+  mode: AreaTaxaMode,
+): number {
+  if (mode === "off") return demandSum(inputs, ids);
+  if (mode === "single") {
+    return demandSum(inputs, ids) * utilizationFactor(inputs, "taxaDeUsoArea");
+  }
+  return ids.reduce((sum, id) => {
+    const international =
+      id === "demandaPicoInternacional" ||
+      id === "demandaPicoConexaoDomInt" ||
+      id === "demandaPicoConexaoIntInt";
+    return (
+      sum +
+      inputs[id] *
+        utilizationFactor(
+          inputs,
+          international
+            ? "taxaDeUsoAreaInternacional"
+            : "taxaDeUsoAreaDomestico",
+        )
+    );
+  }, 0);
 }
 
 function flowAreaLabel(flow: FlowParamIds, mixedNature: boolean): string {
@@ -267,9 +323,13 @@ function flowNotationSuffix(area: FlowParamIds["area"]): string {
   }
 }
 
-function flowAreaExpression(flow: FlowParamIds, companions: boolean): string {
+function flowAreaExpression(
+  flow: FlowParamIds,
+  companions: boolean,
+  tu = "",
+): string {
   const suffix = flowNotationSuffix(flow.area);
-  const dhp = `DHp${suffix}`;
+  const dhp = tu ? `DHp${suffix} × ${tu}` : `DHp${suffix}`;
   const emp = `Emp${suffix}`;
   const toi = `Toi${suffix}`;
   return companions
@@ -289,7 +349,11 @@ function arrivalsPairOfArea(area: ResultId): ArrivalsConnectionPair | null {
   );
 }
 
-function connectionExpression(item: FlowParamIds, mixedNature: boolean): string {
+function connectionExpression(
+  item: FlowParamIds,
+  mixedNature: boolean,
+  tu = "",
+): string {
   const arrival = arrivalsPairOfArea(item.area);
   if (arrival) {
     const suffix =
@@ -307,8 +371,8 @@ function connectionExpression(item: FlowParamIds, mixedNature: boolean): string 
   }
   const pair = boardingPairOfArea(item.area);
   const empSuffix = connectionEmpSuffix(item.emp, mixedNature);
-  if (pair) return boardingConnectionAreaDisplay(pair, empSuffix);
-  return connectionAreaDisplay(empSuffix);
+  if (pair) return boardingConnectionAreaDisplay(pair, empSuffix, tu);
+  return connectionAreaDisplay(empSuffix, tu);
 }
 
 function connectionEmpSuffix(
@@ -406,6 +470,10 @@ export function capacityFormulas(copy: {
   includeEquipmentTaxa?: boolean;
   /** false na emigração e na imigração: o Excel de N não referencia Tu. */
   excelEquipmentTaxa?: boolean;
+  /** Marcação da área do check-in: o app multiplica o DHp por Tu. */
+  includeAreaTaxa?: boolean;
+  /** Check-in: o Excel de Ad referencia Tu mesmo em 100%. */
+  excelAreaTaxa?: boolean;
   includeBeltTaxa?: boolean;
   companions?: boolean;
   flows?: FlowParamIds[];
@@ -423,6 +491,7 @@ export function capacityFormulas(copy: {
   const includeSeats = copy.includeSeats ?? false;
   const includeSplitLounge = copy.includeSplitLounge ?? false;
   const includeEquipmentTaxa = copy.includeEquipmentTaxa ?? false;
+  const includeAreaTaxa = copy.includeAreaTaxa ?? false;
   const companions = copy.companions ?? false;
   const flows = copy.flows ?? [];
   const demandIds = copy.demandIds ?? ["demandaPico"];
@@ -461,6 +530,41 @@ export function capacityFormulas(copy: {
   const singleFunctionMixed = flows.some(
     (flow) => flow.area === "areaMinimaDomestico",
   );
+  const appAreaTaxa = areaTaxaMode(includeAreaTaxa, singleFunctionMixed);
+  const sheetAreaTaxa = areaTaxaMode(
+    copy.excelAreaTaxa === true,
+    singleFunctionMixed,
+  );
+  const areaValue = (
+    inputs: ResolvedInputs,
+    demanda: ComponentParamId,
+    emp: ComponentParamId,
+    toi: ComponentParamId,
+    va?: ComponentParamId,
+  ) =>
+    computeAreaValue(
+      inputs,
+      demanda,
+      emp,
+      toi,
+      va,
+      areaTaxaParam(appAreaTaxa, emp),
+    );
+  const areaExcel = (
+    cells: ExcelCellMap["inputs"],
+    demanda: ComponentParamId,
+    emp: ComponentParamId,
+    toi: ComponentParamId,
+    va?: ComponentParamId,
+  ) =>
+    computeAreaExcel(
+      cells,
+      demanda,
+      emp,
+      toi,
+      va,
+      areaTaxaParam(sheetAreaTaxa, emp),
+    );
   const equipmentTaxaId: ComponentParamId | null = includeEquipmentTaxa
     ? "taxaDeUsoEquipamento"
     : null;
@@ -492,7 +596,11 @@ export function capacityFormulas(copy: {
   if (includeArea && flows.length > 0) {
     for (const flow of flows) {
       const va = companions ? flow.va : undefined;
-      const expression = flowAreaExpression(flow, companions);
+      const expression = flowAreaExpression(
+        flow,
+        companions,
+        areaTuSymbol(appAreaTaxa, flow.emp),
+      );
       formulas.push({
         id: flow.area,
         label: flowAreaLabel(flow, mixedNature),
@@ -506,7 +614,11 @@ export function capacityFormulas(copy: {
       });
     }
     for (const item of connections) {
-      const expression = connectionExpression(item, mixedNature);
+      const expression = connectionExpression(
+        item,
+        mixedNature,
+        areaTuSymbol(appAreaTaxa, item.emp),
+      );
       formulas.push({
         id: item.area,
         label: connectionLabel(item),
@@ -619,7 +731,11 @@ export function capacityFormulas(copy: {
           ),
       });
       for (const item of arrivalsLoose) {
-        const expression = connectionExpression(item, false);
+        const expression = connectionExpression(
+          item,
+          false,
+          areaTuSymbol(appAreaTaxa, item.emp),
+        );
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -697,7 +813,11 @@ export function capacityFormulas(copy: {
           ),
       });
       for (const item of looseConnections) {
-        const expression = connectionExpression(item, false);
+        const expression = connectionExpression(
+          item,
+          false,
+          areaTuSymbol(appAreaTaxa, item.emp),
+        );
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -754,7 +874,11 @@ export function capacityFormulas(copy: {
         const pair = boardingPairOfArea(item.area);
         const display = pair
           ? splitLoungeConnectionDisplay(pair)
-          : connectionExpression(item, false);
+          : connectionExpression(
+              item,
+              false,
+              areaTuSymbol(appAreaTaxa, item.emp),
+            );
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -790,7 +914,11 @@ export function capacityFormulas(copy: {
       });
     } else if (looseConnections.length > 0) {
       for (const item of looseConnections) {
-        const expression = connectionExpression(item, false);
+        const expression = connectionExpression(
+          item,
+          false,
+          areaTuSymbol(appAreaTaxa, item.emp),
+        );
         formulas.push({
           id: item.area,
           label: connectionLabel(item),
@@ -808,6 +936,7 @@ export function capacityFormulas(copy: {
         companions,
         plainPairs,
         false,
+        areaTuSymbol(appAreaTaxa, "espacoMinimoPorPassageiro"),
       );
       formulas.push({
         id: "areaMinima",
@@ -847,8 +976,11 @@ export function capacityFormulas(copy: {
         id: "areaMinima",
         label: "Área mínima necessária (Ad)",
         unit: "m²",
-        origem: `${areaFormulaDisplay(companions)}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
-        expression: areaFormulaDisplay(companions),
+        origem: `${areaFormulaDisplay(companions, areaTuSymbol(appAreaTaxa, "espacoMinimoPorPassageiro"))}. DHp em pax/h, Emp em m²/pax, Toi em minutos.`,
+        expression: areaFormulaDisplay(
+          companions,
+          areaTuSymbol(appAreaTaxa, "espacoMinimoPorPassageiro"),
+        ),
         evaluate: (inputs) =>
           areaValue(
             inputs,

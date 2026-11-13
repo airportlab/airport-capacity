@@ -587,6 +587,11 @@ export function organAllowsEquipmentTaxa(entry: { kind?: string }): boolean {
   );
 }
 
+/** A área só admite taxa de utilização no check-in. */
+export function organAllowsAreaTaxa(entry: { kind?: string }): boolean {
+  return entry.kind === "checkin-bagagens";
+}
+
 export function suggestedCompanions(
   template: OrganTemplate | undefined,
 ): boolean {

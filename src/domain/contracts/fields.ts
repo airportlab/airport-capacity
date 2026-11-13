@@ -75,6 +75,30 @@ const TEMPLATES: Record<ComponentParamId, ParamField<ComponentParamId>> = {
     defaultValue: 100,
     origem: "",
   },
+  taxaDeUsoArea: {
+    id: "taxaDeUsoArea",
+    kind: "attribute",
+    label: "Taxa de utilização (Tu)",
+    unit: "%",
+    defaultValue: 100,
+    origem: "",
+  },
+  taxaDeUsoAreaDomestico: {
+    id: "taxaDeUsoAreaDomestico",
+    kind: "attribute",
+    label: "Taxa de utilização · doméstico (Tu_dom)",
+    unit: "%",
+    defaultValue: 100,
+    origem: "",
+  },
+  taxaDeUsoAreaInternacional: {
+    id: "taxaDeUsoAreaInternacional",
+    kind: "attribute",
+    label: "Taxa de utilização · internacional (Tu_int)",
+    unit: "%",
+    defaultValue: 100,
+    origem: "",
+  },
   areaMedida: {
     id: "areaMedida",
     kind: "attribute",
@@ -577,12 +601,21 @@ export function isSizingParam(id: ComponentParamId): id is SizingParamId {
   return (SIZING_PARAM_IDS as readonly string[]).includes(id);
 }
 
+export function isAreaTaxaParam(id: ComponentParamId): boolean {
+  return (
+    id === "taxaDeUsoArea" ||
+    id === "taxaDeUsoAreaDomestico" ||
+    id === "taxaDeUsoAreaInternacional"
+  );
+}
+
 export function isTaxaParam(id: ComponentParamId): boolean {
   return (
     id === "taxaDeUsoEquipamento" ||
     id === "taxaDeUsoEquipamentoDomestico" ||
     id === "taxaDeUsoEquipamentoInternacional" ||
-    id === "taxaDeUsoEsteira"
+    id === "taxaDeUsoEsteira" ||
+    isAreaTaxaParam(id)
   );
 }
 

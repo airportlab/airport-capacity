@@ -12,7 +12,12 @@ import {
   type CirculationWidths,
   type HorizontalCirculation,
 } from "../domain/circulation";
-import { isSizingParam, isTsecParam, pickFields } from "../domain/contracts/fields";
+import {
+  isAreaTaxaParam,
+  isSizingParam,
+  isTsecParam,
+  pickFields,
+} from "../domain/contracts/fields";
 import { pmdValueFor, resolvedSources, standardTsecForParam } from "../domain/pmd";
 import { tsecDeviationNote } from "./tsecNote";
 import {
@@ -33,10 +38,15 @@ import {
   hasEsteira,
   natureOfEntry,
   type RegistryEntry,
+  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../domain/types";
-import { journeyRank, organAllowsEquipmentTaxa } from "../domain/templates/organs";
+import {
+  journeyRank,
+  organAllowsAreaTaxa,
+  organAllowsEquipmentTaxa,
+} from "../domain/templates/organs";
 import { downloadBlob, stampFilename } from "./download";
 import { formatEditable, formatEvaluationPeriod } from "../ui/format";
 
@@ -199,6 +209,19 @@ function implicitUtilizationIds(
   }
   if (hasEsteira(contract.requirements) && !usesEsteiraTaxa(contract.requirements)) {
     ids.push("taxaDeUsoEsteira");
+  }
+  if (
+    contract.requirements.area &&
+    entry != null &&
+    organAllowsAreaTaxa(entry) &&
+    !usesAreaTaxa(contract.requirements)
+  ) {
+    const split = contract.params.some((field) => field.id === "demandaPicoDomestico");
+    if (split) {
+      ids.push("taxaDeUsoAreaDomestico", "taxaDeUsoAreaInternacional");
+    } else {
+      ids.push("taxaDeUsoArea");
+    }
   }
   return ids;
 }
@@ -2270,7 +2293,8 @@ function isFlowBody(id: ComponentParamId): boolean {
     id.startsWith("va") ||
     id.startsWith("tsec") ||
     id === "taxaDeUsoEquipamentoDomestico" ||
-    id === "taxaDeUsoEquipamentoInternacional"
+    id === "taxaDeUsoEquipamentoInternacional" ||
+    isAreaTaxaParam(id)
   );
 }
 
@@ -2423,7 +2447,9 @@ function writeMemoryAccount(
         ? implicitUtilizationIds(item.contract, item.entry).filter(
             (id) => id === "taxaDeUsoEsteira",
           )
-        : [];
+        : implicitUtilizationIds(item.contract, item.entry).filter((id) =>
+            isAreaTaxaParam(id),
+          );
   const lines = buildMemoryLines(item.entry, formula, implicitIds);
   if (lines.length === 0) return { nextRow: rowNumber, meetsRow: 0 };
 

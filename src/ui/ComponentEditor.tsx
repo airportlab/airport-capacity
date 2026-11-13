@@ -1,5 +1,10 @@
 import type { AirportSource } from "../domain/airports";
-import { isSizingParam, isTaxaParam, isTsecParam } from "../domain/contracts/fields";
+import {
+  isAreaTaxaParam,
+  isSizingParam,
+  isTaxaParam,
+  isTsecParam,
+} from "../domain/contracts/fields";
 import {
   beltManualStandard,
   isBeltManualParam,
@@ -25,6 +30,7 @@ import {
   naturesForTemplate,
   organAllowsCompanions,
   organAllowsEquipment,
+  organAllowsAreaTaxa,
   organAllowsEquipmentTaxa,
   organNatureLabel,
   templateForEntry,
@@ -57,6 +63,7 @@ import {
   hasEsteira,
   isDualFunction,
   isMixedNature,
+  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "../domain/types";
@@ -317,6 +324,7 @@ interface ComponentEditorProps {
   onConferidoChange: (conferido: boolean) => void;
   onRemove: () => void;
   onSetCompanions: (companions: boolean) => void;
+  onSetAreaTaxa: (taxaDiferente: boolean) => void;
   onAddEquipment: () => void;
   onSetEquipmentTaxa: (taxaDiferente: boolean) => void;
   onRemoveEquipment: () => void;
@@ -363,6 +371,7 @@ export function ComponentEditor({
   onConferidoChange,
   onRemove,
   onSetCompanions,
+  onSetAreaTaxa,
   onAddEquipment,
   onSetEquipmentTaxa,
   onRemoveEquipment,
@@ -387,10 +396,12 @@ export function ComponentEditor({
   const arrivalsHall = entry.kind === "sala-desembarque";
   const allowsEquipment = organAllowsEquipment(entry);
   const allowsEquipmentTaxa = organAllowsEquipmentTaxa(entry);
+  const allowsAreaTaxa = organAllowsAreaTaxa(entry);
   const equipment = allowsEquipment && hasEquipment(contract.requirements);
   const esteira = hasEsteira(contract.requirements);
   const equipmentTaxa =
     allowsEquipmentTaxa && usesEquipmentTaxa(contract.requirements);
+  const areaTaxa = allowsAreaTaxa && usesAreaTaxa(contract.requirements);
   const esteiraTaxa = usesEsteiraTaxa(contract.requirements);
   const identityIds = identityParamIds(entry);
   const identityIdSet = new Set(identityIds);
@@ -411,7 +422,13 @@ export function ComponentEditor({
     ? new Set(Object.keys(dhpStamp.values) as ComponentParamId[])
     : undefined;
   const equipmentTaxaFields = contract.params.filter(
-    (field) => isTaxaParam(field.id) && field.id !== "taxaDeUsoEsteira",
+    (field) =>
+      isTaxaParam(field.id) &&
+      !isAreaTaxaParam(field.id) &&
+      field.id !== "taxaDeUsoEsteira",
+  );
+  const areaTaxaFields = contract.params.filter((field) =>
+    isAreaTaxaParam(field.id),
   );
   const beltTaxaFields = contract.params.filter(
     (field) => field.id === "taxaDeUsoEsteira",
@@ -813,6 +830,7 @@ export function ComponentEditor({
             <MixedNatureAreaFormulaCard
               companions={area.companions}
               flowCount={entry.flows?.length ?? 0}
+              includeAreaTaxa={areaTaxa}
               singleFunction={singleFunctionMixed}
               arrivalsOnly={
                 (entry.flows?.length ?? 0) > 0 &&
@@ -853,6 +871,7 @@ export function ComponentEditor({
           ) : (
             <FormulaCard
               companions={area.companions}
+              includeAreaTaxa={areaTaxa}
               hasConnection={connectionPairs.length > 0}
               connectionHall={entry.kind === "saguao-embarque"}
               connectionPairs={connectionPairs}
@@ -869,6 +888,25 @@ export function ComponentEditor({
               }
             />
           )}
+          {allowsAreaTaxa ? (
+            <label className="choice">
+              <input
+                type="checkbox"
+                checked={areaTaxa}
+                onChange={(event) => onSetAreaTaxa(event.target.checked)}
+              />
+              Taxa de utilização diferente de 100%
+            </label>
+          ) : null}
+          {areaTaxa && areaTaxaFields.length > 0 ? (
+            <FieldList
+              fields={areaTaxaFields}
+              drafts={drafts}
+              origens={origens}
+              onValueChange={onValueChange}
+              onOrigemChange={onOrigemChange}
+            />
+          ) : null}
           {organAllowsCompanions(entry) ? (
             <label className="choice">
               <input

@@ -1,5 +1,5 @@
 import { hasResult } from "./contracts/catalog";
-import { equipmentProcessingLoad } from "./contracts/formulas";
+import { equipmentProcessingLoad, utilizedAreaDemand } from "./contracts/formulas";
 import { demandSum } from "./contracts/flowParams";
 import type {
   ComponentContract,
@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import {
   COMPONENT_PARAM_IDS,
+  usesAreaTaxa,
   usesEquipmentTaxa,
   usesEsteiraTaxa,
 } from "./types";
@@ -165,7 +166,12 @@ function areaPeopleDemand(
   contract: ComponentContract,
   inputs: ResolvedInputs,
 ): number {
-  return peopleDemand(contract, inputs, null);
+  const ids = demandIds(contract);
+  if (!usesAreaTaxa(contract.requirements)) return demandSum(inputs, ids);
+  const split = contract.params.some(
+    (field) => field.id === "taxaDeUsoAreaDomestico",
+  );
+  return utilizedAreaDemand(inputs, ids, split ? "split" : "single");
 }
 
 export function evaluateAreaCheck(

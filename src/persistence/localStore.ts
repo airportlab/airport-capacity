@@ -21,6 +21,7 @@ import { isTaxaParam } from "../domain/contracts/fields";
 import { exampleStudy } from "../domain/exampleStudy";
 import { makeContract } from "../domain/contracts/factory";
 import {
+  organAllowsAreaTaxa,
   organAllowsCompanions,
   organAllowsEquipment,
   organAllowsEquipmentTaxa,
@@ -194,6 +195,7 @@ function parseAreaRequirement(raw: unknown): AreaRequirement | undefined {
   if (!isRecord(raw)) return undefined;
   return {
     companions: raw.companions === true,
+    ...(raw.taxaDiferente === true ? { taxaDiferente: true } : {}),
   };
 }
 
@@ -222,6 +224,17 @@ function clampArrivalsRequirements(entry: RegistryEntry): RegistryEntry {
   const requirements = { ...next.requirements };
   delete requirements.esteira;
   return { ...next, requirements };
+}
+
+function clampAreaTaxa(entry: RegistryEntry): RegistryEntry {
+  const area = entry.requirements.area;
+  if (!area?.taxaDiferente || organAllowsAreaTaxa(entry)) return entry;
+  const next = { ...area };
+  delete next.taxaDiferente;
+  return {
+    ...entry,
+    requirements: { ...entry.requirements, area: next },
+  };
 }
 
 function clampEquipmentTaxa(entry: RegistryEntry): RegistryEntry {
@@ -310,7 +323,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
     const conexoesDesembarque = parseConexoes(item.conexoesDesembarque);
     entries.push(
       ensureAreaRequirement(
-        clampEquipmentTaxa(clampArrivalsRequirements(clampAreaCompanions({
+        clampAreaTaxa(clampEquipmentTaxa(clampArrivalsRequirements(clampAreaCompanions({
           id: item.id,
           title: item.title,
           kind: typeof item.kind === "string" ? item.kind : undefined,
@@ -326,7 +339,7 @@ function parseRegistry(raw: unknown): RegistryEntry[] | null {
             ? { hasDesembarqueConnection: true }
             : {}),
           ...(conexoesDesembarque ? { conexoesDesembarque } : {}),
-        }))),
+        })))),
       ),
     );
   }

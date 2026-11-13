@@ -23,13 +23,18 @@ function withTu(head: string, includeTaxa: boolean, tu = "Tu"): string {
   return includeTaxa ? `${head} × ${tu}` : head;
 }
 
-export function areaNumerator(companions: boolean, suffix = ""): string {
-  const body = `DHp${suffix} × Emp${suffix} × Toi${suffix}`;
+export function areaNumerator(
+  companions: boolean,
+  suffix = "",
+  tu = "",
+): string {
+  const demand = tu ? `DHp${suffix} × ${tu}` : `DHp${suffix}`;
+  const body = `${demand} × Emp${suffix} × Toi${suffix}`;
   return companions ? `${body} × (1 + v.a${suffix})` : body;
 }
 
-export function areaFormulaRhs(companions: boolean): string {
-  return `(${areaNumerator(companions)}) / 60`;
+export function areaFormulaRhs(companions: boolean, tu = ""): string {
+  return `(${areaNumerator(companions, "", tu)}) / 60`;
 }
 
 const SPLIT_LOUNGE_FACTOR =
@@ -54,12 +59,16 @@ export function splitLoungeConnectionDisplay(
   return `${spec.areaSymbol} = ${spec.dhpSymbol} × ${SPLIT_LOUNGE_FACTOR}`;
 }
 
-export function areaFormulaDisplay(companions: boolean): string {
-  return `Ad = ${areaFormulaRhs(companions)}`;
+export function areaFormulaDisplay(companions: boolean, tu = ""): string {
+  return `Ad = ${areaFormulaRhs(companions, tu)}`;
 }
 
-function suffixedAreaRhs(companions: boolean, suffix: string): string {
-  return `(${areaNumerator(companions, suffix)}) / 60`;
+function suffixedAreaRhs(
+  companions: boolean,
+  suffix: string,
+  tu = "",
+): string {
+  return `(${areaNumerator(companions, suffix, tu)}) / 60`;
 }
 
 export function dualBoardingAreaRhs(companions: boolean): string {
@@ -130,16 +139,23 @@ export function singleFunctionMixedSumDisplay(
 export function singleFunctionMixedFormulaDisplay(
   companions: boolean,
   pairs: readonly BoardingConnectionPair[] = [],
+  includeTaxa = false,
 ): string {
   const connection =
     pairs.length > 0
       ? ` ${pairs
-          .map((pair) =>
-            boardingConnectionAreaDisplay(pair, checkinConnectionEmpSuffix(pair)),
-          )
+          .map((pair) => {
+            const suffix = checkinConnectionEmpSuffix(pair);
+            const tu = includeTaxa
+              ? suffix === "_int"
+                ? "Tu_int"
+                : "Tu_dom"
+              : "";
+            return boardingConnectionAreaDisplay(pair, suffix, tu);
+          })
           .join("; ")};`
       : "";
-  return `Ad_dom = ${suffixedAreaRhs(companions, "_dom")}; Ad_int = ${suffixedAreaRhs(companions, "_int")};${connection} ${singleFunctionMixedSumDisplay(pairs)}`;
+  return `Ad_dom = ${suffixedAreaRhs(companions, "_dom", includeTaxa ? "Tu_dom" : "")}; Ad_int = ${suffixedAreaRhs(companions, "_int", includeTaxa ? "Tu_int" : "")};${connection} ${singleFunctionMixedSumDisplay(pairs)}`;
 }
 
 export function mixedAreaSumDisplay(
@@ -285,39 +301,45 @@ export function salaBeltFormulaDisplay(
   return `C = C_d + ${pairs.map(beltConnectionSymbol).join(" + ")}; ${hall}; ${pieces.join("; ")}`;
 }
 
-export function connectionAreaNumerator(empSuffix = ""): string {
-  return `DHp_c × Emp${empSuffix} × Toi${empSuffix}`;
+export function connectionAreaNumerator(empSuffix = "", tu = ""): string {
+  const demand = tu ? `DHp_c × ${tu}` : "DHp_c";
+  return `${demand} × Emp${empSuffix} × Toi${empSuffix}`;
 }
 
-export function connectionAreaRhs(empSuffix = ""): string {
-  return `(${connectionAreaNumerator(empSuffix)}) / 60`;
+export function connectionAreaRhs(empSuffix = "", tu = ""): string {
+  return `(${connectionAreaNumerator(empSuffix, tu)}) / 60`;
 }
 
-export function connectionAreaDisplay(empSuffix = ""): string {
-  return `Ad_c = ${connectionAreaRhs(empSuffix)}`;
+export function connectionAreaDisplay(empSuffix = "", tu = ""): string {
+  return `Ad_c = ${connectionAreaRhs(empSuffix, tu)}`;
 }
 
 export function boardingConnectionNumerator(
   pair: BoardingConnectionPair,
   empSuffix = "",
+  tu = "",
 ): string {
-  return `${boardingConnectionSpec(pair).dhpSymbol} × Emp${empSuffix} × Toi${empSuffix}`;
+  const demand = boardingConnectionSpec(pair).dhpSymbol;
+  const head = tu ? `${demand} × ${tu}` : demand;
+  return `${head} × Emp${empSuffix} × Toi${empSuffix}`;
 }
 
 export function boardingConnectionAreaDisplay(
   pair: BoardingConnectionPair,
   empSuffix = "",
+  tu = "",
 ): string {
   const lhs = boardingConnectionSpec(pair).areaSymbol;
-  return `${lhs} = (${boardingConnectionNumerator(pair, empSuffix)}) / 60`;
+  return `${lhs} = (${boardingConnectionNumerator(pair, empSuffix, tu)}) / 60`;
 }
 
 function boardingConnectionAreasClause(
   pairs: readonly BoardingConnectionPair[],
   empSuffix: string,
+  tu = "",
 ): string {
   return `${pairs
-    .map((pair) => boardingConnectionAreaDisplay(pair, empSuffix))
+    .map((pair) => boardingConnectionAreaDisplay(pair, empSuffix, tu))
     .join("; ")};`;
 }
 
@@ -336,14 +358,15 @@ export function simpleConnectionFormulaDisplay(
   companions: boolean,
   pairs: readonly BoardingConnectionPair[] = [],
   hall = true,
+  tu = "",
 ): string {
   const suffix = hall ? "_e" : "";
   const lhs = hall ? "Ad_e" : "Ad";
   const connection =
     pairs.length > 0
-      ? boardingConnectionAreasClause(pairs, suffix)
-      : `${connectionAreaDisplay(suffix)};`;
-  return `${lhs} = ${areaFormulaRhs(companions)}; ${connection} ${simpleConnectionSumDisplay(pairs, hall)}`;
+      ? boardingConnectionAreasClause(pairs, suffix, tu)
+      : `${connectionAreaDisplay(suffix, tu)};`;
+  return `${lhs} = ${areaFormulaRhs(companions, tu)}; ${connection} ${simpleConnectionSumDisplay(pairs, hall)}`;
 }
 
 export function demandSymbol(id: ComponentParamId): string {
